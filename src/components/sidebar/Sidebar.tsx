@@ -86,6 +86,8 @@ export function Sidebar({
     return true;
   });
 
+  console.log("bhjbd")
+
   const handleLogout = async () => {
     if (superAdminAuth.isAuthenticated) {
       await dispatch(superAdminLogout());
