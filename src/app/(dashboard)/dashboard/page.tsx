@@ -1,15 +1,26 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AnalyticsDashboardView } from "@/components/dashboard/AnalyticsDashboardView";
-import { AdminWalletDashboardView } from "@/components/dashboard/AdminWalletDashboardView";
 import { useRoleAccess } from "@/hooks/useAuth";
+import { ROUTES } from "@/constants";
 
-/** Dashboard — admin sees wallet view; other roles see analytics */
+/** Dashboard — admin redirects to /admin/dashboard; other roles see analytics */
 export default function DashboardPage() {
-  const { user } = useRoleAccess();
+  const { user, isAdminApiAuth } = useRoleAccess();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAdminApiAuth) {
+      router.replace(ROUTES.adminDashboard);
+    }
+  }, [isAdminApiAuth, router]);
+
+  if (isAdminApiAuth) return null;
 
   if (user?.role === "admin") {
-    return <AdminWalletDashboardView />;
+    return null;
   }
 
   return (

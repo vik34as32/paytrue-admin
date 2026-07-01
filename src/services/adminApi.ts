@@ -1,4 +1,4 @@
-import { adminModuleClient } from "@/lib/api/client";
+import { adminModuleClient, adminClient } from "@/lib/api/client";
 import { STORAGE_KEYS } from "@/constants/storage";
 import {
   AdminDashboardData,
@@ -14,9 +14,37 @@ import {
   AdminBusinessReportData,
   AdminListQueryParams,
   PaginatedAdminData,
-  CreateMasterDistributorApiPayload,
 } from "@/types/admin";
+import { UserFormValues } from "@/validations/userStepSchemas";
+import {
+  buildUserFormData,
+  extractUserFiles,
+} from "@/lib/buildUserFormData";
 import { ApiResponse } from "@/types";
+
+function readPaginationMeta(
+  obj: Record<string, unknown>
+): Pick<PaginatedAdminData<unknown>, "total" | "page" | "pageSize" | "totalPages"> {
+  const meta =
+    obj.meta && typeof obj.meta === "object"
+      ? (obj.meta as Record<string, unknown>)
+      : obj;
+
+  return {
+    total:
+      (meta.total as number | undefined) ?? (obj.total as number | undefined),
+    page:
+      (meta.page as number | undefined) ?? (obj.page as number | undefined),
+    pageSize:
+      (meta.limit as number | undefined) ??
+      (meta.pageSize as number | undefined) ??
+      (obj.pageSize as number | undefined) ??
+      (obj.limit as number | undefined),
+    totalPages:
+      (meta.totalPages as number | undefined) ??
+      (obj.totalPages as number | undefined),
+  };
+}
 
 function normalizePaginated<T>(
   result: unknown,
@@ -32,29 +60,177 @@ function normalizePaginated<T>(
   }
   if (result && typeof result === "object") {
     const obj = result as Record<string, unknown>;
-    if (Array.isArray(obj.data)) {
+
+    if (Array.isArray(obj.items)) {
+      const arr = obj.items as T[];
+      const pagination = readPaginationMeta(obj);
       return {
-        data: obj.data as T[],
-        total: (obj.total as number) ?? (obj.data as T[]).length,
-        page: obj.page as number | undefined,
-        pageSize: obj.pageSize as number | undefined,
-        totalPages: obj.totalPages as number | undefined,
+        data: arr,
+        total: pagination.total ?? arr.length,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalPages: pagination.totalPages,
       };
     }
+
+    if (Array.isArray(obj.data)) {
+      const arr = obj.data as T[];
+      const pagination = readPaginationMeta(obj);
+      return {
+        data: arr,
+        total: pagination.total ?? arr.length,
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalPages: pagination.totalPages,
+      };
+    }
+
     for (const key of nestedKeys) {
       if (Array.isArray(obj[key])) {
         const arr = obj[key] as T[];
+        const pagination = readPaginationMeta(obj);
         return {
           data: arr,
-          total: (obj.total as number) ?? arr.length,
-          page: obj.page as number | undefined,
-          pageSize: obj.pageSize as number | undefined,
-          totalPages: obj.totalPages as number | undefined,
+          total: pagination.total ?? arr.length,
+          page: pagination.page,
+          pageSize: pagination.pageSize,
+          totalPages: pagination.totalPages,
         };
       }
     }
   }
   return { data: [], total: 0, page: 1, pageSize: 10 };
+}
+
+function toApiListParams(params: AdminListQueryParams = {}) {
+  return {
+    page: params.page ?? 1,
+    limit: params.pageSize ?? 10,
+    search: params.search,
+    status: params.status,
+    sortBy: params.sortBy,
+    sortOrder: params.sortOrder,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    city: params.city,
+    state: params.state,
+    transactionType: params.transactionType,
+  };
+}
+
+function parseWalletAmount(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseRecordAmount(value: unknown): number {
+  const parsed = parseWalletAmount(value);
+  return parsed ?? 0;
+}
+
+function normalizeNetworkUser(raw: unknown): AdminNetworkUser {
+  if (!raw || typeof raw !== "object") {
+    return { id: "" };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const wallet =
+    obj.wallet && typeof obj.wallet === "object"
+      ? (obj.wallet as Record<string, unknown>)
+      : undefined;
+  const outlet =
+    obj.outlet && typeof obj.outlet === "object"
+      ? (obj.outlet as Record<string, unknown>)
+      : undefined;
+
+  const walletBalance =
+    parseWalletAmount(obj.walletBalance) ??
+    parseWalletAmount(wallet?.balance) ??
+    parseWalletAmount(wallet?.walletBalance) ??
+    0;
+
+  return {
+    ...(obj as AdminNetworkUser),
+    id: String(obj.id ?? obj._id ?? ""),
+    firstName: (obj.firstName as string | undefined) ?? undefined,
+    lastName: (obj.lastName as string | undefined) ?? undefined,
+    email: (obj.email as string | undefined) ?? undefined,
+    mobile: (obj.mobile as string | undefined) ?? undefined,
+    status: (obj.status as string | undefined) ?? undefined,
+    city: (obj.city as string | undefined) ?? (outlet?.city as string | undefined),
+    state: (obj.state as string | undefined) ?? (outlet?.state as string | undefined),
+    walletBalance,
+    createdAt: (obj.createdAt as string | undefined) ?? undefined,
+  };
+}
+
+function normalizeTransferRecord(raw: unknown): AdminWalletHistoryRecord {
+  if (!raw || typeof raw !== "object") {
+    return { id: "", amount: 0 };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const receiver =
+    obj.receiver && typeof obj.receiver === "object"
+      ? (obj.receiver as Record<string, unknown>)
+      : undefined;
+
+  const receiverFirstName = receiver?.firstName as string | undefined;
+  const receiverLastName = receiver?.lastName as string | undefined;
+  const receiverFullName = [receiverFirstName, receiverLastName]
+    .filter(Boolean)
+    .join(" ");
+
+  const description =
+    (obj.description as string | undefined) ??
+    (obj.remarks as string | undefined);
+
+  return {
+    id: String(obj.id ?? obj.transferId ?? obj.transactionId ?? ""),
+    transactionId: String(
+      obj.transferId ?? obj.transactionId ?? obj.id ?? ""
+    ),
+    transferId: String(obj.transferId ?? obj.id ?? ""),
+    amount: parseRecordAmount(obj.amount),
+    description,
+    remarks: description,
+    receiverName:
+      (obj.receiverName as string | undefined) ||
+      receiverFullName ||
+      (obj.masterDistributorName as string | undefined) ||
+      (obj.recipientName as string | undefined),
+    masterDistributorName:
+      (obj.masterDistributorName as string | undefined) || receiverFullName,
+    recipientName:
+      (obj.recipientName as string | undefined) || receiverFullName,
+    status: (obj.status as string | undefined) ?? undefined,
+    transactionType: (obj.transactionType as string | undefined) ?? "TRANSFER",
+    createdAt:
+      (obj.createdAt as string | undefined) ??
+      (obj.date as string | undefined),
+    date: (obj.date as string | undefined) ?? (obj.createdAt as string | undefined),
+    previousBalance: parseWalletAmount(obj.previousBalance ?? obj.balanceBefore),
+    currentBalance: parseWalletAmount(obj.currentBalance ?? obj.balanceAfter),
+    updatedBalance: parseWalletAmount(obj.updatedBalance ?? obj.balanceAfter),
+    balanceBefore: parseWalletAmount(obj.balanceBefore ?? obj.previousBalance),
+    balanceAfter: parseWalletAmount(obj.balanceAfter ?? obj.currentBalance),
+  };
+}
+
+export async function createUser(data: UserFormValues, userType: string) {
+  const files = extractUserFiles(data);
+  const formData = buildUserFormData(data, files, {
+    userType,
+    includePassword: true,
+  });
+
+  const { data: response } = await adminClient.post<
+    ApiResponse<AdminNetworkUser>
+  >("/users", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return normalizeNetworkUser(response.data);
 }
 
 export async function getDashboard(): Promise<AdminDashboardData> {
@@ -64,11 +240,46 @@ export async function getDashboard(): Promise<AdminDashboardData> {
   return data.data;
 }
 
+function normalizeWalletBalance(payload: unknown): AdminWalletBalanceData {
+  if (!payload || typeof payload !== "object") {
+    return { balance: 0, walletBalance: 0 };
+  }
+
+  const obj = payload as Record<string, unknown>;
+
+  if (obj.wallet && typeof obj.wallet === "object") {
+    const wallet = obj.wallet as Record<string, unknown>;
+    const balance =
+      parseWalletAmount(wallet.balance) ??
+      parseWalletAmount(wallet.walletBalance) ??
+      parseWalletAmount(wallet.availableBalance) ??
+      0;
+    return {
+      ...wallet,
+      balance,
+      walletBalance: balance,
+    };
+  }
+
+  const balance =
+    parseWalletAmount(obj.balance) ??
+    parseWalletAmount(obj.walletBalance) ??
+    parseWalletAmount(obj.availableBalance) ??
+    0;
+
+  return {
+    ...(obj as AdminWalletBalanceData),
+    balance,
+    walletBalance:
+      parseWalletAmount(obj.walletBalance) ??
+      parseWalletAmount(obj.balance) ??
+      balance,
+  };
+}
+
 export async function getWalletBalance(): Promise<AdminWalletBalanceData> {
-  const { data } = await adminModuleClient.get<
-    ApiResponse<AdminWalletBalanceData>
-  >("/wallet-balance");
-  return data.data;
+  const { data } = await adminClient.get<ApiResponse<unknown>>("/wallet");
+  return normalizeWalletBalance(data.data);
 }
 
 export async function getWalletHistory(
@@ -80,28 +291,35 @@ export async function getWalletHistory(
       | PaginatedAdminData<AdminWalletHistoryRecord>
       | { history: AdminWalletHistoryRecord[] }
     >
-  >("/wallet-history", { params });
-  return normalizePaginated<AdminWalletHistoryRecord>(data.data, ["history"]);
+  >("/wallet-history", { params: toApiListParams(params) });
+  const normalized = normalizePaginated<unknown>(data.data, ["history"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeTransferRecord),
+  };
 }
 
 export async function getTransferHistory(
   params: AdminListQueryParams = {}
 ): Promise<PaginatedAdminData<AdminWalletHistoryRecord>> {
-  const { data } = await adminModuleClient.get<
-    ApiResponse<
-      | AdminWalletHistoryRecord[]
-      | PaginatedAdminData<AdminWalletHistoryRecord>
-    >
-  >("/transfer-history", { params });
-  return normalizePaginated<AdminWalletHistoryRecord>(data.data, [
+  const { data } = await adminClient.get<ApiResponse<unknown>>(
+    "/wallet/transfers",
+    { params: toApiListParams(params) }
+  );
+  const normalized = normalizePaginated<unknown>(data.data, [
     "transfers",
     "history",
+    "items",
   ]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeTransferRecord),
+  };
 }
 
 export async function transferBalance(payload: AdminTransferPayload) {
-  const { data } = await adminModuleClient.post<ApiResponse<unknown>>(
-    "/transfer-balance",
+  const { data } = await adminClient.post<ApiResponse<unknown>>(
+    "/wallet/transfer",
     payload
   );
   return data.data;
@@ -157,21 +375,21 @@ export async function changePassword(payload: AdminChangePasswordPayload) {
 export async function getMasterDistributors(
   params: AdminListQueryParams = {}
 ): Promise<PaginatedAdminData<AdminNetworkUser>> {
-  const { data } = await adminModuleClient.get<
-    ApiResponse<PaginatedAdminData<AdminNetworkUser> | AdminNetworkUser[]>
-  >("/master-distributors", { params });
-  return normalizePaginated<AdminNetworkUser>(data.data, [
+  const { data } = await adminClient.get<ApiResponse<unknown>>("/users", {
+    params: {
+      ...toApiListParams(params),
+      userType: "MASTER_DISTRIBUTOR",
+    },
+  });
+  const normalized = normalizePaginated<unknown>(data.data, [
+    "users",
     "masterDistributors",
+    "items",
   ]);
-}
-
-export async function createMasterDistributor(
-  payload: CreateMasterDistributorApiPayload
-) {
-  const { data } = await adminModuleClient.post<
-    ApiResponse<AdminNetworkUser>
-  >("/master-distributors", payload);
-  return data.data;
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUser),
+  };
 }
 
 export async function getDistributors(
@@ -179,8 +397,12 @@ export async function getDistributors(
 ): Promise<PaginatedAdminData<AdminNetworkUser>> {
   const { data } = await adminModuleClient.get<
     ApiResponse<PaginatedAdminData<AdminNetworkUser> | AdminNetworkUser[]>
-  >("/distributors", { params });
-  return normalizePaginated<AdminNetworkUser>(data.data, ["distributors"]);
+  >("/distributors", { params: toApiListParams(params) });
+  const normalized = normalizePaginated<unknown>(data.data, ["distributors"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUser),
+  };
 }
 
 export async function getRetailers(
@@ -188,8 +410,12 @@ export async function getRetailers(
 ): Promise<PaginatedAdminData<AdminNetworkUser>> {
   const { data } = await adminModuleClient.get<
     ApiResponse<PaginatedAdminData<AdminNetworkUser> | AdminNetworkUser[]>
-  >("/retailers", { params });
-  return normalizePaginated<AdminNetworkUser>(data.data, ["retailers"]);
+  >("/retailers", { params: toApiListParams(params) });
+  const normalized = normalizePaginated<unknown>(data.data, ["retailers"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUser),
+  };
 }
 
 export async function createFundRequest(payload: AdminFundRequestPayload) {
@@ -206,7 +432,7 @@ export async function getFundRequests(
     ApiResponse<
       PaginatedAdminData<AdminFundRequestRecord> | AdminFundRequestRecord[]
     >
-  >("/fund-requests", { params });
+  >("/fund-requests", { params: toApiListParams(params) });
   return normalizePaginated<AdminFundRequestRecord>(data.data, [
     "fundRequests",
   ]);
@@ -217,7 +443,7 @@ export async function getBusinessReport(
 ): Promise<AdminBusinessReportData> {
   const { data } = await adminModuleClient.get<
     ApiResponse<AdminBusinessReportData>
-  >("/business-report", { params });
+  >("/business-report", { params: toApiListParams(params) });
   return data.data;
 }
 
@@ -229,4 +455,8 @@ export function getNetworkUserName(user: AdminNetworkUser): string {
 
 export function getNetworkUserId(user: AdminNetworkUser): string {
   return user.id;
+}
+
+export function getNetworkUserBalance(user: AdminNetworkUser): number {
+  return user.walletBalance ?? 0;
 }

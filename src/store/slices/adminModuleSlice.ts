@@ -19,7 +19,7 @@ import {
   updateAdminProfile,
   updateAdminPassword,
   fetchAdminMasterDistributors,
-  registerMasterDistributor,
+  registerUser,
   fetchAdminDistributors,
   fetchAdminRetailers,
   submitAdminFundRequest,
@@ -87,7 +87,7 @@ interface AdminModuleState {
   changePasswordLoading: boolean;
   transferLoading: boolean;
   fundRequestLoading: boolean;
-  createMasterDistributorLoading: boolean;
+  createUserLoading: boolean;
   isLoadingBusinessReport: boolean;
   isSessionLoading: boolean;
   error: string | null;
@@ -112,7 +112,7 @@ const initialState: AdminModuleState = {
   changePasswordLoading: false,
   transferLoading: false,
   fundRequestLoading: false,
-  createMasterDistributorLoading: false,
+  createUserLoading: false,
   isLoadingBusinessReport: false,
   isSessionLoading: false,
   error: null,
@@ -251,14 +251,14 @@ const adminModuleSlice = createSlice({
         state.masterDistributors.isLoading = false;
         state.masterDistributors.error = action.payload as string;
       })
-      .addCase(registerMasterDistributor.pending, (state) => {
-        state.createMasterDistributorLoading = true;
+      .addCase(registerUser.pending, (state) => {
+        state.createUserLoading = true;
       })
-      .addCase(registerMasterDistributor.fulfilled, (state) => {
-        state.createMasterDistributorLoading = false;
+      .addCase(registerUser.fulfilled, (state) => {
+        state.createUserLoading = false;
       })
-      .addCase(registerMasterDistributor.rejected, (state, action) => {
-        state.createMasterDistributorLoading = false;
+      .addCase(registerUser.rejected, (state, action) => {
+        state.createUserLoading = false;
         state.error = action.payload as string;
       })
       .addCase(fetchAdminDistributors.pending, (state) => {

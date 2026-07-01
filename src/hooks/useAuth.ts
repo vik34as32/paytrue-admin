@@ -13,22 +13,18 @@ const PUBLIC_ROUTES = [ROUTES.login, ROUTES.superAdminLogin];
 const ROLE_ROUTES: Record<UserRole, string[]> = {
   super_admin: Object.values(ROUTES),
   admin: [
-    ROUTES.dashboard,
     ROUTES.admin,
+    ROUTES.adminDashboard,
+    ROUTES.adminMasterDistributor,
     ROUTES.adminCreateMasterDistributor,
-    ROUTES.masterDistributor,
-    ROUTES.distributor,
-    ROUTES.retailer,
-    ROUTES.transactions,
-    ROUTES.balanceTransfer,
-    ROUTES.requests,
-    ROUTES.reports,
-    ROUTES.ledger,
-    ROUTES.hierarchy,
-    ROUTES.history,
-    ROUTES.profile,
+    ROUTES.adminBalanceTransfer,
+    ROUTES.adminHistory,
+    ROUTES.adminProfile,
     ROUTES.adminChangePassword,
-    ROUTES.settings,
+    ROUTES.adminReports,
+    ROUTES.adminHierarchy,
+    ROUTES.adminLedger,
+    ROUTES.adminFundRequests,
   ],
   master_distributor: [
     ROUTES.dashboard,
@@ -116,7 +112,18 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
     }
 
     if (isAuthenticated && pathname === ROUTES.login) {
-      router.replace(ROUTES.dashboard);
+      router.replace(
+        user?.role === "admin" ? ROUTES.adminDashboard : ROUTES.dashboard
+      );
+      return;
+    }
+
+    if (
+      isAuthenticated &&
+      user?.role === "admin" &&
+      pathname === ROUTES.dashboard
+    ) {
+      router.replace(ROUTES.adminDashboard);
       return;
     }
 
@@ -136,7 +143,9 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
         pathname.startsWith("/retailer");
 
       if (!hasAccess && user.role !== "super_admin") {
-        router.replace(ROUTES.dashboard);
+        router.replace(
+          user.role === "admin" ? ROUTES.adminDashboard : ROUTES.dashboard
+        );
       }
 
       if (allowedRoles && !allowedRoles.includes(user.role)) {

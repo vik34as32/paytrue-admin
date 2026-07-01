@@ -2,21 +2,17 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { AdminDashboardView } from "@/components/admin/AdminDashboardView";
-import { useRoleAccess } from "@/hooks/useAuth";
 import { ROUTES } from "@/constants";
+import { useAdminGuard } from "@/hooks/useAdminGuard";
 
-export default function AdminPage() {
-  const { isAdminApiAuth } = useRoleAccess();
+export default function AdminIndexPage() {
   const router = useRouter();
+  const { isAdminApiAuth, isLoading } = useAdminGuard();
 
   useEffect(() => {
-    if (!isAdminApiAuth) {
-      router.replace(ROUTES.dashboard);
-    }
-  }, [isAdminApiAuth, router]);
+    if (isLoading) return;
+    router.replace(isAdminApiAuth ? ROUTES.adminDashboard : ROUTES.login);
+  }, [isAdminApiAuth, isLoading, router]);
 
-  if (!isAdminApiAuth) return null;
-
-  return <AdminDashboardView />;
+  return null;
 }

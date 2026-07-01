@@ -19,8 +19,8 @@ import {
   selectAdminBalance,
 } from "@/store/selectors/adminSelectors";
 import {
+  getNetworkUserBalance,
   getNetworkUserId,
-  getNetworkUserName,
 } from "@/services/adminApi";
 import { formatCurrency } from "@/lib/utils";
 import { IndianRupee } from "lucide-react";
@@ -57,18 +57,23 @@ export function AdminTransferBalanceForm({
 
   const options =
     masterDistributors.data.length > 0
-      ? masterDistributors.data.map((md) => ({
-          value: getNetworkUserId(md),
-          label: `${getNetworkUserName(md)} — ${formatCurrency(md.walletBalance ?? 0)}`,
-        }))
+      ? masterDistributors.data.map((md) => {
+          const firstName = md.firstName || "—";
+          const lastName = md.lastName || "—";
+          const currentUserBalance = formatCurrency(getNetworkUserBalance(md));
+          return {
+            value: getNetworkUserId(md),
+            label: `${firstName} ${lastName} — ${currentUserBalance}`,
+          };
+        })
       : [{ value: "", label: "No master distributors found" }];
 
   const onSubmit = async (data: AdminTransferFormData) => {
     const result = await dispatch(
       adminTransferBalance({
-        masterDistributorId: data.masterDistributorId,
+        receiverId: data.receiverId,
         amount: data.amount,
-        remarks: data.remarks,
+        description: data.description,
       })
     );
     if (adminTransferBalance.fulfilled.match(result)) {
@@ -105,10 +110,10 @@ export function AdminTransferBalanceForm({
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <Select
-          label="Master Distributor"
+          label="Receiver"
           options={[{ value: "", label: "Select master distributor" }, ...options]}
-          error={errors.masterDistributorId?.message}
-          {...register("masterDistributorId")}
+          error={errors.receiverId?.message}
+          {...register("receiverId")}
         />
         <Input
           label="Amount (₹)"
@@ -119,10 +124,10 @@ export function AdminTransferBalanceForm({
           {...register("amount", { valueAsNumber: true })}
         />
         <Textarea
-          label="Remarks"
+          label="Description"
           placeholder="Purpose of transfer..."
-          error={errors.remarks?.message}
-          {...register("remarks")}
+          error={errors.description?.message}
+          {...register("description")}
         />
         <Button type="submit" isLoading={transferLoading} disabled={transferLoading}>
           Transfer Balance

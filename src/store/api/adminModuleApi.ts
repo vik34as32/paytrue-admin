@@ -9,7 +9,7 @@ import {
   updateProfile,
   changePassword,
   getMasterDistributors,
-  createMasterDistributor,
+  createUser,
   getDistributors,
   getRetailers,
   createFundRequest,
@@ -23,8 +23,11 @@ import {
   AdminFundRequestPayload,
   AdminUpdateProfilePayload,
   AdminChangePasswordPayload,
-  CreateMasterDistributorApiPayload,
 } from "@/types/admin";
+import {
+  AdminCreateUserType,
+  UserFormValues,
+} from "@/validations/userStepSchemas";
 import { getAdminToken } from "@/services/adminAuth";
 
 export const loadAdminSession = createAsyncThunk(
@@ -184,19 +187,28 @@ export const fetchAdminMasterDistributors = createAsyncThunk(
   }
 );
 
-export const registerMasterDistributor = createAsyncThunk(
-  "adminModule/createMasterDistributor",
-  async (payload: CreateMasterDistributorApiPayload, { dispatch, rejectWithValue }) => {
+export interface RegisterUserPayload {
+  data: UserFormValues;
+  userType: AdminCreateUserType;
+}
+
+export const registerUser = createAsyncThunk(
+  "adminModule/registerUser",
+  async (payload: RegisterUserPayload, { dispatch, rejectWithValue }) => {
     try {
-      const result = await createMasterDistributor(payload);
-      await dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 10 }));
+      const result = await createUser(payload.data, payload.userType);
+      if (payload.userType === "MASTER_DISTRIBUTOR") {
+        await dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 10 }));
+      } else if (payload.userType === "DISTRIBUTOR") {
+        await dispatch(fetchAdminDistributors({ page: 1, pageSize: 10 }));
+      } else {
+        await dispatch(fetchAdminRetailers({ page: 1, pageSize: 10 }));
+      }
       await dispatch(fetchAdminDashboard({ force: true }));
       return result;
     } catch (error) {
       return rejectWithValue(
-        error instanceof Error
-          ? error.message
-          : "Failed to create master distributor"
+        error instanceof Error ? error.message : "Failed to create user"
       );
     }
   }

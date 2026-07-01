@@ -20,10 +20,37 @@ export const superAdminPublicClient = axios.create({
 });
 
 function getErrorMessage(error: AxiosError): string {
+  const status = error.response?.status;
   const data = error.response?.data as
-    | { message?: string; error?: string }
+    | {
+        message?: string;
+        error?: string;
+        errors?: Record<string, string[] | string> | string[];
+      }
     | undefined;
-  return data?.message || data?.error || error.message || "An unexpected error occurred";
+
+  if (data?.errors) {
+    if (Array.isArray(data.errors)) {
+      return data.errors.join(", ");
+    }
+    const fieldMessages = Object.values(data.errors)
+      .flatMap((value) => (Array.isArray(value) ? value : [value]))
+      .filter(Boolean);
+    if (fieldMessages.length > 0) {
+      return fieldMessages.join(", ");
+    }
+  }
+
+  if (data?.message) return data.message;
+  if (data?.error) return data.error;
+
+  if (status === 403) return "You do not have permission to perform this action";
+  if (status === 404) return "The requested resource was not found";
+  if (status === 422) return "Validation failed. Please check your input";
+  if (status === 500) return "Server error. Please try again later";
+  if (!error.response) return "Network error. Please check your connection";
+
+  return error.message || "An unexpected error occurred";
 }
 
 export function createAuthenticatedClient(
@@ -41,7 +68,9 @@ export function createAuthenticatedClient(
     (config: InternalAxiosRequestConfig) => {
       if (typeof window === "undefined") return config;
 
-      const token = localStorage.getItem(tokenKey);
+      const token =
+        localStorage.getItem(tokenKey) ||
+        sessionStorage.getItem(tokenKey);
       if (!token) {
         return Promise.reject(new Error("Authentication required"));
       }

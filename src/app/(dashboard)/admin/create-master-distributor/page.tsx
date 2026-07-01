@@ -1,43 +1,39 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/common/PageHeader";
-import { CreateMasterDistributorForm } from "@/components/forms/CreateMasterDistributorForm";
+import { UserMultiStepForm } from "@/components/forms/UserMultiStepForm";
 import { Button } from "@/components/common/Button";
-import { useRoleAccess } from "@/hooks/useAuth";
+import { AdminPageShell } from "@/components/admin/AdminPageShell";
 import { ROUTES } from "@/constants";
 import { ArrowLeft } from "lucide-react";
 
 export default function CreateMasterDistributorPage() {
-  const { isAdminApiAuth } = useRoleAccess();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isAdminApiAuth) {
-      router.replace(ROUTES.dashboard);
-    }
-  }, [isAdminApiAuth, router]);
-
-  if (!isAdminApiAuth) return null;
-
   return (
-    <div className="page-container mx-auto max-w-5xl">
-      <PageHeader
-        breadcrumb="Registration"
-        title="Create Master Distributor"
-        subtitle="Complete the multi-step registration with personal, outlet, KYC and bank details"
-        action={
-          <Link href={ROUTES.dashboard}>
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-        }
-      />
-      <CreateMasterDistributorForm />
-    </div>
+    <AdminPageShell>
+      <div className="page-container mx-auto max-w-5xl">
+        <PageHeader
+          breadcrumb="Admin"
+          title="Create Master Distributor"
+          subtitle="Complete the multi-step registration with personal, outlet, KYC and bank details"
+          action={
+            <Link href={ROUTES.adminMasterDistributor}>
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            </Link>
+          }
+        />
+        <UserMultiStepForm
+          userType="MASTER_DISTRIBUTOR"
+          submitLabel="Create Master Distributor"
+          successTitle="Master Distributor Created!"
+          successMessage="The master distributor has been onboarded successfully."
+          successToast="Master Distributor created successfully"
+          successRedirect={ROUTES.adminMasterDistributor}
+        />
+      </div>
+    </AdminPageShell>
   );
 }

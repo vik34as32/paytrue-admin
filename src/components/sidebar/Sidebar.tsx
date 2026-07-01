@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { SIDEBAR_ITEMS, APP_NAME, ROUTES } from "@/constants";
+import { SIDEBAR_ITEMS, ADMIN_SIDEBAR_ITEMS, APP_NAME, ROUTES } from "@/constants";
 import {
   LayoutDashboard,
   Users,
@@ -72,7 +72,10 @@ export function Sidebar({
     ? "super_admin"
     : ((user?.role || "retailer") as UserRole);
 
-  const filteredItems = SIDEBAR_ITEMS.filter((item) => {
+  const filteredItems =
+    userRole === "admin"
+      ? ADMIN_SIDEBAR_ITEMS
+      : SIDEBAR_ITEMS.filter((item) => {
     const roles = item.roles as readonly UserRole[];
     if (!roles.includes(userRole)) return false;
     if (item.href === ROUTES.balanceTransfer && !canTransferBalance)
@@ -86,7 +89,11 @@ export function Sidebar({
     return true;
   });
 
-  console.log("bhjbd")
+  const homeHref = superAdminAuth.isAuthenticated
+    ? ROUTES.superAdminDashboard
+    : userRole === "admin"
+      ? ROUTES.adminDashboard
+      : ROUTES.dashboard;
 
   const handleLogout = async () => {
     if (superAdminAuth.isAuthenticated) {
@@ -116,11 +123,7 @@ export function Sidebar({
         <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5">
   {!collapsed && (
     <Link
-      href={
-        superAdminAuth.isAuthenticated
-          ? ROUTES.superAdminDashboard
-          : ROUTES.dashboard
-      }
+      href={homeHref}
       className="group flex items-center gap-3 transition-all duration-200"
     >
       <div className="flex items-center">

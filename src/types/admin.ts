@@ -55,23 +55,28 @@ export interface AdminWalletBalanceData {
 export interface AdminWalletHistoryRecord {
   id: string;
   transactionId?: string;
+  transferId?: string;
   date?: string;
   createdAt?: string;
-  transactionType: string;
+  transactionType?: string;
   amount: number;
   previousBalance?: number;
   currentBalance?: number;
   updatedBalance?: number;
+  balanceBefore?: number;
+  balanceAfter?: number;
   remarks?: string;
+  description?: string;
   recipientName?: string;
+  receiverName?: string;
   masterDistributorName?: string;
   status?: string;
 }
 
 export interface AdminTransferPayload {
-  masterDistributorId: string;
+  receiverId: string;
   amount: number;
-  remarks?: string;
+  description: string;
 }
 
 export interface AdminFundRequestPayload {
@@ -122,6 +127,8 @@ export interface AdminNetworkUser {
   city?: string;
   state?: string;
   walletBalance?: number;
+  business?: number;
+  totalBusiness?: number;
   createdAt?: string;
   [key: string]: string | number | undefined;
 }
@@ -137,22 +144,51 @@ export interface AdminBusinessReportData {
   [key: string]: string | number | undefined;
 }
 
-export interface CreateMasterDistributorApiPayload {
-  firstName: string;
-  lastName: string;
-  email: string;
-  mobile: string;
-  dateOfBirth: string;
-  gender: string;
+export interface CreateMasterDistributorOutletPayload {
   outletName: string;
-  outletAddress: string;
-  city: string;
+  businessType: string;
+  gstNumber: string;
+  address: string;
   state: string;
+  district: string;
+  city: string;
+  village: string;
   pincode: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface CreateMasterDistributorKycPayload {
   aadhaarNumber: string;
+  aadhaarFrontImage: string;
+  aadhaarBackImage: string;
   panNumber: string;
+  panCardImage: string;
+  ownerPhoto: string;
+  videoVerification: string;
+}
+
+export interface CreateMasterDistributorBankPayload {
   accountHolderName: string;
+  bankName: string;
   accountNumber: string;
   ifscCode: string;
-  bankName: string;
+  passbookImage: string;
+  cancelledChequeImage: string;
+}
+
+export interface CreateMasterDistributorApiPayload {
+  email: string;
+  mobile: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  userType: "MASTER_DISTRIBUTOR";
+  alternateMobileNumber: string;
+  profileImage: string;
+  stateId: string;
+  districtId: string;
+  outlet: CreateMasterDistributorOutletPayload;
+  kyc: CreateMasterDistributorKycPayload;
+  bankAccount: CreateMasterDistributorBankPayload;
 }

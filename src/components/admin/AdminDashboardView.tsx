@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { ColumnDef } from "@tanstack/react-table";
 import { Card, CardHeader } from "@/components/common/Card";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/cards/StatCard";
 import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/common/Badge";
+import { BarChartCard } from "@/components/charts/BarChartCard";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
-import { fetchAdminDashboard } from "@/store/api/adminModuleApi";
+import {
+  fetchAdminDashboard,
+  fetchAdminWalletBalance,
+} from "@/store/api/adminModuleApi";
 import {
   selectAdminDashboard,
   selectAdminBalance,
@@ -18,6 +23,7 @@ import {
 } from "@/store/selectors/adminSelectors";
 import { ROUTES, GRADIENT_CARDS } from "@/constants";
 import { AdminActivityItem } from "@/types/admin";
+import { ChartDataPoint } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   Wallet,
@@ -64,6 +70,13 @@ export function AdminDashboardView() {
 
   useEffect(() => {
     dispatch(fetchAdminDashboard({ force: true }));
+    dispatch(fetchAdminWalletBalance({ force: true })).then((result) => {
+      if (fetchAdminWalletBalance.rejected.match(result)) {
+        toast.error(
+          (result.payload as string) || "Failed to load wallet balance"
+        );
+      }
+    });
   }, [dispatch]);
 
   const primaryBalance = resolveAdminPrimaryBalance(balance);
@@ -71,15 +84,30 @@ export function AdminDashboardView() {
 
   const statCards = [
     {
-      title: "Wallet Balance",
-      value:
-        isLoadingBalance || isLoadingDashboard
-          ? "..."
-          : formatCurrency(
-              getDashboardMetric(dashboard, ["walletBalance"]) || primaryBalance
-            ),
+      title: "Current Balance",
+      value: isLoadingBalance
+        ? "..."
+        : formatCurrency(primaryBalance),
       icon: <Wallet className="h-5 w-5" />,
       gradient: GRADIENT_CARDS[0],
+    },
+    {
+      title: "Master Distributors",
+      value: getDashboardMetric(dashboard, ["totalMasterDistributors"]),
+      icon: <Building2 className="h-5 w-5" />,
+      gradient: GRADIENT_CARDS[1],
+    },
+    {
+      title: "Distributors",
+      value: getDashboardMetric(dashboard, ["totalDistributors"]),
+      icon: <Store className="h-5 w-5" />,
+      gradient: GRADIENT_CARDS[2],
+    },
+    {
+      title: "Retailers",
+      value: getDashboardMetric(dashboard, ["totalRetailers"]),
+      icon: <Users className="h-5 w-5" />,
+      gradient: GRADIENT_CARDS[3],
     },
     {
       title: "Today's Business",
@@ -87,7 +115,15 @@ export function AdminDashboardView() {
         getDashboardMetric(dashboard, ["todaysBusiness", "todayBusiness"])
       ),
       icon: <TrendingUp className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[1],
+      gradient: GRADIENT_CARDS[4],
+    },
+    {
+      title: "Monthly Business",
+      value: formatCurrency(
+        getDashboardMetric(dashboard, ["monthlyBusiness"])
+      ),
+      icon: <TrendingUp className="h-5 w-5" />,
+      gradient: GRADIENT_CARDS[5],
     },
     {
       title: "Total Business",
@@ -95,7 +131,7 @@ export function AdminDashboardView() {
         getDashboardMetric(dashboard, ["totalBusiness"])
       ),
       icon: <TrendingUp className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[2],
+      gradient: GRADIENT_CARDS[6],
     },
     {
       title: "Today's Transactions",
@@ -104,33 +140,36 @@ export function AdminDashboardView() {
         "todayTransactions",
       ]),
       icon: <ArrowRightLeft className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[3],
+      gradient: GRADIENT_CARDS[7],
     },
     {
       title: "Total Transactions",
       value: getDashboardMetric(dashboard, ["totalTransactions"]),
       icon: <ArrowRightLeft className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[4],
-    },
-    {
-      title: "Master Distributors",
-      value: getDashboardMetric(dashboard, ["totalMasterDistributors"]),
-      icon: <Building2 className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[5],
-    },
-    {
-      title: "Distributors",
-      value: getDashboardMetric(dashboard, ["totalDistributors"]),
-      icon: <Store className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[6],
-    },
-    {
-      title: "Retailers",
-      value: getDashboardMetric(dashboard, ["totalRetailers"]),
-      icon: <Users className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[7],
+      gradient: GRADIENT_CARDS[0],
     },
   ];
+
+  const businessChart: ChartDataPoint[] = useMemo(
+    () => [
+      {
+        name: "Today",
+        value: getDashboardMetric(dashboard, [
+          "todaysBusiness",
+          "todayBusiness",
+        ]),
+      },
+      {
+        name: "Monthly",
+        value: getDashboardMetric(dashboard, ["monthlyBusiness"]),
+      },
+      {
+        name: "Total",
+        value: getDashboardMetric(dashboard, ["totalBusiness"]),
+      },
+    ],
+    [dashboard]
+  );
 
   return (
     <div className="page-container">
@@ -158,6 +197,13 @@ export function AdminDashboardView() {
         ))}
       </div>
 
+      <BarChartCard
+        title="Business Overview"
+        data={businessChart}
+        dataKey="value"
+        color="#4318FF"
+      />
+
       {recentActivity.length > 0 && (
         <Card>
           <CardHeader title="Recent Activity" subtitle="Latest admin activity" />
@@ -171,22 +217,22 @@ export function AdminDashboardView() {
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href={ROUTES.balanceTransfer}>
+        <Link href={ROUTES.adminBalanceTransfer}>
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardHeader title="Transfer Balance" subtitle="Send to master distributors" />
           </Card>
         </Link>
-        <Link href={ROUTES.requests}>
+        <Link href={ROUTES.adminFundRequests}>
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardHeader title="Fund Request" subtitle="Request balance from super admin" />
           </Card>
         </Link>
-        <Link href={ROUTES.masterDistributor}>
+        <Link href={ROUTES.adminMasterDistributor}>
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardHeader title="Master Distributors" subtitle="Manage your downline" />
           </Card>
         </Link>
-        <Link href={ROUTES.reports}>
+        <Link href={ROUTES.adminReports}>
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
             <CardHeader title="Business Report" subtitle="View downline business" />
           </Card>
