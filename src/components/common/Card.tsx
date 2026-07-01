@@ -10,7 +10,7 @@ export function Card({ children, className, padding = true }: CardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-card shadow-[0px_18px_40px_rgba(112,144,176,0.12)]",
+        "rounded-2xl border border-border bg-card shadow-[0px_4px_24px_rgba(112,144,176,0.08)] transition-shadow hover:shadow-[0px_8px_32px_rgba(112,144,176,0.12)]",
         padding && "p-6",
         className
       )}

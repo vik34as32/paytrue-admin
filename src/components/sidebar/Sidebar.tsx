@@ -5,38 +5,46 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SIDEBAR_ITEMS, APP_NAME, ROUTES } from "@/constants";
 import {
-  HiOutlineViewGrid,
-  HiOutlineUsers,
-  HiOutlineSwitchHorizontal,
-  HiOutlineCurrencyRupee,
-  HiOutlineClipboardList,
-  HiOutlineDocumentReport,
-  HiOutlineBookOpen,
-  HiOutlineStatusOnline,
-  HiOutlineClock,
-  HiOutlineUser,
-  HiOutlineCog,
-  HiOutlineLogout,
-  HiChevronLeft,
-  HiChevronRight,
-} from "react-icons/hi";
-import { useAppDispatch } from "@/hooks/useAppStore";
+  LayoutDashboard,
+  Users,
+  ArrowLeftRight,
+  IndianRupee,
+  ClipboardList,
+  FileBarChart,
+  BookOpen,
+  Network,
+  Clock,
+  User,
+  Settings,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Store,
+  Building2,
+  ShoppingBag,
+} from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { logoutUser } from "@/store/api/authApi";
+import { superAdminLogout } from "@/store/api/superAdminAuthApi";
 import { useRouter } from "next/navigation";
 import { useRoleAccess } from "@/hooks/useAuth";
+import { UserRole } from "@/types";
 
 const iconMap: Record<string, React.ReactNode> = {
-  dashboard: <HiOutlineViewGrid className="h-5 w-5" />,
-  users: <HiOutlineUsers className="h-5 w-5" />,
-  transactions: <HiOutlineSwitchHorizontal className="h-5 w-5" />,
-  transfer: <HiOutlineCurrencyRupee className="h-5 w-5" />,
-  requests: <HiOutlineClipboardList className="h-5 w-5" />,
-  reports: <HiOutlineDocumentReport className="h-5 w-5" />,
-  ledger: <HiOutlineBookOpen className="h-5 w-5" />,
-  hierarchy: <HiOutlineStatusOnline className="h-5 w-5" />,
-  history: <HiOutlineClock className="h-5 w-5" />,
-  profile: <HiOutlineUser className="h-5 w-5" />,
-  settings: <HiOutlineCog className="h-5 w-5" />,
+  dashboard: <LayoutDashboard className="h-5 w-5" />,
+  users: <Users className="h-5 w-5" />,
+  masterDistributor: <Building2 className="h-5 w-5" />,
+  distributor: <Store className="h-5 w-5" />,
+  retailer: <ShoppingBag className="h-5 w-5" />,
+  transactions: <ArrowLeftRight className="h-5 w-5" />,
+  transfer: <IndianRupee className="h-5 w-5" />,
+  requests: <ClipboardList className="h-5 w-5" />,
+  reports: <FileBarChart className="h-5 w-5" />,
+  ledger: <BookOpen className="h-5 w-5" />,
+  hierarchy: <Network className="h-5 w-5" />,
+  history: <Clock className="h-5 w-5" />,
+  profile: <User className="h-5 w-5" />,
+  settings: <Settings className="h-5 w-5" />,
 };
 
 interface SidebarProps {
@@ -55,10 +63,18 @@ export function Sidebar({
   const pathname = usePathname();
   const dispatch = useAppDispatch();
   const router = useRouter();
-  const { canTransferBalance, canApproveRequests, canRequestBalance, isSuperAdmin } =
+  const { user } = useAppSelector((state) => state.auth);
+  const superAdminAuth = useAppSelector((state) => state.superAdminAuth);
+  const { canTransferBalance, canApproveRequests, canRequestBalance } =
     useRoleAccess();
 
+  const userRole: UserRole = superAdminAuth.isAuthenticated
+    ? "super_admin"
+    : ((user?.role || "retailer") as UserRole);
+
   const filteredItems = SIDEBAR_ITEMS.filter((item) => {
+    const roles = item.roles as readonly UserRole[];
+    if (!roles.includes(userRole)) return false;
     if (item.href === ROUTES.balanceTransfer && !canTransferBalance)
       return false;
     if (
@@ -67,20 +83,24 @@ export function Sidebar({
       !canRequestBalance
     )
       return false;
-    if (item.href === ROUTES.users && !isSuperAdmin) return false;
     return true;
   });
 
   const handleLogout = async () => {
-    await dispatch(logoutUser());
-    router.push(ROUTES.login);
+    if (superAdminAuth.isAuthenticated) {
+      await dispatch(superAdminLogout());
+      router.push(ROUTES.superAdminLogin);
+    } else {
+      await dispatch(logoutUser());
+      router.push(ROUTES.login);
+    }
   };
 
   return (
     <>
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -91,26 +111,51 @@ export function Sidebar({
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-border px-4">
-          {!collapsed && (
-            <Link href={ROUTES.dashboard} className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl  text-white font-bold text-sm">
-                <img src="/images/logo.png" alt="logo" />
-              </div>
-              <span className="font-bold text-foreground">{APP_NAME}</span>
-            </Link>
-          )}
-          <button
-            onClick={onToggle}
-            className="hidden rounded-lg p-1.5 text-muted hover:bg-background lg:block"
-          >
-            {collapsed ? (
-              <HiChevronRight className="h-5 w-5" />
-            ) : (
-              <HiChevronLeft className="h-5 w-5" />
-            )}
-          </button>
-        </div>
+        <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5">
+  {!collapsed && (
+    <Link
+      href={
+        superAdminAuth.isAuthenticated
+          ? ROUTES.superAdminDashboard
+          : ROUTES.dashboard
+      }
+      className="group flex items-center gap-3 transition-all duration-200"
+    >
+      <div className="flex items-center">
+  <img
+    src="/images/logo.png"
+    alt="PayTrue Logo"
+    width={250}
+    height={250}
+    className="h-10 w-auto object-contain"
+  />
+</div>
+
+      {/* Brand */}
+      <div className="flex flex-col leading-none">
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          <span className="text-[#0A2A66]">Pay</span>
+          <span className="text-[#1E88FF]">true</span>
+        </h1>
+
+        {/* <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
+          DIGITAL PAYMENT SOLUTIONS
+        </span> */}
+      </div>
+    </Link>
+  )}
+
+  <button
+    onClick={onToggle}
+    className="hidden rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:text-[#1E88FF] hover:shadow-md lg:flex"
+  >
+    {collapsed ? (
+      <ChevronRight className="h-5 w-5" />
+    ) : (
+      <ChevronLeft className="h-5 w-5" />
+    )}
+  </button>
+</div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
           {filteredItems.map((item) => {
@@ -138,9 +183,9 @@ export function Sidebar({
         <div className="border-t border-border p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-accent-red hover:bg-accent-red/10 transition-all"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-accent-red transition-all hover:bg-accent-red/10"
           >
-            <HiOutlineLogout className="h-5 w-5" />
+            <LogOut className="h-5 w-5" />
             {!collapsed && <span>Logout</span>}
           </button>
         </div>

@@ -1,114 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useCallback, useEffect, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { toast } from "sonner";
-import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
-import {
-  fetchRequests,
-  createBalanceRequest,
-  approveBalanceRequest,
-  rejectBalanceRequest,
-} from "@/store/slices/requestSlice";
-import { useRoleAccess } from "@/hooks/useAuth";
-import {
-  requestAmountSchema,
-  requestApprovalSchema,
-  requestRejectionSchema,
-  RequestAmountFormData,
-  RequestApprovalFormData,
-  RequestRejectionFormData,
-} from "@/validations";
-import { DataTable } from "@/components/tables/DataTable";
 import { Card, CardHeader } from "@/components/common/Card";
-import { Input } from "@/components/common/Input";
-import { Button } from "@/components/common/Button";
+import { PageHeader } from "@/components/common/PageHeader";
+import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/common/Badge";
-import { Modal } from "@/components/modals/Modal";
-import { BalanceRequest } from "@/types";
+import { AdminFundRequestForm } from "@/components/admin/AdminFundRequestForm";
+import {
+  AdminListFilters,
+  AdminListFiltersValue,
+} from "@/components/admin/AdminListFilters";
+import { useRoleAccess } from "@/hooks/useAuth";
+import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
+import { fetchAdminFundRequests } from "@/store/api/adminModuleApi";
+import { selectAdminFundRequests } from "@/store/selectors/adminSelectors";
+import { AdminFundRequestRecord } from "@/types/admin";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { ROLES } from "@/constants";
+
+const PAGE_SIZE = 10;
 
 export default function RequestsPage() {
   const dispatch = useAppDispatch();
-  const { requests, isLoading } = useAppSelector((state) => state.requests);
-  const { user, canApproveRequests, canRequestBalance } = useRoleAccess();
-  const [selectedRequest, setSelectedRequest] = useState<BalanceRequest | null>(null);
-  const [action, setAction] = useState<"approve" | "reject" | null>(null);
+  const { isAdminApiAuth } = useRoleAccess();
+  const { data, total, isLoading, error } = useAppSelector(selectAdminFundRequests);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<AdminListFiltersValue>({});
 
-  const requestForm = useForm<RequestAmountFormData>({
-    resolver: zodResolver(requestAmountSchema),
-  });
-
-  const approvalForm = useForm<RequestApprovalFormData>({
-    resolver: zodResolver(requestApprovalSchema),
-  });
-
-  const rejectionForm = useForm<RequestRejectionFormData>({
-    resolver: zodResolver(requestRejectionSchema),
-  });
+  const loadData = useCallback(() => {
+    if (!isAdminApiAuth) return;
+    dispatch(
+      fetchAdminFundRequests({
+        page: pageIndex + 1,
+        pageSize: PAGE_SIZE,
+        search: search || undefined,
+        status: filters.status,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      })
+    );
+  }, [dispatch, isAdminApiAuth, pageIndex, search, filters]);
 
   useEffect(() => {
-    dispatch(fetchRequests({ page: 1, pageSize: 50 }));
-  }, [dispatch]);
+    loadData();
+  }, [loadData]);
 
-  const handleCreateRequest = async (data: RequestAmountFormData) => {
-    if (!user) return;
-    const result = await dispatch(
-      createBalanceRequest({
-        retailerId: user.id,
-        amount: data.amount,
-        remarks: data.remarks,
-      })
-    );
-    if (createBalanceRequest.fulfilled.match(result)) {
-      toast.success("Balance request submitted");
-      requestForm.reset();
-      dispatch(fetchRequests({ page: 1, pageSize: 50 }));
-    }
-  };
-
-  const handleApprove = async (data: RequestApprovalFormData) => {
-    if (!user || !selectedRequest) return;
-    await dispatch(
-      approveBalanceRequest({
-        requestId: selectedRequest.id,
-        approverId: user.id,
-        remarks: data.remarks,
-      })
-    );
-    toast.success("Request approved");
-    setSelectedRequest(null);
-    setAction(null);
-    approvalForm.reset();
-    dispatch(fetchRequests({ page: 1, pageSize: 50 }));
-  };
-
-  const handleReject = async (data: RequestRejectionFormData) => {
-    if (!user || !selectedRequest) return;
-    await dispatch(
-      rejectBalanceRequest({
-        requestId: selectedRequest.id,
-        rejectorId: user.id,
-        reason: data.reason,
-      })
-    );
-    toast.success("Request rejected");
-    setSelectedRequest(null);
-    setAction(null);
-    rejectionForm.reset();
-    dispatch(fetchRequests({ page: 1, pageSize: 50 }));
-  };
-
-  const columns: ColumnDef<BalanceRequest, unknown>[] = [
-    { accessorKey: "id", header: "Request ID" },
-    { accessorKey: "retailerName", header: "Retailer" },
+  const columns: ColumnDef<AdminFundRequestRecord, unknown>[] = [
+    {
+      accessorKey: "createdAt",
+      header: "Date",
+      cell: ({ row }) => formatDate(row.original.createdAt || ""),
+    },
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => formatCurrency(row.original.amount),
+      cell: ({ row }) => (
+        <span className="font-semibold">{formatCurrency(row.original.amount)}</span>
+      ),
     },
     {
       accessorKey: "status",
@@ -116,148 +65,88 @@ export default function RequestsPage() {
       cell: ({ row }) => (
         <Badge
           variant={
-            row.original.status === "approved"
-              ? "success"
-              : row.original.status === "rejected"
-                ? "rejected"
-                : "pending"
+            (row.original.status?.toLowerCase() as
+              | "success"
+              | "pending"
+              | "rejected") || "default"
           }
         >
           {row.original.status}
         </Badge>
       ),
     },
-    {
-      accessorKey: "currentApproverRole",
-      header: "Current Approver",
-      cell: ({ row }) => ROLES[row.original.currentApproverRole],
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Date",
-      cell: ({ row }) => formatDate(row.original.createdAt),
-    },
-    ...(canApproveRequests
-      ? [
-          {
-            id: "actions",
-            header: "Actions",
-            cell: ({ row }: { row: { original: BalanceRequest } }) =>
-              row.original.status === "pending" ? (
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setSelectedRequest(row.original);
-                      setAction("approve");
-                    }}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => {
-                      setSelectedRequest(row.original);
-                      setAction("reject");
-                    }}
-                  >
-                    Reject
-                  </Button>
-                </div>
-              ) : null,
-          } as ColumnDef<BalanceRequest, unknown>,
-        ]
-      : []),
+    { accessorKey: "remarks", header: "Remarks" },
   ];
+
+  if (isAdminApiAuth) {
+    return (
+      <div className="page-container space-y-6">
+        <PageHeader
+          breadcrumb="Admin"
+          title="Fund Requests"
+          subtitle="Request balance from super admin and track status"
+        />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader
+              title="New Fund Request"
+              subtitle="Submit a request to super admin for wallet top-up"
+            />
+            <AdminFundRequestForm onSuccess={loadData} />
+          </Card>
+          <Card className="border-primary/10 bg-gradient-to-br from-primary/5 to-card">
+            <CardHeader
+              title="How it works"
+              subtitle="Admin cannot add balance directly"
+            />
+            <ul className="list-inside list-disc space-y-2 text-sm text-muted">
+              <li>Submit amount and remarks</li>
+              <li>Super admin reviews pending requests</li>
+              <li>Approved requests credit your wallet</li>
+            </ul>
+          </Card>
+        </div>
+        {error && (
+          <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+            {error}
+          </div>
+        )}
+        <Card>
+          <CardHeader title="Fund Request History" />
+          <AdminListFilters
+            value={filters}
+            onChange={(next) => {
+              setFilters(next);
+              setPageIndex(0);
+            }}
+            showDateRange
+          />
+          <DataTable
+            data={data}
+            columns={columns}
+            isLoading={isLoading}
+            searchPlaceholder="Search fund requests..."
+            onSearch={(value) => {
+              setSearch(value);
+              setPageIndex(0);
+            }}
+            manualPagination
+            pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            pageIndex={pageIndex}
+            onPageChange={setPageIndex}
+            pageSize={PAGE_SIZE}
+          />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Request Management</h1>
-        <p className="text-sm text-muted">
-          Retailer balance requests with multi-level approval
-        </p>
-      </div>
-
-      {canRequestBalance && (
-        <Card>
-          <CardHeader title="Request Balance" subtitle="Submit a new balance request" />
-          <form
-            onSubmit={requestForm.handleSubmit(handleCreateRequest)}
-            className="grid gap-4 sm:grid-cols-2"
-          >
-            <Input
-              label="Amount (₹)"
-              type="number"
-              error={requestForm.formState.errors.amount?.message}
-              {...requestForm.register("amount", { valueAsNumber: true })}
-            />
-            <Input
-              label="Remarks"
-              error={requestForm.formState.errors.remarks?.message}
-              {...requestForm.register("remarks")}
-            />
-            <div className="sm:col-span-2">
-              <Button type="submit">Submit Request</Button>
-            </div>
-          </form>
-        </Card>
-      )}
-
+      <PageHeader title="Fund Requests" subtitle="Balance request workflow" />
       <Card>
-        <DataTable
-          data={requests?.data || []}
-          columns={columns}
-          isLoading={isLoading}
-          searchPlaceholder="Search requests..."
-        />
+        <CardHeader title="Sign in as Admin" subtitle="Fund requests are available for admin accounts" />
       </Card>
-
-      <Modal
-        isOpen={action === "approve" && !!selectedRequest}
-        onClose={() => { setAction(null); setSelectedRequest(null); }}
-        title="Approve Request"
-      >
-        <form onSubmit={approvalForm.handleSubmit(handleApprove)} className="space-y-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded"
-              {...approvalForm.register("verified")}
-            />
-            I have verified this request
-          </label>
-          {approvalForm.formState.errors.verified && (
-            <p className="text-xs text-accent-red">
-              {approvalForm.formState.errors.verified.message}
-            </p>
-          )}
-          <Input
-            label="Remarks"
-            error={approvalForm.formState.errors.remarks?.message}
-            {...approvalForm.register("remarks")}
-          />
-          <Button type="submit">Confirm Approval</Button>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={action === "reject" && !!selectedRequest}
-        onClose={() => { setAction(null); setSelectedRequest(null); }}
-        title="Reject Request"
-      >
-        <form onSubmit={rejectionForm.handleSubmit(handleReject)} className="space-y-4">
-          <Input
-            label="Rejection Reason"
-            error={rejectionForm.formState.errors.reason?.message}
-            {...rejectionForm.register("reason")}
-          />
-          <Button type="submit" variant="danger">
-            Confirm Rejection
-          </Button>
-        </form>
-      </Modal>
     </div>
   );
 }

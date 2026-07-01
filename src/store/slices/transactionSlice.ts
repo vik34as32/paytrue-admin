@@ -1,14 +1,22 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { mockApi } from "@/services/mockApi";
-import { Transaction, TableFilters, PaginatedResponse } from "@/types";
+import { getWalletHistory } from "@/services/superAdminWallet";
+import { WalletHistoryParams } from "@/types/superAdmin";
 
 export const fetchAllTransactions = createAsyncThunk(
   "transactions/fetchAll",
-  async (filters?: TableFilters) => mockApi.getTransactions(filters)
+  async (params: WalletHistoryParams = {}, { rejectWithValue }) => {
+    try {
+      return await getWalletHistory(params);
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Failed to fetch transactions"
+      );
+    }
+  }
 );
 
 interface TransactionState {
-  list: PaginatedResponse<Transaction> | null;
+  list: Awaited<ReturnType<typeof getWalletHistory>> | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -27,6 +35,7 @@ const transactionSlice = createSlice({
     builder
       .addCase(fetchAllTransactions.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchAllTransactions.fulfilled, (state, action) => {
         state.isLoading = false;
@@ -34,7 +43,7 @@ const transactionSlice = createSlice({
       })
       .addCase(fetchAllTransactions.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || "Failed to fetch";
+        state.error = action.payload as string;
       });
   },
 });

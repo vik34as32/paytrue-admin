@@ -1,14 +1,22 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { mockApi } from "@/services/mockApi";
-import { LedgerEntry, TableFilters, PaginatedResponse } from "@/types";
+import { getWalletHistory } from "@/services/superAdminWallet";
+import { WalletHistoryParams } from "@/types/superAdmin";
 
 export const fetchLedger = createAsyncThunk(
   "ledger/fetchAll",
-  async (filters?: TableFilters) => mockApi.getLedger(filters)
+  async (params: WalletHistoryParams = {}, { rejectWithValue }) => {
+    try {
+      return await getWalletHistory(params);
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Failed to fetch ledger"
+      );
+    }
+  }
 );
 
 interface LedgerState {
-  entries: PaginatedResponse<LedgerEntry> | null;
+  entries: Awaited<ReturnType<typeof getWalletHistory>> | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -27,6 +35,7 @@ const ledgerSlice = createSlice({
     builder
       .addCase(fetchLedger.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchLedger.fulfilled, (state, action) => {
         state.isLoading = false;
@@ -34,7 +43,7 @@ const ledgerSlice = createSlice({
       })
       .addCase(fetchLedger.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || "Failed to fetch ledger";
+        state.error = action.payload as string;
       });
   },
 });

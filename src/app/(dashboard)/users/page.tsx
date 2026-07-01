@@ -11,6 +11,7 @@ import {
   deleteUserById,
 } from "@/store/slices/userSlice";
 import { useRoleAccess } from "@/hooks/useAuth";
+import { PageHeader } from "@/components/common/PageHeader";
 import { DataTable } from "@/components/tables/DataTable";
 import { Card, CardHeader } from "@/components/common/Card";
 import { Button } from "@/components/common/Button";
@@ -21,7 +22,6 @@ import { CreateUserFormData, UpdateUserFormData } from "@/validations";
 import { User } from "@/types";
 import { ROLES } from "@/constants";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { mockApi } from "@/services/mockApi";
 import { HiOutlinePlus, HiOutlinePencil, HiOutlineTrash } from "react-icons/hi";
 
 export default function UsersPage() {
@@ -35,13 +35,16 @@ export default function UsersPage() {
   >([]);
 
   useEffect(() => {
-    dispatch(fetchUsers({ page: 1, pageSize: 50 }));
-    mockApi.getAllUsersFlat().then((all) => {
-      setParentOptions(
-        all.map((u) => ({ value: u.id, label: `${u.name} (${ROLES[u.role]})` }))
-      );
-    });
+    dispatch(fetchUsers());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (users?.data) {
+      setParentOptions(
+        users.data.map((u) => ({ value: u.id, label: `${u.name} (${ROLES[u.role]})` }))
+      );
+    }
+  }, [users]);
 
   const handleCreate = async (data: CreateUserFormData) => {
     if (!currentUser) return;
@@ -51,7 +54,7 @@ export default function UsersPage() {
     if (createUser.fulfilled.match(result)) {
       toast.success("User created successfully");
       setShowCreate(false);
-      dispatch(fetchUsers({ page: 1, pageSize: 50 }));
+      dispatch(fetchUsers());
     } else {
       toast.error("Failed to create user");
     }
@@ -68,14 +71,14 @@ export default function UsersPage() {
       })
     );
     toast.success(`User ${newStatus === "suspended" ? "suspended" : "activated"}`);
-    dispatch(fetchUsers({ page: 1, pageSize: 50 }));
+    dispatch(fetchUsers());
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this user?")) return;
     await dispatch(deleteUserById(id));
     toast.success("User deleted");
-    dispatch(fetchUsers({ page: 1, pageSize: 50 }));
+    dispatch(fetchUsers());
   };
 
   const columns: ColumnDef<User, unknown>[] = [
@@ -150,30 +153,20 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="mb-6">
-  <div>
-    <h1 className="text-3xl font-bold text-foreground">
-      User Management
-    </h1>
-
-    <p className="mt-1 text-sm text-muted">
-      Create and manage system users
-    </p>
-  </div>
-
-  {canCreateUsers && (
-    <div className="mt-4 flex justify-end">
-      <Button
-        onClick={() => setShowCreate(true)}
-        className="px-5 py-2 shadow-md"
-      >
-        <HiOutlinePlus className="h-4 w-4" />
-        Create User
-      </Button>
-    </div>
-  )}
-</div>
+    <div className="page-container">
+      <PageHeader
+        breadcrumb="Administration"
+        title="User Management"
+        subtitle="Create and manage system users"
+        action={
+          canCreateUsers ? (
+            <Button onClick={() => setShowCreate(true)}>
+              <HiOutlinePlus className="h-4 w-4" />
+              Create User
+            </Button>
+          ) : undefined
+        }
+      />
 
       <Card>
         <DataTable
@@ -224,7 +217,7 @@ export default function UsersPage() {
               );
               toast.success("User updated");
               setEditUser(null);
-              dispatch(fetchUsers({ page: 1, pageSize: 50 }));
+              dispatch(fetchUsers());
             }}
           >
             Save Changes

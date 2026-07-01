@@ -1,39 +1,79 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
-import { mockApi } from "@/services/mockApi";
-import { LoginCredentials, AuthUser } from "@/types";
 
-export const loginUser = createAsyncThunk(
-  "auth/login",
-  async (credentials: LoginCredentials, { rejectWithValue }) => {
+import { adminLogin, adminLogout, getStoredAdminUser } from "@/services/adminAuth";
+
+import { AdminLoginPayload } from "@/types/superAdmin";
+import { loadAdminSession } from "@/store/api/adminModuleApi";
+
+
+
+/** Real admin API login — stores adminToken separately */
+
+export const adminLoginUser = createAsyncThunk(
+
+  "auth/adminLogin",
+
+  async (
+
+    payload: AdminLoginPayload & { rememberMe?: boolean },
+
+    { rejectWithValue, dispatch }
+
+  ) => {
+
     try {
-      const response = await mockApi.login(credentials);
-      if (credentials.rememberMe) {
-        localStorage.setItem("accessToken", response.accessToken);
-        localStorage.setItem("refreshToken", response.refreshToken);
-      } else {
-        sessionStorage.setItem("accessToken", response.accessToken);
-        sessionStorage.setItem("refreshToken", response.refreshToken);
-      }
-      localStorage.setItem("user", JSON.stringify(response.user));
-      return response;
+
+      const { rememberMe, ...credentials } = payload;
+
+      const result = await adminLogin(credentials, rememberMe ?? true);
+      await dispatch(loadAdminSession());
+      return result;
+
     } catch (error) {
+
       return rejectWithValue(
+
         error instanceof Error ? error.message : "Login failed"
+
       );
+
     }
+
   }
+
 );
 
+
+
 export const logoutUser = createAsyncThunk("auth/logout", async () => {
+
+  adminLogout();
+
   localStorage.removeItem("accessToken");
+
   localStorage.removeItem("refreshToken");
+
   localStorage.removeItem("user");
+
   sessionStorage.removeItem("accessToken");
+
   sessionStorage.removeItem("refreshToken");
+
 });
 
+
+
 export const loadStoredUser = createAsyncThunk("auth/loadUser", async () => {
-  const stored = localStorage.getItem("user");
-  if (!stored) return null;
-  return JSON.parse(stored) as AuthUser;
+
+  const adminUser = getStoredAdminUser();
+
+  if (adminUser) {
+
+    return adminUser;
+
+  }
+
+  return null;
+
 });
+

@@ -5,15 +5,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { loginSchema, LoginFormData } from "@/validations";
+import { motion } from "framer-motion";
+import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
+import { adminEmailLoginSchema, AdminEmailLoginFormData } from "@/validations";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
-import { loginUser } from "@/store/api/authApi";
-import { Input } from "@/components/common/Input";
-import { Button } from "@/components/common/Button";
-import { HiOutlinePhone, HiOutlineLockClosed, HiEye, HiEyeOff } from "react-icons/hi";
-import { DEMO_CREDENTIALS, ROUTES } from "@/constants";
+import { adminLoginUser } from "@/store/api/authApi";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { ROUTES } from "@/constants";
 
-export function LoginForm() {
+export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -22,16 +23,15 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { rememberMe: false },
+  } = useForm<AdminEmailLoginFormData>({
+    resolver: zodResolver(adminEmailLoginSchema),
+    defaultValues: { rememberMe: true },
   });
 
-  const onSubmit = async (data: LoginFormData) => {
-    const result = await dispatch(loginUser(data));
-    if (loginUser.fulfilled.match(result)) {
+  const onSubmit = async (data: AdminEmailLoginFormData) => {
+    const result = await dispatch(adminLoginUser(data));
+    if (adminLoginUser.fulfilled.match(result)) {
       toast.success("Welcome back!");
       router.push(ROUTES.dashboard);
     } else {
@@ -39,72 +39,71 @@ export function LoginForm() {
     }
   };
 
-  const fillDemo = (mobile: string, password: string) => {
-    setValue("mobile", mobile);
-    setValue("password", password);
-  };
-
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <Input
-        label="Mobile Number"
-        placeholder="Enter 10-digit mobile number"
-        icon={<HiOutlinePhone className="h-4 w-4" />}
-        error={errors.mobile?.message}
-        {...register("mobile")}
+        label="Email Address"
+        variant="dark"
+        type="email"
+        placeholder="admin@paytrue.com"
+        icon={<Mail className="h-4 w-4" />}
+        error={errors.email?.message}
+        {...register("email")}
       />
       <div>
         <Input
           label="Password"
+          variant="dark"
           type={showPassword ? "text" : "password"}
           placeholder="Enter your password"
-          icon={<HiOutlineLockClosed className="h-4 w-4" />}
+          icon={<Lock className="h-4 w-4" />}
           error={errors.password?.message}
           {...register("password")}
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="mt-1 flex items-center gap-1 text-xs text-muted hover:text-primary"
+          className="mt-2 flex items-center gap-2 text-xs text-slate-400 hover:text-blue-400"
         >
-          {showPassword ? (
-            <HiEyeOff className="h-3.5 w-3.5" />
-          ) : (
-            <HiEye className="h-3.5 w-3.5" />
-          )}
-          {showPassword ? "Hide" : "Show"} Password
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showPassword ? "Hide password" : "Show password"}
         </button>
       </div>
-      <label className="flex items-center gap-2 text-sm text-muted">
-        <input
-          type="checkbox"
-          className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-          {...register("rememberMe")}
-        />
-        Remember Me
-      </label>
-      <Button type="submit" className="w-full" size="lg" isLoading={isLoading}>
-        Sign In
-      </Button>
 
-      <div className="rounded-xl border border-border bg-background/50 p-4">
-        <p className="mb-2 text-xs font-semibold text-muted uppercase">
-          Demo Credentials
-        </p>
-        <div className="space-y-1">
-          {DEMO_CREDENTIALS.map((cred) => (
-            <button
-              key={cred.mobile}
-              type="button"
-              onClick={() => fillDemo(cred.mobile, cred.password)}
-              className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-xs text-foreground hover:bg-card transition-colors"
-            >
-              <span className="font-medium">{cred.role}</span>
-              <span className="text-muted">{cred.mobile}</span>
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center justify-between">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500"
+            {...register("rememberMe")}
+          />
+          Remember me
+        </label>
+        <button
+          type="button"
+          className="text-sm font-medium text-blue-400 hover:text-blue-300"
+        >
+          Forgot password?
+        </button>
       </div>
+
+      <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={isLoading}
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            "Sign In"
+          )}
+        </Button>
+      </motion.div>
     </form>
   );
 }

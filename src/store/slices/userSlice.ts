@@ -1,56 +1,64 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { mockApi } from "@/services/mockApi";
-import { User, TableFilters, PaginatedResponse } from "@/types";
-import { CreateUserFormData, UpdateUserFormData } from "@/validations";
+import { getAllAdmins } from "@/services/admin";
+import { User, PaginatedResponse } from "@/types";
+import { getAdminDisplayName } from "@/services/admin";
+import { AdminRecord } from "@/types/superAdmin";
+
+function adminToUser(admin: AdminRecord): User {
+  const now = new Date().toISOString();
+  return {
+    id: admin.adminId || admin.id,
+    name: getAdminDisplayName(admin),
+    email: admin.email,
+    mobile: admin.mobile,
+    password: "",
+    role: "admin",
+    status: "active",
+    balance: admin.currentWalletBalance ?? admin.walletBalance ?? admin.balance ?? 0,
+    parentId: null,
+    createdBy: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 export const fetchUsers = createAsyncThunk(
   "users/fetchAll",
-  async (filters?: TableFilters) => mockApi.getUsers(filters)
+  async (_, { rejectWithValue }) => {
+    try {
+      const admins = await getAllAdmins();
+      const data = admins.map(adminToUser);
+      return {
+        data,
+        total: data.length,
+        page: 1,
+        pageSize: data.length,
+        totalPages: 1,
+      } satisfies PaginatedResponse<User>;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Failed to fetch users"
+      );
+    }
+  }
 );
 
 export const createUser = createAsyncThunk(
   "users/create",
-  async ({
-    data,
-    createdBy,
-  }: {
-    data: CreateUserFormData;
-    createdBy: string;
-  }) => {
-    const { confirmPassword: _, ...userData } = data;
-    return mockApi.createUser(
-      {
-        ...userData,
-        status: "active",
-        balance: userData.balance || 0,
-        parentId: userData.parentId || null,
-        createdBy,
-        password: userData.password,
-      },
-      createdBy
-    );
-  }
+  async (_payload: unknown, { rejectWithValue }) =>
+    rejectWithValue("Use Admin Management to create admins via live API")
 );
 
 export const updateUserById = createAsyncThunk(
   "users/update",
-  async ({
-    id,
-    data,
-    updatedBy,
-  }: {
-    id: string;
-    data: UpdateUserFormData;
-    updatedBy: string;
-  }) => mockApi.updateUser(id, data, updatedBy)
+  async (_payload: unknown, { rejectWithValue }) =>
+    rejectWithValue("User update API not available")
 );
 
 export const deleteUserById = createAsyncThunk(
   "users/delete",
-  async (id: string) => {
-    await mockApi.deleteUser(id);
-    return id;
-  }
+  async (_id: string, { rejectWithValue }) =>
+    rejectWithValue("User delete API not available")
 );
 
 interface UserState {
@@ -68,37 +76,22 @@ const initialState: UserState = {
 const userSlice = createSlice({
   name: "users",
   initialState,
-  reducers: {
-    clearUserError: (state) => {
-      state.error = null;
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchUsers.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.users = action.payload as PaginatedResponse<User>;
+        state.users = action.payload;
       })
       .addCase(fetchUsers.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.error.message || "Failed to fetch users";
-      })
-      .addCase(createUser.fulfilled, (state) => {
-        state.isLoading = false;
-      })
-      .addCase(deleteUserById.fulfilled, (state, action) => {
-        if (state.users) {
-          state.users.data = state.users.data.filter(
-            (u) => u.id !== action.payload
-          );
-          state.users.total -= 1;
-        }
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearUserError } = userSlice.actions;
 export default userSlice.reducer;
