@@ -27,6 +27,12 @@ import {
 } from "@/validations/userStepSchemas";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
+import { EmailVerificationField } from "@/components/common/EmailVerificationField";
+import {
+  EMAIL_VERIFICATION_REQUIRED_MESSAGE,
+  USER_CREATED_SUCCESS_MESSAGE,
+  useEmailVerification,
+} from "@/hooks/useEmailVerification";
 import { registerUser } from "@/store/api/adminModuleApi";
 
 function FormField<T extends FieldValues>({
@@ -91,6 +97,7 @@ export interface UserMultiStepFormProps {
   successMessage: string;
   successRedirect: string;
   successToast?: string;
+  requireEmailVerification?: boolean;
 }
 
 export function UserMultiStepForm({
@@ -100,6 +107,7 @@ export function UserMultiStepForm({
   successMessage,
   successRedirect,
   successToast,
+  requireEmailVerification = false,
 }: UserMultiStepFormProps) {
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -126,7 +134,10 @@ export function UserMultiStepForm({
   } = methods;
 
   const password = watch("password");
+  const email = watch("email") || "";
   const values = watch();
+  const emailVerification = useEmailVerification(email);
+  const needsEmailVerification = requireEmailVerification;
 
   const setFile = (field: keyof UserFormValues, file: File | null) => {
     setValue(field, file as UserFormValues[typeof field], {
@@ -153,6 +164,12 @@ export function UserMultiStepForm({
         return;
       }
     }
+
+    if (step === 1 && needsEmailVerification && !emailVerification.isVerified) {
+      toast.error(EMAIL_VERIFICATION_REQUIRED_MESSAGE);
+      return;
+    }
+
     setStep((current) => Math.min(current + 1, USER_FORM_STEPS.length));
   };
 
@@ -161,12 +178,22 @@ export function UserMultiStepForm({
   const onSubmit = async () => {
     const data = getValues();
 
+    if (needsEmailVerification && !emailVerification.isVerified) {
+      toast.error(EMAIL_VERIFICATION_REQUIRED_MESSAGE);
+      return;
+    }
+
     if (isAdminApiAuth) {
       const result = await dispatch(registerUser({ data, userType }));
       if (registerUser.fulfilled.match(result)) {
-        toast.success(successToast || "User created successfully");
+        toast.success(
+          needsEmailVerification
+            ? USER_CREATED_SUCCESS_MESSAGE
+            : successToast || "User created successfully"
+        );
         setSuccessOpen(true);
         reset(userFormEmptyDefaults);
+        emailVerification.resetVerification();
         setStep(1);
       } else {
         toast.error((result.payload as string) || "Failed to create user");
@@ -177,6 +204,7 @@ export function UserMultiStepForm({
     toast.success(successToast || "Registration submitted (UI preview)");
     setSuccessOpen(true);
     reset(userFormEmptyDefaults);
+    emailVerification.resetVerification();
     setStep(1);
   };
 
@@ -217,7 +245,20 @@ export function UserMultiStepForm({
                 <div className="grid gap-4 lg:grid-cols-2">
                   <FormField name="firstName" label="First Name" placeholder="Enter first name" methods={methods} />
                   <FormField name="lastName" label="Last Name" placeholder="Enter last name" methods={methods} />
-                  <FormField name="email" label="Email" type="email" placeholder="Enter email" methods={methods} />
+                  {needsEmailVerification ? (
+                    <EmailVerificationField
+                      email={email}
+                      onEmailChange={(value) =>
+                        setValue("email", value, { shouldValidate: true })
+                      }
+                      verification={emailVerification}
+                      label="Email"
+                      placeholder="Enter email"
+                      error={errors.email?.message}
+                    />
+                  ) : (
+                    <FormField name="email" label="Email" type="email" placeholder="Enter email" methods={methods} />
+                  )}
                   <FormField name="mobile" label="Mobile" placeholder="10-digit mobile" methods={methods} />
                   <FormField name="alternateMobileNumber" label="Alternate Mobile" placeholder="Optional" methods={methods} />
                   <div className="space-y-2">
@@ -342,7 +383,14 @@ export function UserMultiStepForm({
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 ) : (
-                  <Button type="submit" isLoading={isAdminApiAuth && createUserLoading} disabled={isAdminApiAuth && createUserLoading}>
+                  <Button
+                    type="submit"
+                    isLoading={isAdminApiAuth && createUserLoading}
+                    disabled={
+                      (isAdminApiAuth && createUserLoading) ||
+                      (needsEmailVerification && !emailVerification.isVerified)
+                    }
+                  >
                     {submitLabel}
                   </Button>
                 )}

@@ -27,10 +27,11 @@ export default function CreateMasterDistributorPage() {
         />
         <UserMultiStepForm
           userType="MASTER_DISTRIBUTOR"
+          requireEmailVerification
           submitLabel="Create Master Distributor"
           successTitle="Master Distributor Created!"
-          successMessage="The master distributor has been onboarded successfully."
-          successToast="Master Distributor created successfully"
+          successMessage="The master distributor has been onboarded successfully. Login credentials have been sent to the registered email."
+          successToast="User created successfully. Login credentials have been sent to the registered email."
           successRedirect={ROUTES.adminMasterDistributor}
         />
       </div>

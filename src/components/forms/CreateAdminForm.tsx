@@ -8,11 +8,17 @@ import { createAdminSchema, CreateAdminFormData } from "@/validations";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
 import { Card } from "@/components/common/Card";
-import { Mail, Phone, Lock, User, Shield, Eye, EyeOff } from "lucide-react";
+import { EmailVerificationField } from "@/components/common/EmailVerificationField";
+import { Phone, Lock, User, Shield, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { createAdminAccount, fetchAllAdmins } from "@/store/api/superAdminWalletApi";
 import { CreateAdminPayload } from "@/types/superAdmin";
+import {
+  EMAIL_VERIFICATION_REQUIRED_MESSAGE,
+  USER_CREATED_SUCCESS_MESSAGE,
+  useEmailVerification,
+} from "@/hooks/useEmailVerification";
 
 interface CreateAdminFormProps {
   onSuccess?: () => void;
@@ -27,12 +33,22 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateAdminFormData>({
     resolver: zodResolver(createAdminSchema),
   });
 
+  const email = watch("email") || "";
+  const emailVerification = useEmailVerification(email);
+
   const handleFormSubmit = async (data: CreateAdminFormData) => {
+    if (!emailVerification.isVerified) {
+      toast.error(EMAIL_VERIFICATION_REQUIRED_MESSAGE);
+      return;
+    }
+
     const payload: CreateAdminPayload = {
       email: data.email,
       mobile: data.mobile,
@@ -45,8 +61,9 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
 
     const result = await dispatch(createAdminAccount(payload));
     if (createAdminAccount.fulfilled.match(result)) {
-      toast.success("Admin created successfully");
+      toast.success(USER_CREATED_SUCCESS_MESSAGE);
       reset();
+      emailVerification.resetVerification();
       dispatch(fetchAllAdmins());
       onSuccess?.();
     } else {
@@ -73,13 +90,14 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
+          <EmailVerificationField
+            email={email}
+            onEmailChange={(value) => setValue("email", value, { shouldValidate: true })}
+            verification={emailVerification}
             label="Email Address"
-            type="email"
             placeholder="admin@paytrue.com"
-            icon={<Mail className="h-4 w-4" />}
             error={errors.email?.message}
-            {...register("email")}
+            className="space-y-2 sm:col-span-2"
           />
           <Input
             label="Mobile Number"
@@ -147,10 +165,22 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
       </Card>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button type="button" variant="outline" onClick={() => reset()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            reset();
+            emailVerification.resetVerification();
+          }}
+        >
           Reset Form
         </Button>
-        <Button type="submit" size="lg" isLoading={createAdminLoading}>
+        <Button
+          type="submit"
+          size="lg"
+          isLoading={createAdminLoading}
+          disabled={!emailVerification.isVerified || createAdminLoading}
+        >
           Create Admin Account
         </Button>
       </div>
