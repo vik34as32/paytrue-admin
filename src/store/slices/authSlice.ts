@@ -7,33 +7,23 @@ import { logoutUser, loadStoredUser, adminLoginUser } from "@/store/api/authApi"
 
 
 interface AuthState {
-
   user: AuthUser | null;
-
   accessToken: string | null;
-
   isAuthenticated: boolean;
-
   isLoading: boolean;
-
+  isInitialized: boolean;    
   error: string | null;
-
 }
 
 
 
 const initialState: AuthState = {
-
   user: null,
-
   accessToken: null,
-
   isAuthenticated: false,
-
   isLoading: false,
-
+  isInitialized: false,    
   error: null,
-
 };
 
 
@@ -107,24 +97,20 @@ const authSlice = createSlice({
       })
 
       .addCase(loadStoredUser.fulfilled, (state, action) => {
+  state.isInitialized = true;
 
-        if (action.payload) {
-
-          state.user = action.payload;
-
-          state.isAuthenticated = true;
-
-          state.accessToken =
-
-            localStorage.getItem("adminToken") ||
-
-            sessionStorage.getItem("adminToken") ||
-
-            null;
-
-        }
-
-      });
+  if (action.payload) {
+    state.user = action.payload;
+    state.isAuthenticated = true;
+    state.accessToken =
+      localStorage.getItem("adminToken") ||
+      sessionStorage.getItem("adminToken") ||
+      null;
+  }
+})
+.addCase(loadStoredUser.rejected, (state) => {
+  state.isInitialized = true;
+})
 
   },
 

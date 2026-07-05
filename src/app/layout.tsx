@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Providers } from "@/components/common/Providers";
+import AuthInitializer from "@/components/common/AuthInitializer";
+
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -22,8 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${dmSans.variable} min-h-screen antialiased`}>
-        <Providers>{children}</Providers>
-      </body>
+<Providers>
+  <AuthInitializer />
+  {children}
+</Providers>      </body>
     </html>
   );
 }

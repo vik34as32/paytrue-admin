@@ -93,6 +93,34 @@ export default function SuperAdminRetailersPage() {
       header: "Created",
       cell: ({ row }) => formatDate(row.original.createdAt || ""),
     },
+    {
+  id: "actions",
+  header: "Actions",
+  cell: ({ row }) => (
+    <div className="flex items-center gap-2">
+  <button
+    onClick={() => console.log("View", row.original)}
+    className="rounded-md border border-blue-500 px-3 py-1 text-xs font-medium text-blue-600 transition-all duration-200 hover:bg-blue-500 hover:text-white"
+  >
+    View
+  </button>
+
+  <button
+    onClick={() => console.log("Edit", row.original)}
+    className="rounded-md border border-emerald-500 px-3 py-1 text-xs font-medium text-emerald-600 transition-all duration-200 hover:bg-emerald-500 hover:text-white"
+  >
+    Edit
+  </button>
+
+  <button
+    onClick={() => console.log("Delete", row.original)}
+    className="rounded-md border border-red-500 px-3 py-1 text-xs font-medium text-red-600 transition-all duration-200 hover:bg-red-500 hover:text-white"
+  >
+    Delete
+  </button>
+</div>
+  ),
+},
   ];
 
   if (!hasSuperAdminWalletAccess) return null;

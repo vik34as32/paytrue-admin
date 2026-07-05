@@ -1,7 +1,8 @@
 "use client";
-
-import { useState } from "react";
+import { State, City } from "country-state-city";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/common/Select";
 import {
   useForm,
   FormProvider,
@@ -41,12 +42,14 @@ function FormField<T extends FieldValues>({
   type = "text",
   placeholder,
   methods,
+  disabled = false,
 }: {
   name: Path<T>;
   label: string;
   type?: string;
   placeholder?: string;
   methods: UseFormReturn<T>;
+  disabled?: boolean;
 }) {
   const {
     register,
@@ -60,6 +63,7 @@ function FormField<T extends FieldValues>({
       label={label}
       type={type}
       placeholder={placeholder}
+      disabled={disabled}
       error={error}
       {...register(name)}
     />
@@ -82,7 +86,9 @@ function PreviewSection({
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
               {label}
             </p>
-            <p className="text-sm font-medium text-foreground">{value || "—"}</p>
+            <p className="text-sm font-medium text-foreground">
+              {value || "—"}
+            </p>
           </div>
         ))}
       </div>
@@ -115,6 +121,7 @@ export function UserMultiStepForm({
   const { createUserLoading } = useAppSelector((state) => state.adminModule);
 
   const [step, setStep] = useState(1);
+  const [maxStepReached, setMaxStepReached] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
 
@@ -136,6 +143,13 @@ export function UserMultiStepForm({
   const password = watch("password");
   const email = watch("email") || "";
   const values = watch();
+  const selectedState = methods.watch("state");
+  const states = State.getStatesOfCountry("IN");
+  const pincode = methods.watch("pincode");
+
+  const cities = selectedState
+    ? City.getCitiesOfState("IN", selectedState)
+    : [];
   const emailVerification = useEmailVerification(email);
   const needsEmailVerification = requireEmailVerification;
 
@@ -170,7 +184,13 @@ export function UserMultiStepForm({
       return;
     }
 
-    setStep((current) => Math.min(current + 1, USER_FORM_STEPS.length));
+    setStep((current) => {
+  const nextStep = Math.min(current + 1, USER_FORM_STEPS.length);
+
+  setMaxStepReached((prev) => Math.max(prev, nextStep));
+
+  return nextStep;
+});
   };
 
   const goBack = () => setStep((current) => Math.max(current - 1, 1));
@@ -189,7 +209,7 @@ export function UserMultiStepForm({
         toast.success(
           needsEmailVerification
             ? USER_CREATED_SUCCESS_MESSAGE
-            : successToast || "User created successfully"
+            : successToast || "User created successfully",
         );
         setSuccessOpen(true);
         reset(userFormEmptyDefaults);
@@ -207,19 +227,67 @@ export function UserMultiStepForm({
     emailVerification.resetVerification();
     setStep(1);
   };
+  useEffect(() => {
+    if (!navigator.geolocation) return;
 
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        methods.setValue("latitude", position.coords.latitude.toString());
+
+        methods.setValue("longitude", position.coords.longitude.toString());
+      },
+      (error) => {
+        console.error("Location error:", error);
+      },
+    );
+  }, [methods]);
+  useEffect(() => {
+  if (pincode?.length !== 6) return;
+
+  const fetchPincodeDetails = async () => {
+    try {
+      const response = await fetch(
+        `https://api.postalpincode.in/pincode/${pincode}`
+      );
+
+      const data = await response.json();
+
+      if (
+        data[0]?.Status === "Success" &&
+        data[0]?.PostOffice?.length > 0
+      ) {
+        const postOffice = data[0].PostOffice[0];
+
+        methods.setValue("district", postOffice.District, {
+          shouldValidate: true,
+        });
+
+        methods.setValue("city", postOffice.Block || postOffice.Name, {
+          shouldValidate: true,
+        });
+      }
+    } catch (error) {
+      console.error("Pincode lookup failed", error);
+    }
+  };
+
+  fetchPincodeDetails();
+}, [pincode, methods]);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
         {USER_FORM_STEPS.map((formStep) => (
-          <div
+          <button
             key={formStep.id}
-            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${
+            type="button"
+            onClick={() => setStep(formStep.id)}
+           disabled={formStep.id > maxStepReached}
+            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
               step === formStep.id
                 ? "bg-primary text-primary-foreground"
                 : step > formStep.id
-                  ? "bg-accent-green/10 text-accent-green"
-                  : "bg-background text-muted"
+                  ? "bg-accent-green/10 text-accent-green hover:bg-accent-green/20"
+                  : "bg-background text-muted hover:bg-primary/10 hover:text-primary"
             }`}
           >
             {step > formStep.id ? (
@@ -228,7 +296,7 @@ export function UserMultiStepForm({
               formStep.id
             )}
             <span className="hidden sm:inline">{formStep.title}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -243,8 +311,18 @@ export function UserMultiStepForm({
             <div className="space-y-6">
               {step === 1 && (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <FormField name="firstName" label="First Name" placeholder="Enter first name" methods={methods} />
-                  <FormField name="lastName" label="Last Name" placeholder="Enter last name" methods={methods} />
+                  <FormField
+                    name="firstName"
+                    label="First Name"
+                    placeholder="Enter first name"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="lastName"
+                    label="Last Name"
+                    placeholder="Enter last name"
+                    methods={methods}
+                  />
                   {needsEmailVerification ? (
                     <EmailVerificationField
                       email={email}
@@ -257,10 +335,26 @@ export function UserMultiStepForm({
                       error={errors.email?.message}
                     />
                   ) : (
-                    <FormField name="email" label="Email" type="email" placeholder="Enter email" methods={methods} />
+                    <FormField
+                      name="email"
+                      label="Email"
+                      type="email"
+                      placeholder="Enter email"
+                      methods={methods}
+                    />
                   )}
-                  <FormField name="mobile" label="Mobile" placeholder="10-digit mobile" methods={methods} />
-                  <FormField name="alternateMobileNumber" label="Alternate Mobile" placeholder="Optional" methods={methods} />
+                  <FormField
+                    name="mobile"
+                    label="Mobile"
+                    placeholder="10-digit mobile"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="alternateMobileNumber"
+                    label="Alternate Mobile"
+                    placeholder="Optional"
+                    methods={methods}
+                  />
                   <div className="space-y-2">
                     <Input
                       label="Password"
@@ -292,42 +386,208 @@ export function UserMultiStepForm({
 
               {step === 2 && (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <FormField name="outletName" label="Outlet Name" placeholder="Enter outlet name" methods={methods} />
-                  <FormField name="businessType" label="Business Type" placeholder="e.g. Retail, Franchise" methods={methods} />
-                  <FormField name="gstNumber" label="GST Number" placeholder="Optional" methods={methods} />
-                  <FormField name="address" label="Address" placeholder="Full address" methods={methods} />
-                  <FormField name="state" label="State" placeholder="State" methods={methods} />
-                  <FormField name="district" label="District" placeholder="District" methods={methods} />
-                  <FormField name="city" label="City" placeholder="City" methods={methods} />
-                  <FormField name="village" label="Village" placeholder="Optional" methods={methods} />
-                  <FormField name="pincode" label="Pincode" placeholder="6-digit pincode" methods={methods} />
-                  <FormField name="latitude" label="Latitude" placeholder="Optional" methods={methods} />
-                  <FormField name="longitude" label="Longitude" placeholder="Optional" methods={methods} />
+                  <FormField
+                    name="outletName"
+                    label="Outlet Name"
+                    placeholder="Enter outlet name"
+                    methods={methods}
+                  />
+                  <Select
+                    label="Business Type"
+                    value={values.businessType}
+                    onChange={(e) =>
+                      methods.setValue("businessType", e.target.value, {
+                        shouldValidate: true,
+                      })
+                    }
+                    error={errors.businessType?.message as string | undefined}
+                    options={[
+                      { value: "", label: "Select Business Type " },
+                      { value: "INDIVIDUAL", label: "Individual" },
+                      { value: "PARTNERSHIP", label: "Partnership" },
+                      { value: "PRIVATE_LIMITED", label: "Private Limited" },
+                      { value: "PROPRIETORSHIP", label: "Proprietorship" },
+                      { value: "OTHER", label: "Other" },
+                      { value: "SALE", label: "Sale" },
+                    ]}
+                  />
+                  <FormField
+                    name="gstNumber"
+                    label="GST Number"
+                    placeholder="Optional"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="address"
+                    label="Address"
+                    placeholder="Full address"
+                    methods={methods}
+                  />
+                  <Select
+                    label="State"
+                    value={selectedState}
+                    onChange={(e) => {
+                      methods.setValue("state", e.target.value, {
+                        shouldValidate: true,
+                      });
+
+                      methods.setValue("city", "");
+                      methods.setValue("district", "");
+                    }}
+                    error={errors.state?.message as string | undefined}
+                    options={[
+                      { value: "", label: "Select State" },
+                      ...states.map((state) => ({
+                        value: state.isoCode,
+                        label: state.name,
+                      })),
+                    ]}
+                  />
+                  <FormField
+  name="district"
+  label="District"
+  placeholder="District"
+  methods={methods}
+  disabled
+/>
+                  <Select
+                    label="City"
+                    value={values.city}
+                    onChange={(e) =>
+                      methods.setValue("city", e.target.value, {
+                        shouldValidate: true,
+                      })
+                    }
+                    disabled={!selectedState}
+                    error={errors.city?.message as string | undefined}
+                    options={[
+                      { value: "", label: "Select City" },
+                      ...cities.map((city) => ({
+                        value: city.name,
+                        label: city.name,
+                      })),
+                    ]}
+                  />
+                  <FormField
+                    name="village"
+                    label="Village"
+                    placeholder="Optional"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="pincode"
+                    label="Pincode"
+                    placeholder="6-digit pincode"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="latitude"
+                    label="Latitude"
+                    placeholder="Fetching..."
+                    methods={methods}
+                    disabled
+                  />
+                  <FormField
+                    name="longitude"
+                    label="Longitude"
+                    placeholder="Optional"
+                    methods={methods}
+                    disabled
+                  />
                 </div>
               )}
 
               {step === 3 && (
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <FormField name="aadhaarNumber" label="Aadhaar Number" placeholder="12-digit Aadhaar" methods={methods} />
-                  <FormField name="panNumber" label="PAN Number" placeholder="PAN number" methods={methods} />
-                  <ImageUpload label="Aadhaar Front" file={values.aadhaarFront} onChange={(file) => setFile("aadhaarFront", file)} error={errors.aadhaarFront?.message as string | undefined} />
-                  <ImageUpload label="Aadhaar Back" file={values.aadhaarBack} onChange={(file) => setFile("aadhaarBack", file)} error={errors.aadhaarBack?.message as string | undefined} />
-                  <ImageUpload label="PAN Card" file={values.panCard} onChange={(file) => setFile("panCard", file)} error={errors.panCard?.message as string | undefined} />
-                  <ImageUpload label="Owner Photo" file={values.ownerPhoto} onChange={(file) => setFile("ownerPhoto", file)} error={errors.ownerPhoto?.message as string | undefined} />
+                  <FormField
+                    name="aadhaarNumber"
+                    label="Aadhaar Number"
+                    placeholder="12-digit Aadhaar"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="panNumber"
+                    label="PAN Number"
+                    placeholder="PAN number"
+                    methods={methods}
+                  />
+                  <ImageUpload
+                    label="Aadhaar Front"
+                    file={values.aadhaarFront}
+                    onChange={(file) => setFile("aadhaarFront", file)}
+                    error={errors.aadhaarFront?.message as string | undefined}
+                  />
+                  <ImageUpload
+                    label="Aadhaar Back"
+                    file={values.aadhaarBack}
+                    onChange={(file) => setFile("aadhaarBack", file)}
+                    error={errors.aadhaarBack?.message as string | undefined}
+                  />
+                  <ImageUpload
+                    label="PAN Card"
+                    file={values.panCard}
+                    onChange={(file) => setFile("panCard", file)}
+                    error={errors.panCard?.message as string | undefined}
+                  />
+                  <ImageUpload
+                    label="Owner Photo"
+                    file={values.ownerPhoto}
+                    onChange={(file) => setFile("ownerPhoto", file)}
+                    error={errors.ownerPhoto?.message as string | undefined}
+                  />
                   <div className="lg:col-span-2">
-                    <VideoUpload label="Video Verification" file={values.videoVerification} onChange={(file) => setFile("videoVerification", file)} error={errors.videoVerification?.message as string | undefined} />
+                    <VideoUpload
+                      label="Video Verification"
+                      file={values.videoVerification}
+                      onChange={(file) => setFile("videoVerification", file)}
+                      error={
+                        errors.videoVerification?.message as string | undefined
+                      }
+                    />
                   </div>
                 </div>
               )}
 
               {step === 4 && (
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <FormField name="accountHolderName" label="Account Holder Name" placeholder="As per bank" methods={methods} />
-                  <FormField name="bankName" label="Bank Name" placeholder="Bank name" methods={methods} />
-                  <FormField name="accountNumber" label="Account Number" placeholder="Account number" methods={methods} />
-                  <FormField name="ifscCode" label="IFSC Code" placeholder="IFSC code" methods={methods} />
-                  <ImageUpload label="Passbook Image" file={values.passbookImage} onChange={(file) => setFile("passbookImage", file)} error={errors.passbookImage?.message as string | undefined} />
-                  <ImageUpload label="Cancelled Cheque" file={values.cancelledChequeImage} onChange={(file) => setFile("cancelledChequeImage", file)} error={errors.cancelledChequeImage?.message as string | undefined} />
+                  <FormField
+                    name="accountHolderName"
+                    label="Account Holder Name"
+                    placeholder="As per bank"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="bankName"
+                    label="Bank Name"
+                    placeholder="Bank name"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="accountNumber"
+                    label="Account Number"
+                    placeholder="Account number"
+                    methods={methods}
+                  />
+                  <FormField
+                    name="ifscCode"
+                    label="IFSC Code"
+                    placeholder="IFSC code"
+                    methods={methods}
+                  />
+                  <ImageUpload
+                    label="Passbook Image"
+                    file={values.passbookImage}
+                    onChange={(file) => setFile("passbookImage", file)}
+                    error={errors.passbookImage?.message as string | undefined}
+                  />
+                  <ImageUpload
+                    label="Cancelled Cheque"
+                    file={values.cancelledChequeImage}
+                    onChange={(file) => setFile("cancelledChequeImage", file)}
+                    error={
+                      errors.cancelledChequeImage?.message as string | undefined
+                    }
+                  />
                 </div>
               )}
 
@@ -349,7 +609,12 @@ export function UserMultiStepForm({
                       ["Business Type", values.businessType],
                       ["GST", values.gstNumber],
                       ["Address", values.address],
-                      ["City", [values.city, values.district, values.state].filter(Boolean).join(", ")],
+                      [
+                        "City",
+                        [values.city, values.district, values.state]
+                          .filter(Boolean)
+                          .join(", "),
+                      ],
                       ["Pincode", values.pincode],
                     ]}
                   />
@@ -373,7 +638,12 @@ export function UserMultiStepForm({
               )}
 
               <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
-                <Button type="button" variant="outline" onClick={goBack} disabled={step === 1}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={goBack}
+                  disabled={step === 1}
+                >
                   <ChevronLeft className="h-4 w-4" />
                   Back
                 </Button>

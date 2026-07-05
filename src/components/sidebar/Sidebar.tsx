@@ -139,8 +139,13 @@ export function Sidebar({
       {/* Brand */}
       <div className="flex flex-col leading-none">
         <h1 className="text-2xl font-extrabold tracking-tight">
-          <span className="text-[#0A2A66]">Pay</span>
-          <span className="text-[#1E88FF]">true</span>
+          <span className="text-[#001F5B]">
+            Pay
+          </span>
+
+          <span className="bg-gradient-to-r from-[#0A84FF] to-[#0057D9] bg-clip-text text-transparent">
+            true 
+          </span>
         </h1>
 
         {/* <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">

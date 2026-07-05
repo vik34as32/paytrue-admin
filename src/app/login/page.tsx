@@ -61,12 +61,26 @@ export default function LoginPage() {
           transition={{ duration: 0.6 }}
         >
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
-              <img src="/images/logo.png" alt="logo" className="h-8 w-8 object-contain" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">{APP_NAME}</h1>
-              <p className="text-sm text-blue-200/70">Enterprise Console</p>
+  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-xl border border-slate-200">
+ <img
+  src="/images/logo.png"
+  alt="PayTrue Logo"
+  className="h-full w-full object-contain p-1"
+/>
+</div>
+
+  <div>
+              <h1 className="text-2xl font-bold">
+  <span className="text-blue-50">
+  Pay
+</span>
+
+  <span className="bg-gradient-to-r from-[#0A84FF] to-[#0057D9] bg-clip-text text-transparent">
+    True
+  </span>
+</h1>
+              <p className="text-sm text-blue-200/70">Digital Payment Solutions
+</p>
             </div>
           </div>
         </motion.div>
@@ -124,7 +138,15 @@ export default function LoginPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
               <img src="/images/logo.png" alt="logo" className="h-7 w-7 object-contain" />
             </div>
-            <span className="text-xl font-bold text-white">{APP_NAME}</span>
+            <h1 className="text-2xl font-bold">
+  <span className="text-[#001F5B]">
+    Pay
+  </span>
+
+  <span className="bg-gradient-to-r from-[#0A84FF] to-[#0057D9] bg-clip-text text-transparent">
+    True
+  </span>
+</h1>
           </div>
 
           <div className="glass-card rounded-2xl p-8 shadow-2xl shadow-black/40">

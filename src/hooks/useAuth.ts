@@ -80,13 +80,16 @@ const SUPER_ADMIN_API_ROUTES = [
 export function useAuthGuard(allowedRoles?: UserRole[]) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, user, isLoading } = useAppSelector(
-    (state) => state.auth
-  );
+  const {
+  isAuthenticated,
+  user,
+  isLoading,
+  isInitialized,
+} = useAppSelector((state) => state.auth);
   const superAdminAuth = useAppSelector((state) => state.superAdminAuth);
 
   useEffect(() => {
-    if (isLoading || superAdminAuth.isLoading) return;
+    if (!isInitialized || isLoading || superAdminAuth.isLoading) return;
 
     const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
     const isSuperAdminApiRoute = SUPER_ADMIN_API_ROUTES.some((r) =>
@@ -153,15 +156,16 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
       }
     }
   }, [
-    isAuthenticated,
-    user,
-    pathname,
-    router,
-    isLoading,
-    allowedRoles,
-    superAdminAuth.isAuthenticated,
-    superAdminAuth.isLoading,
-  ]);
+  isAuthenticated,
+  user,
+  pathname,
+  router,
+  isLoading,
+  isInitialized,
+  allowedRoles,
+  superAdminAuth.isAuthenticated,
+  superAdminAuth.isLoading,
+]);
 }
 
 export function useRoleAccess() {

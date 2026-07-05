@@ -84,9 +84,10 @@ export const SIDEBAR_ITEMS = [
   { label: "Statistics", href: ROUTES.superAdminStatistics, icon: "reports", roles: ["super_admin"] as const },
   { label: "Dashboard", href: ROUTES.dashboard, icon: "dashboard", roles: ["master_distributor", "distributor", "retailer"] as const },
   { label: "Admin Management", href: ROUTES.superAdminAdmins, icon: "users", roles: ["super_admin"] as const },
-  { label: "Retailers", href: ROUTES.superAdminRetailers, icon: "retailer", roles: ["super_admin"] as const },
   { label: "Master Distributors", href: ROUTES.superAdminMasterDistributors, icon: "masterDistributor", roles: ["super_admin"] as const },
   { label: "Distributors", href: ROUTES.superAdminDistributors, icon: "distributor", roles: ["super_admin"] as const },
+    { label: "Retailers", href: ROUTES.superAdminRetailers, icon: "retailer", roles: ["super_admin"] as const },
+
   { label: "Fund Requests", href: ROUTES.superAdminFundRequests, icon: "requests", roles: ["super_admin"] as const },
   { label: "Add Balance", href: ROUTES.superAdminAddBalance, icon: "transfer", roles: ["super_admin"] as const },
   { label: "Change Password", href: ROUTES.superAdminChangePassword, icon: "profile", roles: ["super_admin"] as const },

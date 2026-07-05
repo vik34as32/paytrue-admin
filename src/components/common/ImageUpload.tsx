@@ -79,7 +79,7 @@ export function ImageUpload({
           <p className="text-sm font-medium text-foreground">
             Click to upload image
           </p>
-          <p className="mt-1 text-xs text-muted">JPG, PNG up to 5MB</p>
+          <p className="mt-1 text-xs text-muted">JPG,JPEG, PNG up to 5MB</p>
         </div>
       ) : (
         <div className="relative overflow-hidden rounded-xl border border-border bg-card">
