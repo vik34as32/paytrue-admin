@@ -6,6 +6,8 @@ import {
   AdminWalletHistoryRecord,
   AdminTransferPayload,
   AdminFundRequestPayload,
+  AdminApproveFundRequestPayload,
+  AdminRejectFundRequestPayload,
   AdminFundRequestRecord,
   AdminProfile,
   AdminUpdateProfilePayload,
@@ -14,6 +16,9 @@ import {
   AdminBusinessReportData,
   AdminListQueryParams,
   PaginatedAdminData,
+  AdminAssignBankAccountPayload,
+  AdminRemoveBankAssignmentPayload,
+  AdminAssignedBankAccount,
 } from "@/types/admin";
 import { UserFormValues } from "@/validations/userStepSchemas";
 import {
@@ -21,6 +26,11 @@ import {
   extractUserFiles,
 } from "@/lib/buildUserFormData";
 import { ApiResponse } from "@/types";
+import { normalizeBankAccountRecord } from "@/lib/normalizeBankAccount";
+import {
+  BankAccountRecord,
+  PaginatedBankAccounts,
+} from "@/types/bankAccount";
 
 function readPaginationMeta(
   obj: Record<string, unknown>
@@ -108,6 +118,7 @@ function toApiListParams(params: AdminListQueryParams = {}) {
     limit: params.pageSize ?? 10,
     search: params.search,
     status: params.status,
+    userType: params.userType,
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
     startDate: params.startDate,
@@ -127,6 +138,42 @@ function parseWalletAmount(value: unknown): number | undefined {
 function parseRecordAmount(value: unknown): number {
   const parsed = parseWalletAmount(value);
   return parsed ?? 0;
+}
+
+function normalizeAssignedBankAccount(
+  raw: unknown
+): AdminAssignedBankAccount | null {
+  if (!raw || typeof raw !== "object") return null;
+
+  const obj = raw as Record<string, unknown>;
+  const bank =
+    obj.bankAccount && typeof obj.bankAccount === "object"
+      ? (obj.bankAccount as Record<string, unknown>)
+      : obj;
+
+  const bankAccountId = String(
+    obj.bankAccountId ||
+      bank.id ||
+      obj.id ||
+      obj.assignmentId ||
+      ""
+  );
+
+  if (!bankAccountId && !bank.bankName && !obj.bankName) return null;
+
+  return {
+    id: bankAccountId || undefined,
+    bankAccountId: bankAccountId || undefined,
+    assignmentId: (obj.assignmentId as string | undefined) ?? undefined,
+    accountHolderName: String(
+      bank.accountHolderName || obj.accountHolderName || ""
+    ),
+    bankName: String(bank.bankName || obj.bankName || ""),
+    accountNumber: String(bank.accountNumber || obj.accountNumber || ""),
+    ifscCode: String(bank.ifscCode || obj.ifscCode || ""),
+    status: (obj.status as string | undefined) ?? (bank.status as string | undefined),
+    assignedAt: (obj.assignedAt as string | undefined) ?? (obj.createdAt as string | undefined),
+  };
 }
 
 function normalizeNetworkUser(raw: unknown): AdminNetworkUser {
@@ -150,6 +197,11 @@ function normalizeNetworkUser(raw: unknown): AdminNetworkUser {
     parseWalletAmount(wallet?.walletBalance) ??
     0;
 
+  const assignedBankAccount =
+    normalizeAssignedBankAccount(obj.assignedBankAccount) ||
+    normalizeAssignedBankAccount(obj.bankAccountAssignment) ||
+    normalizeAssignedBankAccount(obj.systemBankAccount);
+
   return {
     ...(obj as AdminNetworkUser),
     id: String(obj.id ?? obj._id ?? ""),
@@ -158,10 +210,12 @@ function normalizeNetworkUser(raw: unknown): AdminNetworkUser {
     email: (obj.email as string | undefined) ?? undefined,
     mobile: (obj.mobile as string | undefined) ?? undefined,
     status: (obj.status as string | undefined) ?? undefined,
+    userType: (obj.userType as string | undefined) ?? undefined,
     city: (obj.city as string | undefined) ?? (outlet?.city as string | undefined),
     state: (obj.state as string | undefined) ?? (outlet?.state as string | undefined),
     walletBalance,
     createdAt: (obj.createdAt as string | undefined) ?? undefined,
+    assignedBankAccount,
   };
 }
 
@@ -428,14 +482,94 @@ export async function createFundRequest(payload: AdminFundRequestPayload) {
 export async function getFundRequests(
   params: AdminListQueryParams = {}
 ): Promise<PaginatedAdminData<AdminFundRequestRecord>> {
-  const { data } = await adminModuleClient.get<
+  const { data } = await adminClient.get<
     ApiResponse<
       PaginatedAdminData<AdminFundRequestRecord> | AdminFundRequestRecord[]
     >
   >("/fund-requests", { params: toApiListParams(params) });
-  return normalizePaginated<AdminFundRequestRecord>(data.data, [
-    "fundRequests",
-  ]);
+  const normalized = normalizePaginated<unknown>(data.data, ["fundRequests"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeFundRequestRecord),
+  };
+}
+
+function normalizeFundRequestRecord(raw: unknown): AdminFundRequestRecord {
+  if (!raw || typeof raw !== "object") {
+    return { id: "", amount: 0, status: "PENDING" };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const requester =
+    obj.requester && typeof obj.requester === "object"
+      ? (obj.requester as Record<string, unknown>)
+      : obj.user && typeof obj.user === "object"
+        ? (obj.user as Record<string, unknown>)
+        : undefined;
+
+  const requesterFirstName = requester?.firstName as string | undefined;
+  const requesterLastName = requester?.lastName as string | undefined;
+  const requesterFullName = [requesterFirstName, requesterLastName]
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    id: String(obj.id ?? obj._id ?? ""),
+    amount: parseRecordAmount(obj.amount),
+    status: String(obj.status ?? "PENDING"),
+    remarks: (obj.remarks as string | undefined) ?? undefined,
+    adminRemarks:
+      (obj.adminRemarks as string | undefined) ??
+      (obj.approvalRemarks as string | undefined) ??
+      (obj.rejectRemarks as string | undefined),
+    createdAt: (obj.createdAt as string | undefined) ?? undefined,
+    updatedAt: (obj.updatedAt as string | undefined) ?? undefined,
+    requesterId: String(
+      obj.requesterId ?? obj.userId ?? requester?.id ?? ""
+    ) || undefined,
+    requesterName:
+      (obj.requesterName as string | undefined) ||
+      (obj.userName as string | undefined) ||
+      requesterFullName ||
+      (requester?.name as string | undefined),
+    requesterType:
+      (obj.requesterType as string | undefined) ||
+      (obj.userType as string | undefined) ||
+      (requester?.userType as string | undefined),
+    requesterMobile:
+      (obj.requesterMobile as string | undefined) ||
+      (obj.mobile as string | undefined) ||
+      (requester?.mobile as string | undefined),
+    userId: (obj.userId as string | undefined) ?? undefined,
+    userName: (obj.userName as string | undefined) ?? undefined,
+    userType: (obj.userType as string | undefined) ?? undefined,
+  };
+}
+
+export async function approveFundRequest(
+  payload: AdminApproveFundRequestPayload
+) {
+  const { data } = await adminClient.put<ApiResponse<AdminFundRequestRecord>>(
+    "/fund-requests/approve",
+    {
+      id: payload.id,
+      fundRequestId: payload.id,
+      remarks: payload.remarks,
+    }
+  );
+  return normalizeFundRequestRecord(data.data);
+}
+
+export async function rejectFundRequest(payload: AdminRejectFundRequestPayload) {
+  const { data } = await adminClient.put<ApiResponse<AdminFundRequestRecord>>(
+    "/fund-requests/reject",
+    {
+      id: payload.id,
+      fundRequestId: payload.id,
+      remarks: payload.remarks,
+    }
+  );
+  return normalizeFundRequestRecord(data.data);
 }
 
 export async function getBusinessReport(
@@ -459,4 +593,71 @@ export function getNetworkUserId(user: AdminNetworkUser): string {
 
 export function getNetworkUserBalance(user: AdminNetworkUser): number {
   return user.walletBalance ?? 0;
+}
+
+function normalizeBankAccountsList(result: unknown): PaginatedBankAccounts {
+  if (Array.isArray(result)) {
+    return {
+      data: result.map((item) =>
+        normalizeBankAccountRecord(item as Record<string, unknown>)
+      ),
+      total: result.length,
+      page: 1,
+      pageSize: result.length,
+    };
+  }
+
+  if (result && typeof result === "object") {
+    const obj = result as Record<string, unknown>;
+    const mapItems = (items: unknown[]) =>
+      items.map((item) =>
+        normalizeBankAccountRecord(item as Record<string, unknown>)
+      );
+
+    if (Array.isArray(obj.items)) {
+      return {
+        data: mapItems(obj.items),
+        total: (obj.total as number | undefined) ?? obj.items.length,
+      };
+    }
+
+    if (Array.isArray(obj.data)) {
+      return {
+        data: mapItems(obj.data),
+        total: (obj.total as number | undefined) ?? obj.data.length,
+      };
+    }
+  }
+
+  return { data: [], total: 0, page: 1, pageSize: 10 };
+}
+
+/** Active system bank accounts available for admin assignment */
+export async function getAdminBankAccounts(): Promise<BankAccountRecord[]> {
+  const { data } = await adminClient.get<
+    ApiResponse<PaginatedBankAccounts | BankAccountRecord[]>
+  >("/bank-accounts", {
+    params: { page: 1, limit: 200 },
+  });
+  return normalizeBankAccountsList(data.data).data;
+}
+
+export async function assignBankAccountToUser(
+  payload: AdminAssignBankAccountPayload
+) {
+  const { data } = await adminClient.post<ApiResponse<unknown>>(
+    "/bank-accounts/assign",
+    payload
+  );
+  return data.data;
+}
+
+export async function removeBankAccountAssignment(
+  payload: AdminRemoveBankAssignmentPayload
+) {
+  const { data } = await adminClient.delete<ApiResponse<unknown>>(
+    "/bank-accounts/assign",
+    { data: payload }
+  );
+  return data.data;
 }

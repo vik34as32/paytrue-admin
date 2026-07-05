@@ -1,28 +1,28 @@
 "use client";
 
-import { useState, useLayoutEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { Navbar } from "@/components/navbar/Navbar";
 import { useAuthGuard } from "@/hooks/useAuth";
-import { useAppDispatch } from "@/hooks/useAppStore";
-import { loadStoredUser } from "@/store/api/authApi";
-import { loadStoredSuperAdmin } from "@/store/api/superAdminAuthApi";
-import { loadAdminSession } from "@/store/api/adminModuleApi";
+import { useAppSelector } from "@/hooks/useAppStore";
+import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
+import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const dispatch = useAppDispatch();
+  const isRestoring = useAppSelector(selectIsAuthRestoring);
 
   useAuthGuard();
 
-  // Restore persisted auth before route-guard effects run on refresh.
-  useLayoutEffect(() => {
-    dispatch(loadStoredUser());
-    dispatch(loadStoredSuperAdmin());
-    dispatch(loadAdminSession());
-  }, [dispatch]);
+  if (isRestoring) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <AuthRestoreLoader />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-background">

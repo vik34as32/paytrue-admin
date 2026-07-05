@@ -2,25 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
 import { DataTable } from "@/components/tables/DataTable";
-import { Badge } from "@/components/common/Badge";
 import {
   SuperAdminListFilters,
   SuperAdminListFiltersValue,
 } from "@/components/super-admin/SuperAdminListFilters";
+import {
+  NetworkUserCrudModals,
+  useNetworkUserTableColumns,
+} from "@/components/super-admin/NetworkUserCrudModals";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchDistributors } from "@/store/api/superAdminApi";
-import {
-  selectDistributorsList,
-  getNetworkUserName,
-} from "@/store/selectors/superAdminSelectors";
+import { selectDistributorsList } from "@/store/selectors/superAdminSelectors";
 import { ROUTES } from "@/constants";
-import { NetworkUserRecord } from "@/types/superAdmin";
-import { formatCurrency, formatDate } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -51,6 +48,8 @@ export default function SuperAdminDistributorsPage() {
     );
   }, [dispatch, pageIndex, search, filters]);
 
+  const { columns, crud } = useNetworkUserTableColumns(loadData);
+
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
       router.replace(ROUTES.superAdminLogin);
@@ -58,33 +57,6 @@ export default function SuperAdminDistributorsPage() {
     }
     loadData();
   }, [hasSuperAdminWalletAccess, router, loadData]);
-
-  const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
-    {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => getNetworkUserName(row.original),
-    },
-    { accessorKey: "email", header: "Email" },
-    { accessorKey: "mobile", header: "Mobile" },
-    {
-      accessorKey: "walletBalance",
-      header: "Balance",
-      cell: ({ row }) => formatCurrency(row.original.walletBalance ?? 0),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge variant="default">{row.original.status || "—"}</Badge>
-      ),
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Created",
-      cell: ({ row }) => formatDate(row.original.createdAt || ""),
-    },
-  ];
 
   if (!hasSuperAdminWalletAccess) return null;
 
@@ -110,16 +82,19 @@ export default function SuperAdminDistributorsPage() {
             setPageIndex(0);
           }}
           showSort
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPageIndex(0);
+          }}
+          searchPlaceholder="Search distributors..."
+          resultsCount={data.length}
         />
         <DataTable
           data={data}
           columns={columns}
           isLoading={isLoading}
-          searchPlaceholder="Search distributors..."
-          onSearch={(value) => {
-            setSearch(value);
-            setPageIndex(0);
-          }}
+          hideSearch
           manualPagination
           pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
           pageIndex={pageIndex}
@@ -127,6 +102,8 @@ export default function SuperAdminDistributorsPage() {
           pageSize={PAGE_SIZE}
         />
       </Card>
+
+      <NetworkUserCrudModals crud={crud} />
     </div>
   );
 }

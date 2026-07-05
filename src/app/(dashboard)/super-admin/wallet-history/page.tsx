@@ -145,16 +145,19 @@ export default function WalletHistoryPage() {
           showStatus={false}
           showDateRange
           showTransactionType
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPageIndex(0);
+          }}
+          searchPlaceholder="Search history..."
+          resultsCount={history.length}
         />
         <DataTable
           data={history}
           columns={columns}
           isLoading={isLoadingHistory}
-          searchPlaceholder="Search history..."
-          onSearch={(value) => {
-            setSearch(value);
-            setPageIndex(0);
-          }}
+          hideSearch
           manualPagination
           pageCount={pageCount}
           pageIndex={pageIndex}

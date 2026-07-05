@@ -43,7 +43,7 @@ export function SuperAdminLoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <Input
         label="Email Address"
         variant="dark"

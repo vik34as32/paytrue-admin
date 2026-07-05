@@ -1,9 +1,13 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 
-import { adminLogin, adminLogout, getStoredAdminUser } from "@/services/adminAuth";
+import {
+  adminLogin,
+  adminLogout,
+  getAdminToken,
+  getStoredAdminUser,
+} from "@/services/adminAuth";
 
 import { AdminLoginPayload } from "@/types/superAdmin";
-import { loadAdminSession } from "@/store/api/adminModuleApi";
 
 
 
@@ -26,7 +30,6 @@ export const adminLoginUser = createAsyncThunk(
       const { rememberMe, ...credentials } = payload;
 
       const result = await adminLogin(credentials, rememberMe ?? true);
-      await dispatch(loadAdminSession());
       return result;
 
     } catch (error) {
@@ -64,16 +67,13 @@ export const logoutUser = createAsyncThunk("auth/logout", async () => {
 
 
 export const loadStoredUser = createAsyncThunk("auth/loadUser", async () => {
-
   const adminUser = getStoredAdminUser();
+  const accessToken = getAdminToken();
 
-  if (adminUser) {
-
-    return adminUser;
-
+  if (adminUser && accessToken) {
+    return { user: adminUser, accessToken };
   }
 
   return null;
-
 });
 

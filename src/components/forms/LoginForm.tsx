@@ -33,7 +33,7 @@ export default function LoginForm() {
     const result = await dispatch(adminLoginUser(data));
     if (adminLoginUser.fulfilled.match(result)) {
       toast.success("Welcome back!");
-      router.push(ROUTES.adminDashboard);
+      router.replace(ROUTES.adminDashboard);
     } else {
       toast.error((result.payload as string) || "Login failed");
     }

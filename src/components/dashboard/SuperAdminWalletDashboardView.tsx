@@ -31,6 +31,7 @@ import {
   Store,
   Building2,
   TrendingUp,
+  Landmark,
 } from "lucide-react";
 
 const historyColumns: ColumnDef<WalletHistoryRecord, unknown>[] = [
@@ -164,6 +165,12 @@ export function SuperAdminWalletDashboardView() {
         subtitle="Wallet balance, network overview, and recent activity"
         action={
           <div className="flex flex-wrap gap-2">
+            <Link href={ROUTES.superAdminBankAccounts}>
+              <Button variant="outline">
+                <Landmark className="h-4 w-4" />
+                Add Account
+              </Button>
+            </Link>
             <Button variant="outline" onClick={() => setAddBalanceOpen(true)}>
               <IndianRupee className="h-4 w-4" />
               Add Balance

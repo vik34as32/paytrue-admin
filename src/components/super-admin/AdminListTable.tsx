@@ -36,7 +36,9 @@ export function AdminListTable({ admins, isLoading }: AdminListTableProps) {
       accessorKey: "userType",
       header: "User Type",
       cell: ({ row }) => (
-        <Badge variant="default">{row.original.userType.toUpperCase()}</Badge>
+        <Badge variant="default">
+          {(row.original.userType || "ADMIN").toUpperCase()}
+        </Badge>
       ),
     },
     {

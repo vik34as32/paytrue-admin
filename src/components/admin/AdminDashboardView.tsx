@@ -224,7 +224,7 @@ export function AdminDashboardView() {
         </Link>
         <Link href={ROUTES.adminFundRequests}>
           <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader title="Fund Request" subtitle="Request balance from super admin" />
+            <CardHeader title="Fund Requests" subtitle="Approve network user fund requests" />
           </Card>
         </Link>
         <Link href={ROUTES.adminMasterDistributor}>

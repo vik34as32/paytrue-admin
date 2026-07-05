@@ -24,6 +24,8 @@ import {
   fetchAdminRetailers,
   submitAdminFundRequest,
   fetchAdminFundRequests,
+  approveAdminFundRequest,
+  rejectAdminFundRequest,
   fetchAdminBusinessReport,
   loadAdminSession,
 } from "@/store/api/adminModuleApi";
@@ -87,6 +89,7 @@ interface AdminModuleState {
   changePasswordLoading: boolean;
   transferLoading: boolean;
   fundRequestLoading: boolean;
+  fundRequestActionLoading: boolean;
   createUserLoading: boolean;
   isLoadingBusinessReport: boolean;
   isSessionLoading: boolean;
@@ -112,6 +115,7 @@ const initialState: AdminModuleState = {
   changePasswordLoading: false,
   transferLoading: false,
   fundRequestLoading: false,
+  fundRequestActionLoading: false,
   createUserLoading: false,
   isLoadingBusinessReport: false,
   isSessionLoading: false,
@@ -311,6 +315,28 @@ const adminModuleSlice = createSlice({
       .addCase(fetchAdminFundRequests.rejected, (state, action) => {
         state.fundRequests.isLoading = false;
         state.fundRequests.error = action.payload as string;
+      })
+      .addCase(approveAdminFundRequest.pending, (state) => {
+        state.fundRequestActionLoading = true;
+        state.error = null;
+      })
+      .addCase(approveAdminFundRequest.fulfilled, (state) => {
+        state.fundRequestActionLoading = false;
+      })
+      .addCase(approveAdminFundRequest.rejected, (state, action) => {
+        state.fundRequestActionLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(rejectAdminFundRequest.pending, (state) => {
+        state.fundRequestActionLoading = true;
+        state.error = null;
+      })
+      .addCase(rejectAdminFundRequest.fulfilled, (state) => {
+        state.fundRequestActionLoading = false;
+      })
+      .addCase(rejectAdminFundRequest.rejected, (state, action) => {
+        state.fundRequestActionLoading = false;
+        state.error = action.payload as string;
       })
       .addCase(fetchAdminBusinessReport.pending, (state) => {
         state.isLoadingBusinessReport = true;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { Card } from "@/components/common/Card";
 import { EmailVerificationField } from "@/components/common/EmailVerificationField";
 import { Phone, Lock, User, Shield, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { createAdminAccount, fetchAllAdmins } from "@/store/api/superAdminWalletApi";
 import { CreateAdminPayload } from "@/types/superAdmin";
@@ -22,12 +23,21 @@ import {
 
 interface CreateAdminFormProps {
   onSuccess?: () => void;
+  onCancel?: () => void;
+  variant?: "page" | "modal";
+  isOpen?: boolean;
 }
 
-export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
+export function CreateAdminForm({
+  onSuccess,
+  onCancel,
+  variant = "page",
+  isOpen = true,
+}: CreateAdminFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useAppDispatch();
   const { createAdminLoading } = useAppSelector((state) => state.superAdminWallet);
+  const isModal = variant === "modal";
 
   const {
     register,
@@ -42,6 +52,18 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
 
   const email = watch("email") || "";
   const emailVerification = useEmailVerification(email);
+
+  const handleReset = () => {
+    reset();
+    emailVerification.resetVerification();
+    setShowPassword(false);
+  };
+
+  useEffect(() => {
+    if (isModal && !isOpen) {
+      handleReset();
+    }
+  }, [isModal, isOpen]);
 
   const handleFormSubmit = async (data: CreateAdminFormData) => {
     if (!emailVerification.isVerified) {
@@ -62,8 +84,7 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
     const result = await dispatch(createAdminAccount(payload));
     if (createAdminAccount.fulfilled.match(result)) {
       toast.success(USER_CREATED_SUCCESS_MESSAGE);
-      reset();
-      emailVerification.resetVerification();
+      handleReset();
       dispatch(fetchAllAdmins());
       onSuccess?.();
     } else {
@@ -71,15 +92,15 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
     }
   };
 
-  return (
-    <motion.form
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      onSubmit={handleSubmit(handleFormSubmit)}
-      className="space-y-6"
-    >
-      <Card className="border-primary/10 bg-gradient-to-br from-card to-primary/[0.02]">
-        <div className="mb-6 flex items-center gap-3">
+  const formBody = (
+    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
+      <Card
+        className={cn(
+          "border-primary/10 bg-gradient-to-br from-card to-primary/[0.02]",
+          isModal && "border-border shadow-none"
+        )}
+      >
+        <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Shield className="h-5 w-5" />
           </div>
@@ -92,7 +113,9 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <EmailVerificationField
             email={email}
-            onEmailChange={(value) => setValue("email", value, { shouldValidate: true })}
+            onEmailChange={(value) =>
+              setValue("email", value, { shouldValidate: true })
+            }
             verification={emailVerification}
             label="Email Address"
             placeholder="admin@paytrue.com"
@@ -120,7 +143,11 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
               onClick={() => setShowPassword(!showPassword)}
               className="mt-1 flex items-center gap-1 text-xs text-muted hover:text-primary"
             >
-              {showPassword ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              {showPassword ? (
+                <EyeOff className="h-3 w-3" />
+              ) : (
+                <Eye className="h-3 w-3" />
+              )}
               {showPassword ? "Hide" : "Show"}
             </button>
           </div>
@@ -135,8 +162,8 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
         </div>
       </Card>
 
-      <Card>
-        <div className="mb-6 flex items-center gap-3">
+      <Card className={cn(isModal && "border-border shadow-none")}>
+        <div className="mb-5 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
             <User className="h-5 w-5" />
           </div>
@@ -164,26 +191,49 @@ export function CreateAdminForm({ onSuccess }: CreateAdminFormProps) {
         </div>
       </Card>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            reset();
-            emailVerification.resetVerification();
-          }}
-        >
-          Reset Form
-        </Button>
+      <div
+        className={cn(
+          "flex flex-col-reverse gap-3 sm:flex-row sm:justify-end",
+          isModal && "border-t border-border pt-4"
+        )}
+      >
+        {isModal ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={createAdminLoading}
+          >
+            Cancel
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" onClick={handleReset}>
+            Reset Form
+          </Button>
+        )}
         <Button
           type="submit"
-          size="lg"
+          size={isModal ? "md" : "lg"}
           isLoading={createAdminLoading}
           disabled={!emailVerification.isVerified || createAdminLoading}
         >
           Create Admin Account
         </Button>
       </div>
-    </motion.form>
+    </form>
+  );
+
+  if (isModal) {
+    return formBody;
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {formBody}
+    </motion.div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { SuperAdminWalletDashboardView } from "@/components/dashboard/SuperAdminWalletDashboardView";
+import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
 import { ROUTES } from "@/constants";
 
 export default function SuperAdminDashboardPage() {
@@ -17,7 +18,9 @@ export default function SuperAdminDashboardPage() {
     }
   }, [isSuperAdminAuthenticated, isAuthLoading, router]);
 
-  if (isAuthLoading || !isSuperAdminAuthenticated) return null;
+  if (isAuthLoading || !isSuperAdminAuthenticated) {
+    return <AuthRestoreLoader />;
+  }
 
   return <SuperAdminWalletDashboardView />;
 }

@@ -10,6 +10,10 @@ export interface ApiUserRecord {
   profileImage?: string;
   state?: string;
   city?: string;
+  profile?: {
+    alternateMobileNumber?: string;
+    profileImage?: string;
+  };
   outlet?: {
     outletName?: string;
     businessType?: string;
@@ -155,6 +159,7 @@ export function mapApiUserToFormValues(
   const outlet = user.outlet || {};
   const kyc = user.kyc || {};
   const bank = user.bankAccount || {};
+  const profile = user.profile || {};
 
   return {
     firstName: user.firstName || "",
@@ -162,7 +167,8 @@ export function mapApiUserToFormValues(
     email: user.email || "",
     mobile: user.mobile || "",
     password: "",
-    alternateMobileNumber: user.alternateMobileNumber || "",
+    alternateMobileNumber:
+      user.alternateMobileNumber || profile.alternateMobileNumber || "",
     outletName: outlet.outletName || "",
     businessType: outlet.businessType || "",
     gstNumber: outlet.gstNumber || "",
@@ -188,9 +194,11 @@ export function mapApiUserToExistingUrls(
 ): Partial<Record<UserFileFieldKey, string | null>> {
   const kyc = user.kyc || {};
   const bank = user.bankAccount || {};
+  const profile = user.profile || {};
 
   return {
-    profileImage: user.profileImage || null,
+    profileImage:
+      user.profileImage || profile.profileImage || null,
     aadhaarFront: kyc.aadhaarFrontImage || kyc.aadhaarFront || null,
     aadhaarBack: kyc.aadhaarBackImage || kyc.aadhaarBack || null,
     panCard: kyc.panCardImage || kyc.panCard || null,

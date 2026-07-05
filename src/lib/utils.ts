@@ -56,6 +56,23 @@ export function getInitials(name: string): string {
     .slice(0, 2);
 }
 
+const API_ORIGIN = (
+  process.env.NEXT_PUBLIC_API_URL || "https://apis.paytrue.co.in/api/v1"
+).replace(/\/api\/v1\/?$/, "");
+
+export function resolveMediaUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("data:") ||
+    url.startsWith("blob:")
+  ) {
+    return url;
+  }
+  return url.startsWith("/") ? `${API_ORIGIN}${url}` : `${API_ORIGIN}/${url}`;
+}
+
 export function downloadFile(content: string | Blob, filename: string, mimeType: string) {
   const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);

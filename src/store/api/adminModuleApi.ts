@@ -14,6 +14,8 @@ import {
   getRetailers,
   createFundRequest,
   getFundRequests,
+  approveFundRequest,
+  rejectFundRequest,
   getBusinessReport,
 } from "@/services/adminApi";
 import { RootState } from "@/store";
@@ -21,6 +23,8 @@ import {
   AdminListQueryParams,
   AdminTransferPayload,
   AdminFundRequestPayload,
+  AdminApproveFundRequestPayload,
+  AdminRejectFundRequestPayload,
   AdminUpdateProfilePayload,
   AdminChangePasswordPayload,
 } from "@/types/admin";
@@ -263,6 +267,35 @@ export const fetchAdminFundRequests = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : "Failed to fetch fund requests"
+      );
+    }
+  }
+);
+
+export const approveAdminFundRequest = createAsyncThunk(
+  "adminModule/approveFundRequest",
+  async (payload: AdminApproveFundRequestPayload, { dispatch, rejectWithValue }) => {
+    try {
+      const result = await approveFundRequest(payload);
+      await dispatch(fetchAdminWalletBalance({ force: true }));
+      return result;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Failed to approve fund request"
+      );
+    }
+  }
+);
+
+export const rejectAdminFundRequest = createAsyncThunk(
+  "adminModule/rejectFundRequest",
+  async (payload: AdminRejectFundRequestPayload, { dispatch, rejectWithValue }) => {
+    try {
+      const result = await rejectFundRequest(payload);
+      return result;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Failed to reject fund request"
       );
     }
   }

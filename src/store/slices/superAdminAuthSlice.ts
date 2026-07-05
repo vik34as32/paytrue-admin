@@ -11,6 +11,7 @@ interface SuperAdminAuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
 }
 
@@ -19,6 +20,7 @@ const initialState: SuperAdminAuthState = {
   accessToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
 };
 
@@ -38,6 +40,7 @@ const superAdminAuthSlice = createSlice({
       })
       .addCase(superAdminLogin.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.isInitialized = true;
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.accessToken = action.payload.accessToken;
@@ -57,6 +60,7 @@ const superAdminAuthSlice = createSlice({
       })
       .addCase(loadStoredSuperAdmin.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.isInitialized = true;
         if (action.payload) {
           state.user = action.payload.user;
           state.accessToken = action.payload.accessToken;
@@ -65,6 +69,7 @@ const superAdminAuthSlice = createSlice({
       })
       .addCase(loadStoredSuperAdmin.rejected, (state) => {
         state.isLoading = false;
+        state.isInitialized = true;
       });
   },
 });

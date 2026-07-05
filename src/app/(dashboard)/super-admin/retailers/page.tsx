@@ -2,22 +2,22 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
 import { DataTable } from "@/components/tables/DataTable";
-import { Badge } from "@/components/common/Badge";
 import {
   SuperAdminListFilters,
   SuperAdminListFiltersValue,
 } from "@/components/super-admin/SuperAdminListFilters";
+import {
+  NetworkUserCrudModals,
+  useNetworkUserTableColumns,
+} from "@/components/super-admin/NetworkUserCrudModals";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchRetailers } from "@/store/api/superAdminApi";
-import { selectRetailersList, getNetworkUserName } from "@/store/selectors/superAdminSelectors";
+import { selectRetailersList } from "@/store/selectors/superAdminSelectors";
 import { ROUTES } from "@/constants";
-import { NetworkUserRecord } from "@/types/superAdmin";
-import { formatCurrency, formatDate } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
 
@@ -25,7 +25,9 @@ export default function SuperAdminRetailersPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
-  const { data, total, isLoading, error } = useAppSelector(selectRetailersList);
+  const { data, total, isLoading, error } = useAppSelector(
+    selectRetailersList
+  );
   const [pageIndex, setPageIndex] = useState(0);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({
@@ -50,6 +52,8 @@ export default function SuperAdminRetailersPage() {
     );
   }, [dispatch, pageIndex, search, filters]);
 
+  const { columns, crud } = useNetworkUserTableColumns(loadData);
+
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
       router.replace(ROUTES.superAdminLogin);
@@ -57,71 +61,6 @@ export default function SuperAdminRetailersPage() {
     }
     loadData();
   }, [hasSuperAdminWalletAccess, router, loadData]);
-
-  const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
-    {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => getNetworkUserName(row.original),
-    },
-    { accessorKey: "email", header: "Email" },
-    { accessorKey: "mobile", header: "Mobile" },
-    { accessorKey: "city", header: "City" },
-    { accessorKey: "state", header: "State" },
-    {
-      accessorKey: "walletBalance",
-      header: "Balance",
-      cell: ({ row }) =>
-        formatCurrency(row.original.walletBalance ?? 0),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            (row.original.status?.toLowerCase() as "success" | "pending") ||
-            "default"
-          }
-        >
-          {row.original.status || "—"}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Created",
-      cell: ({ row }) => formatDate(row.original.createdAt || ""),
-    },
-    {
-  id: "actions",
-  header: "Actions",
-  cell: ({ row }) => (
-    <div className="flex items-center gap-2">
-  <button
-    onClick={() => console.log("View", row.original)}
-    className="rounded-md border border-blue-500 px-3 py-1 text-xs font-medium text-blue-600 transition-all duration-200 hover:bg-blue-500 hover:text-white"
-  >
-    View
-  </button>
-
-  <button
-    onClick={() => console.log("Edit", row.original)}
-    className="rounded-md border border-emerald-500 px-3 py-1 text-xs font-medium text-emerald-600 transition-all duration-200 hover:bg-emerald-500 hover:text-white"
-  >
-    Edit
-  </button>
-
-  <button
-    onClick={() => console.log("Delete", row.original)}
-    className="rounded-md border border-red-500 px-3 py-1 text-xs font-medium text-red-600 transition-all duration-200 hover:bg-red-500 hover:text-white"
-  >
-    Delete
-  </button>
-</div>
-  ),
-},
-  ];
 
   if (!hasSuperAdminWalletAccess) return null;
 
@@ -150,16 +89,19 @@ export default function SuperAdminRetailersPage() {
           showState
           showDateRange
           showSort
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPageIndex(0);
+          }}
+          searchPlaceholder="Search retailers..."
+          resultsCount={data.length}
         />
         <DataTable
           data={data}
           columns={columns}
           isLoading={isLoading}
-          searchPlaceholder="Search retailers..."
-          onSearch={(value) => {
-            setSearch(value);
-            setPageIndex(0);
-          }}
+          hideSearch
           manualPagination
           pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
           pageIndex={pageIndex}
@@ -167,6 +109,8 @@ export default function SuperAdminRetailersPage() {
           pageSize={PAGE_SIZE}
         />
       </Card>
+
+      <NetworkUserCrudModals crud={crud} />
     </div>
   );
 }

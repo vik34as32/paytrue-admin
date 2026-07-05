@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Providers } from "@/components/common/Providers";
-import AuthInitializer from "@/components/common/AuthInitializer";
 
 import "./globals.css";
 
@@ -14,6 +13,14 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "PayTrue Admin Panel",
   description: "Enterprise FinTech Admin Management System",
+  icons: {
+    icon: [
+      { url: "/images/logo.png", type: "image/png" },
+      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+    ],
+    shortcut: "/images/logo.png",
+    apple: "/images/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -24,10 +31,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${dmSans.variable} min-h-screen antialiased`}>
-<Providers>
-  <AuthInitializer />
-  {children}
-</Providers>      </body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

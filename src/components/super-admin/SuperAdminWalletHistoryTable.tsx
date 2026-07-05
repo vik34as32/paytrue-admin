@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { RefreshCw, AlertCircle } from "lucide-react";
 import { Card, CardHeader } from "@/components/common/Card";
 import { Button } from "@/components/common/Button";
-import { Select } from "@/components/common/Select";
 import { DataTable } from "@/components/tables/DataTable";
 import {
   SuperAdminListFilters,
@@ -15,12 +14,6 @@ import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchWalletHistory } from "@/store/api/superAdminWalletApi";
 import { clearWalletError } from "@/store/slices/superAdminWalletSlice";
 import { buildWalletHistoryColumns } from "@/lib/walletHistoryColumns";
-
-const PAGE_SIZE_OPTIONS = [
-  { value: "10", label: "10 / page" },
-  { value: "20", label: "20 / page" },
-  { value: "50", label: "50 / page" },
-];
 
 interface SuperAdminWalletHistoryTableProps {
   /** Increment to reload history (e.g. after a successful transfer). */
@@ -120,24 +113,22 @@ export function SuperAdminWalletHistoryTable({
         showStatus={false}
         showDateRange
         showTransactionType
+        search={search}
+        onSearch={(value) => {
+          setSearch(value);
+          setPageIndex(0);
+        }}
+        searchPlaceholder="Search by transaction ID, receiver, remarks..."
+        resultsCount={history.length}
+        resultsLabel="records"
+        pageSizeSelect={{
+          value: pageSize,
+          onChange: (value) => {
+            setPageSize(value);
+            setPageIndex(0);
+          },
+        }}
       />
-
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="w-full sm:max-w-[160px]">
-          <Select
-            label="Page Size"
-            value={String(pageSize)}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPageIndex(0);
-            }}
-            options={PAGE_SIZE_OPTIONS}
-          />
-        </div>
-        <p className="text-sm text-muted">
-          {historyTotal} total record{historyTotal === 1 ? "" : "s"}
-        </p>
-      </div>
 
       {error && !isLoadingHistory && history.length === 0 && (
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -160,11 +151,7 @@ export function SuperAdminWalletHistoryTable({
         data={history}
         columns={columns}
         isLoading={isLoadingHistory}
-        searchPlaceholder="Search by transaction ID, receiver, remarks..."
-        onSearch={(value) => {
-          setSearch(value);
-          setPageIndex(0);
-        }}
+        hideSearch
         manualPagination
         pageCount={pageCount}
         pageIndex={pageIndex}

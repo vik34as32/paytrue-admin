@@ -22,6 +22,8 @@ import {
   AdminFundRequest,
 } from "@/types/superAdmin";
 import { ApiResponse } from "@/types";
+import { normalizeNetworkUserRecord } from "@/lib/normalizeUser";
+import { normalizeAdminRecord } from "@/lib/normalizeAdmin";
 
 function readPaginationMeta(
   obj: Record<string, unknown>
@@ -312,7 +314,11 @@ export async function getRetailers(
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
   >("/retailers", { params });
-  return normalizePaginated<NetworkUserRecord>(data.data, ["retailers"]);
+  const normalized = normalizePaginated<NetworkUserRecord>(data.data, ["retailers"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUserRecord),
+  };
 }
 
 export async function getMasterDistributors(
@@ -321,9 +327,13 @@ export async function getMasterDistributors(
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
   >("/master-distributors", { params });
-  return normalizePaginated<NetworkUserRecord>(data.data, [
+  const normalized = normalizePaginated<NetworkUserRecord>(data.data, [
     "masterDistributors",
   ]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUserRecord),
+  };
 }
 
 export async function getDistributors(
@@ -332,7 +342,11 @@ export async function getDistributors(
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
   >("/distributors", { params });
-  return normalizePaginated<NetworkUserRecord>(data.data, ["distributors"]);
+  const normalized = normalizePaginated<NetworkUserRecord>(data.data, ["distributors"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeNetworkUserRecord),
+  };
 }
 
 export async function getAdmins(
@@ -341,7 +355,11 @@ export async function getAdmins(
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<AdminRecord> | AdminRecord[]>
   >("/admins", { params });
-  return normalizePaginated<AdminRecord>(data.data, ["admins"]);
+  const normalized = normalizePaginated<AdminRecord>(data.data, ["admins"]);
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeAdminRecord),
+  };
 }
 
 export async function getAdminFundRequests(

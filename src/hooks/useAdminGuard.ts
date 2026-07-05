@@ -1,22 +1,57 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useAppSelector } from "@/hooks/useAppStore";
+import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
 import { ROUTES } from "@/constants";
+import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
+import { hasPersistedAdminSession } from "@/lib/authSession";
+import { loadStoredUser } from "@/store/api/authApi";
 
 export function useAdminGuard() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const { isAdminApiAuth } = useRoleAccess();
-  const { isLoading } = useAppSelector((state) => state.auth);
+  const { isLoading, isInitialized, isAuthenticated } = useAppSelector(
+    (state) => state.auth
+  );
+  const isRestoring = useAppSelector(selectIsAuthRestoring);
+  const rehydrateAttempted = useRef(false);
 
   useEffect(() => {
-    if (isLoading) return;
-    if (!isAdminApiAuth) {
-      router.replace(ROUTES.login);
-    }
-  }, [isAdminApiAuth, isLoading, router]);
+    if (isRestoring || isLoading) return;
 
-  return { isAdminApiAuth, isLoading };
+    if (isAdminApiAuth) {
+      rehydrateAttempted.current = false;
+      return;
+    }
+
+    if (hasPersistedAdminSession()) {
+      if (!isAuthenticated && !rehydrateAttempted.current) {
+        rehydrateAttempted.current = true;
+        void dispatch(loadStoredUser());
+        return;
+      }
+
+      if (isInitialized && isAuthenticated && !isAdminApiAuth) {
+        router.replace(ROUTES.login);
+        return;
+      }
+
+      return;
+    }
+
+    router.replace(ROUTES.login);
+  }, [
+    dispatch,
+    isAdminApiAuth,
+    isAuthenticated,
+    isInitialized,
+    isLoading,
+    isRestoring,
+    router,
+  ]);
+
+  return { isAdminApiAuth, isRestoring };
 }

@@ -5,6 +5,7 @@ import { Select } from "@/components/common/Select";
 
 export interface AdminListFiltersValue {
   status?: string;
+  userType?: string;
   startDate?: string;
   endDate?: string;
   sortBy?: string;
@@ -15,6 +16,8 @@ interface AdminListFiltersProps {
   value: AdminListFiltersValue;
   onChange: (value: AdminListFiltersValue) => void;
   showStatus?: boolean;
+  showFundRequestStatus?: boolean;
+  showUserType?: boolean;
   showDateRange?: boolean;
   showSort?: boolean;
 }
@@ -29,24 +32,52 @@ const STATUS_OPTIONS = [
   { value: "rejected", label: "Rejected" },
 ];
 
+const FUND_REQUEST_STATUS_OPTIONS = [
+  { value: "", label: "All Status" },
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
+const USER_TYPE_OPTIONS = [
+  { value: "", label: "All User Types" },
+  { value: "MASTER_DISTRIBUTOR", label: "Master Distributor" },
+  { value: "DISTRIBUTOR", label: "Distributor" },
+  { value: "RETAILER", label: "Retailer" },
+];
+
 export function AdminListFilters({
   value,
   onChange,
   showStatus = true,
+  showFundRequestStatus = false,
+  showUserType = false,
   showDateRange = false,
   showSort = false,
 }: AdminListFiltersProps) {
   const update = (patch: Partial<AdminListFiltersValue>) =>
     onChange({ ...value, ...patch });
 
+  const statusOptions = showFundRequestStatus
+    ? FUND_REQUEST_STATUS_OPTIONS
+    : STATUS_OPTIONS;
+
   return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {showStatus && (
+    <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      {(showStatus || showFundRequestStatus) && (
         <Select
           label="Status"
           value={value.status || ""}
           onChange={(e) => update({ status: e.target.value || undefined })}
-          options={STATUS_OPTIONS}
+          options={statusOptions}
+        />
+      )}
+      {showUserType && (
+        <Select
+          label="User Type"
+          value={value.userType || ""}
+          onChange={(e) => update({ userType: e.target.value || undefined })}
+          options={USER_TYPE_OPTIONS}
         />
       )}
       {showDateRange && (

@@ -16,6 +16,7 @@ import {
   Clock,
   User,
   Settings,
+  Percent,
   LogOut,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +46,7 @@ const iconMap: Record<string, React.ReactNode> = {
   history: <Clock className="h-5 w-5" />,
   profile: <User className="h-5 w-5" />,
   settings: <Settings className="h-5 w-5" />,
+  commission: <Percent className="h-5 w-5" />,
 };
 
 interface SidebarProps {

@@ -16,8 +16,8 @@ function adminToUser(admin: AdminRecord): User {
   return {
     id: admin.adminId || admin.id,
     name: getAdminDisplayName(admin),
-    email: admin.email,
-    mobile: admin.mobile,
+    email: admin.email || "",
+    mobile: admin.mobile || "",
     password: "",
     role: "admin",
     status: "active",

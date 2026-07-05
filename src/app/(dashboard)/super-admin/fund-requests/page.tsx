@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
 import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/common/Badge";
-import { Select } from "@/components/common/Select";
 import {
   SuperAdminListFilters,
   SuperAdminListFiltersValue,
@@ -125,22 +124,6 @@ export default function SuperAdminFundRequestsPage() {
       )}
 
       <Card>
-        <div className="mb-4 max-w-sm">
-          <Select
-            label="Select Admin"
-            value={selectedAdminId}
-            onChange={(e) => {
-              setSelectedAdminId(e.target.value);
-              setPageIndex(0);
-            }}
-            options={
-              adminOptions.length > 0
-                ? adminOptions
-                : [{ value: "", label: isLoadingAdmins ? "Loading..." : "No admins" }]
-            }
-          />
-        </div>
-
         <SuperAdminListFilters
           value={filters}
           onChange={(next) => {
@@ -150,6 +133,29 @@ export default function SuperAdminFundRequestsPage() {
           showDateRange
           showStatus
           showSort={false}
+          search={search}
+          onSearch={(value) => {
+            setSearch(value);
+            setPageIndex(0);
+          }}
+          searchPlaceholder="Search fund requests..."
+          resultsCount={data.length}
+          adminSelect={{
+            value: selectedAdminId,
+            onChange: (value) => {
+              setSelectedAdminId(value);
+              setPageIndex(0);
+            },
+            options:
+              adminOptions.length > 0
+                ? adminOptions
+                : [
+                    {
+                      value: "",
+                      label: isLoadingAdmins ? "Loading..." : "No admins",
+                    },
+                  ],
+          }}
         />
 
         {!selectedAdminId ? (
@@ -161,11 +167,7 @@ export default function SuperAdminFundRequestsPage() {
             data={data}
             columns={columns}
             isLoading={isLoading}
-            searchPlaceholder="Search fund requests..."
-            onSearch={(value) => {
-              setSearch(value);
-              setPageIndex(0);
-            }}
+            hideSearch
             manualPagination
             pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
             pageIndex={pageIndex}

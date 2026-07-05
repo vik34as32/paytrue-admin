@@ -1,5 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { STORAGE_KEYS, AuthTokenKey } from "@/constants/storage";
+import { handleUnauthorizedRedirect } from "@/lib/authSession";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://apis.paytrue.co.in/api/v1";
@@ -86,17 +87,7 @@ export function createAuthenticatedClient(
     (response) => response,
     (error: AxiosError) => {
       if (error.response?.status === 401 && typeof window !== "undefined") {
-        localStorage.removeItem(tokenKey);
-        if (tokenKey === STORAGE_KEYS.SUPER_ADMIN_TOKEN) {
-          localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_USER);
-          localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_REFRESH_TOKEN);
-        } else {
-          localStorage.removeItem(STORAGE_KEYS.ADMIN_USER);
-          localStorage.removeItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN);
-        }
-        if (!window.location.pathname.startsWith(loginPath)) {
-          window.location.href = loginPath;
-        }
+        handleUnauthorizedRedirect(loginPath, tokenKey);
       }
       return Promise.reject(new Error(getErrorMessage(error)));
     }
@@ -135,11 +126,7 @@ function getAdminModuleToken(): string | null {
 }
 
 function clearAdminModuleSession() {
-  localStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.ADMIN_USER);
-  localStorage.removeItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN);
-  sessionStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
-  sessionStorage.removeItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN);
+  handleUnauthorizedRedirect("/login", STORAGE_KEYS.ADMIN_TOKEN);
 }
 
 export const adminModuleClient = axios.create({
@@ -167,9 +154,6 @@ adminModuleClient.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401 && typeof window !== "undefined") {
       clearAdminModuleSession();
-      if (!window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
-      }
     }
     return Promise.reject(new Error(getErrorMessage(error)));
   }

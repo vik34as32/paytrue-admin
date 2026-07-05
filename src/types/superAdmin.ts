@@ -42,16 +42,36 @@ export interface SuperAdminProfile {
 export interface AdminRecord {
   id: string;
   adminId?: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   name?: string;
-  email: string;
-  mobile: string;
-  userType: string;
+  email?: string;
+  mobile?: string;
+  userType?: string;
+  status?: string;
+  userCode?: string;
+  profileImage?: string;
   walletBalance?: number;
   currentWalletBalance?: number;
   balance?: number;
-  wallet?: { balance?: number };
+  createdAt?: string;
+  updatedAt?: string;
+  wallet?: UserWalletRecord;
+  profile?: UserProfileRecord;
+  [key: string]: unknown;
+}
+
+export interface AdminDetailRecord extends AdminRecord {
+  alternateMobileNumber?: string;
+  parentId?: string;
+  createdById?: string;
+  tenantId?: string | null;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+  isEmailVerified?: boolean;
+  mobileVerified?: boolean;
+  mobileVerifiedAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface WalletBalanceData {
@@ -158,6 +178,51 @@ export interface ChangePasswordPayload {
   newPassword: string;
 }
 
+export interface UserProfileRecord {
+  id?: string;
+  userId?: string;
+  alternateMobileNumber?: string;
+  profileImage?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserWalletRecord {
+  id?: string;
+  userId?: string;
+  balance?: string | number;
+  holdAmount?: string | number;
+  status?: string;
+  currency?: string;
+  cardNumber?: string;
+  expiryDate?: string;
+  cardHolderName?: string;
+  retailerCode?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UserOutletRecord {
+  id?: string;
+  userId?: string;
+  outletName?: string;
+  businessType?: string;
+  gstNumber?: string;
+  address?: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  village?: string;
+  pincode?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  miniKycStatus?: string | null;
+  kycCompletedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: string | number | null | undefined;
+}
+
 export interface NetworkUserRecord {
   id: string;
   firstName?: string;
@@ -170,7 +235,79 @@ export interface NetworkUserRecord {
   state?: string;
   walletBalance?: number;
   createdAt?: string;
-  [key: string]: string | number | undefined;
+  updatedAt?: string;
+  profileImage?: string;
+  userType?: string;
+  role?: string;
+  userCode?: string;
+  businessName?: string;
+  outletName?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  outlet?: UserOutletRecord;
+  profile?: UserProfileRecord;
+  wallet?: UserWalletRecord;
+  kyc?: {
+    aadhaarNumber?: string;
+    panNumber?: string;
+    kycStatus?: string;
+    status?: string;
+    aadhaarFrontImage?: string;
+    aadhaarBackImage?: string;
+    panCardImage?: string;
+    ownerPhoto?: string;
+    videoVerification?: string;
+    [key: string]: string | undefined;
+  };
+  [key: string]: unknown;
+}
+
+export interface UserDetailRecord extends NetworkUserRecord {
+  alternateMobileNumber?: string;
+  parentId?: string;
+  createdById?: string;
+  tenantId?: string | null;
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+  isEmailVerified?: boolean;
+  mobileVerified?: boolean;
+  mobileVerifiedAt?: string;
+  deletedAt?: string | null;
+  kycStatus?: string;
+  bankAccount?: {
+    accountHolderName?: string;
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    passbookImage?: string;
+    cancelledChequeImage?: string;
+    [key: string]: string | undefined;
+  };
+  parentUser?: {
+    id?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    userType?: string;
+    userCode?: string;
+  };
+  distributor?: {
+    id?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    userCode?: string;
+  };
+  masterDistributor?: {
+    id?: string;
+    name?: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    userCode?: string;
+  };
 }
 
 export interface AdminFundRequest {

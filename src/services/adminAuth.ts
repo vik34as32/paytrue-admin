@@ -2,6 +2,8 @@ import { publicClient } from "@/lib/api/client";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { AdminLoginPayload } from "@/types/superAdmin";
 import { ApiResponse, AuthUser } from "@/types";
+import { resolveAuthRole } from "@/lib/normalizeAuthRole";
+import { markAdminLoginSuccess } from "@/lib/authSession";
 
 interface AdminLoginResponseData {
   accessToken: string;
@@ -25,7 +27,7 @@ function normalizeAdminUser(
       raw.email,
     email: raw.email,
     mobile: raw.mobile || "",
-    role: raw.role || "admin",
+    role: resolveAuthRole(raw),
     status: raw.status || "active",
     balance: raw.balance ?? 0,
     avatar: raw.avatar,
@@ -56,6 +58,8 @@ export async function adminLogin(
     storage.setItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN, payload.refreshToken);
   }
 
+  markAdminLoginSuccess();
+
   return { accessToken: token, user };
 }
 
@@ -72,7 +76,11 @@ export function getStoredAdminUser(): AuthUser | null {
   const stored = localStorage.getItem(STORAGE_KEYS.ADMIN_USER);
   if (!stored) return null;
   try {
-    return JSON.parse(stored) as AuthUser;
+    const parsed = JSON.parse(stored) as AuthUser & { userType?: string };
+    return {
+      ...parsed,
+      role: resolveAuthRole(parsed),
+    };
   } catch {
     return null;
   }

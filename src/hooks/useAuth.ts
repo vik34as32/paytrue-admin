@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { useAppSelector } from "@/hooks/useAppStore";
 import { UserRole } from "@/types";
 import { ROUTES } from "@/constants";
-import { STORAGE_KEYS } from "@/constants/storage";
+import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
+import { hasPersistedAdminSession, hasPersistedSuperAdminSession } from "@/lib/authSession";
+import { isAdminRole } from "@/lib/normalizeAuthRole";
 
 const PUBLIC_ROUTES = [ROUTES.login, ROUTES.superAdminLogin];
 
@@ -25,6 +27,8 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.adminHierarchy,
     ROUTES.adminLedger,
     ROUTES.adminFundRequests,
+    ROUTES.adminAssignBankAccount,
+    ROUTES.adminCommissionManagement,
   ],
   master_distributor: [
     ROUTES.dashboard,
@@ -75,21 +79,22 @@ const SUPER_ADMIN_API_ROUTES = [
   ROUTES.superAdminDistributors,
   ROUTES.superAdminFundRequests,
   ROUTES.superAdminChangePassword,
+  ROUTES.superAdminBankAccounts,
 ];
 
 export function useAuthGuard(allowedRoles?: UserRole[]) {
   const router = useRouter();
   const pathname = usePathname();
   const {
-  isAuthenticated,
-  user,
-  isLoading,
-  isInitialized,
-} = useAppSelector((state) => state.auth);
+    isAuthenticated,
+    user,
+    isInitialized,
+  } = useAppSelector((state) => state.auth);
   const superAdminAuth = useAppSelector((state) => state.superAdminAuth);
+  const isRestoring = useAppSelector(selectIsAuthRestoring);
 
   useEffect(() => {
-    if (!isInitialized || isLoading || superAdminAuth.isLoading) return;
+    if (isRestoring) return;
 
     const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
     const isSuperAdminApiRoute = SUPER_ADMIN_API_ROUTES.some((r) =>
@@ -97,33 +102,30 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
     );
 
     if (isSuperAdminApiRoute) {
-      const hasSuperAdminSession =
-        superAdminAuth.isAuthenticated ||
-        (superAdminAuth.isLoading &&
-          typeof window !== "undefined" &&
-          !!localStorage.getItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN));
-
-      if (!hasSuperAdminSession && pathname !== ROUTES.superAdminLogin) {
+      if (!superAdminAuth.isAuthenticated && pathname !== ROUTES.superAdminLogin) {
         router.replace(ROUTES.superAdminLogin);
       }
       return;
     }
 
     if (!isAuthenticated && !superAdminAuth.isAuthenticated && !isPublic) {
+      if (hasPersistedAdminSession() || hasPersistedSuperAdminSession()) {
+        return;
+      }
       router.replace(ROUTES.login);
       return;
     }
 
     if (isAuthenticated && pathname === ROUTES.login) {
       router.replace(
-        user?.role === "admin" ? ROUTES.adminDashboard : ROUTES.dashboard
+        isAdminRole(user) ? ROUTES.adminDashboard : ROUTES.dashboard
       );
       return;
     }
 
     if (
       isAuthenticated &&
-      user?.role === "admin" &&
+      isAdminRole(user) &&
       pathname === ROUTES.dashboard
     ) {
       router.replace(ROUTES.adminDashboard);
@@ -147,7 +149,7 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
 
       if (!hasAccess && user.role !== "super_admin") {
         router.replace(
-          user.role === "admin" ? ROUTES.adminDashboard : ROUTES.dashboard
+          isAdminRole(user) ? ROUTES.adminDashboard : ROUTES.dashboard
         );
       }
 
@@ -156,16 +158,16 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
       }
     }
   }, [
-  isAuthenticated,
-  user,
-  pathname,
-  router,
-  isLoading,
-  isInitialized,
-  allowedRoles,
-  superAdminAuth.isAuthenticated,
-  superAdminAuth.isLoading,
-]);
+    isAuthenticated,
+    user,
+    pathname,
+    router,
+    isInitialized,
+    allowedRoles,
+    superAdminAuth.isAuthenticated,
+    superAdminAuth.isInitialized,
+    isRestoring,
+  ]);
 }
 
 export function useRoleAccess() {
@@ -174,7 +176,7 @@ export function useRoleAccess() {
   const isSuperAdmin =
     superAdminAuth.isAuthenticated || user?.role === "super_admin";
   const isAdminApiAuth =
-    isAuthenticated && user?.role === "admin" && !superAdminAuth.isAuthenticated;
+    isAuthenticated && isAdminRole(user) && !superAdminAuth.isAuthenticated;
   const canCreateUsers = isSuperAdmin;
   const canManageUsers = isSuperAdmin;
   const canApproveRequests =

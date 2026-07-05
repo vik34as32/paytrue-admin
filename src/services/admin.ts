@@ -30,7 +30,8 @@ export async function getAllAdmins(): Promise<AdminRecord[]> {
 
 export function getAdminDisplayName(admin: AdminRecord): string {
   if (admin.name) return admin.name;
-  return [admin.firstName, admin.lastName].filter(Boolean).join(" ");
+  const full = [admin.firstName, admin.lastName].filter(Boolean).join(" ");
+  return full || admin.email || "—";
 }
 
 export function getAdminBalance(admin: AdminRecord): number {

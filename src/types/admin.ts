@@ -3,6 +3,7 @@ export interface AdminListQueryParams {
   pageSize?: number;
   search?: string;
   status?: string;
+  userType?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   city?: string;
@@ -89,8 +90,26 @@ export interface AdminFundRequestRecord {
   amount: number;
   status: string;
   remarks?: string;
+  adminRemarks?: string;
   createdAt?: string;
   updatedAt?: string;
+  requesterId?: string;
+  requesterName?: string;
+  requesterType?: string;
+  requesterMobile?: string;
+  userId?: string;
+  userName?: string;
+  userType?: string;
+}
+
+export interface AdminApproveFundRequestPayload {
+  id: string;
+  remarks?: string;
+}
+
+export interface AdminRejectFundRequestPayload {
+  id: string;
+  remarks: string;
 }
 
 export interface AdminProfile {
@@ -124,13 +143,37 @@ export interface AdminNetworkUser {
   email?: string;
   mobile?: string;
   status?: string;
+  userType?: string;
   city?: string;
   state?: string;
   walletBalance?: number;
   business?: number;
   totalBusiness?: number;
   createdAt?: string;
-  [key: string]: string | number | undefined;
+  assignedBankAccount?: AdminAssignedBankAccount | null;
+  [key: string]: string | number | AdminAssignedBankAccount | null | undefined;
+}
+
+export interface AdminAssignedBankAccount {
+  id?: string;
+  bankAccountId?: string;
+  assignmentId?: string;
+  accountHolderName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  status?: string;
+  assignedAt?: string;
+}
+
+export interface AdminAssignBankAccountPayload {
+  userId: string;
+  bankAccountId: string;
+}
+
+export interface AdminRemoveBankAssignmentPayload {
+  userId: string;
+  bankAccountId: string;
 }
 
 export interface AdminBusinessReportData {
