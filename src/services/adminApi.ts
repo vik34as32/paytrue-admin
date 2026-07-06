@@ -26,11 +26,6 @@ import {
   extractUserFiles,
 } from "@/lib/buildUserFormData";
 import { ApiResponse } from "@/types";
-import { normalizeBankAccountRecord } from "@/lib/normalizeBankAccount";
-import {
-  BankAccountRecord,
-  PaginatedBankAccounts,
-} from "@/types/bankAccount";
 
 function readPaginationMeta(
   obj: Record<string, unknown>
@@ -595,52 +590,8 @@ export function getNetworkUserBalance(user: AdminNetworkUser): number {
   return user.walletBalance ?? 0;
 }
 
-function normalizeBankAccountsList(result: unknown): PaginatedBankAccounts {
-  if (Array.isArray(result)) {
-    return {
-      data: result.map((item) =>
-        normalizeBankAccountRecord(item as Record<string, unknown>)
-      ),
-      total: result.length,
-      page: 1,
-      pageSize: result.length,
-    };
-  }
-
-  if (result && typeof result === "object") {
-    const obj = result as Record<string, unknown>;
-    const mapItems = (items: unknown[]) =>
-      items.map((item) =>
-        normalizeBankAccountRecord(item as Record<string, unknown>)
-      );
-
-    if (Array.isArray(obj.items)) {
-      return {
-        data: mapItems(obj.items),
-        total: (obj.total as number | undefined) ?? obj.items.length,
-      };
-    }
-
-    if (Array.isArray(obj.data)) {
-      return {
-        data: mapItems(obj.data),
-        total: (obj.total as number | undefined) ?? obj.data.length,
-      };
-    }
-  }
-
-  return { data: [], total: 0, page: 1, pageSize: 10 };
-}
-
 /** Active system bank accounts available for admin assignment */
-export async function getAdminBankAccounts(): Promise<BankAccountRecord[]> {
-  const { data } = await adminClient.get<
-    ApiResponse<PaginatedBankAccounts | BankAccountRecord[]>
-  >("/bank-accounts", {
-    params: { page: 1, limit: 200 },
-  });
-  return normalizeBankAccountsList(data.data).data;
-}
+export { getAdminBankAccounts } from "@/services/bankAccountApi";
 
 export async function assignBankAccountToUser(
   payload: AdminAssignBankAccountPayload

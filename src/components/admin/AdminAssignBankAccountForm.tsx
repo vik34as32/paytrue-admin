@@ -12,7 +12,6 @@ import {
 } from "@/store/api/adminModuleApi";
 import {
   assignBankAccountToUser,
-  getAdminBankAccounts,
   getNetworkUserName,
 } from "@/services/adminApi";
 import { AdminNetworkUser } from "@/types/admin";
@@ -31,20 +30,22 @@ interface AdminAssignBankAccountFormProps {
   isOpen?: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
+  bankAccounts?: BankAccountRecord[];
+  isLoadingBanks?: boolean;
 }
 
 export function AdminAssignBankAccountForm({
   isOpen = true,
   onSuccess,
   onCancel,
+  bankAccounts = [],
+  isLoadingBanks = false,
 }: AdminAssignBankAccountFormProps) {
   const dispatch = useAppDispatch();
   const { masterDistributors, distributors, retailers } = useAppSelector(
     (state) => state.adminModule
   );
 
-  const [bankAccounts, setBankAccounts] = useState<BankAccountRecord[]>([]);
-  const [isLoadingBanks, setIsLoadingBanks] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bankAccountId, setBankAccountId] = useState("");
   const [userType, setUserType] = useState<AssignUserType | "">("");
@@ -61,18 +62,6 @@ export function AdminAssignBankAccountForm({
     dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 200 }));
     dispatch(fetchAdminDistributors({ page: 1, pageSize: 200 }));
     dispatch(fetchAdminRetailers({ page: 1, pageSize: 200 }));
-
-    setIsLoadingBanks(true);
-    getAdminBankAccounts()
-      .then(setBankAccounts)
-      .catch((error) => {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to load bank accounts"
-        );
-      })
-      .finally(() => setIsLoadingBanks(false));
   }, [dispatch, isOpen]);
 
   const usersForType = useMemo(() => {

@@ -17,10 +17,14 @@ import {
   fetchAdminMasterDistributors,
   fetchAdminRetailers,
 } from "@/store/api/adminModuleApi";
+import { getNetworkUserName } from "@/services/adminApi";
 import {
-  getNetworkUserName,
+  assignBankAccountToUser,
   removeBankAccountAssignment,
 } from "@/services/adminApi";
+import { getAdminBankAccounts } from "@/services/bankAccountApi";
+import { createBankAccountListColumns } from "@/lib/bankAccountColumns";
+import { BankAccountRecord } from "@/types/bankAccount";
 import { AdminNetworkUser } from "@/types/admin";
 
 interface AssignmentRow {
@@ -42,6 +46,26 @@ export function AdminAssignBankAccountView() {
   const [removeUser, setRemoveUser] = useState<AdminNetworkUser | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountRecord[]>([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState(false);
+  const [banksError, setBanksError] = useState<string | null>(null);
+
+  const bankColumns = useMemo(() => createBankAccountListColumns(), []);
+
+  const loadBankAccounts = useCallback(async () => {
+    setIsLoadingBanks(true);
+    setBanksError(null);
+    try {
+      const accounts = await getAdminBankAccounts({ page: 1, pageSize: 100 });
+      setBankAccounts(accounts);
+    } catch (error) {
+      setBanksError(
+        error instanceof Error ? error.message : "Failed to load bank accounts"
+      );
+    } finally {
+      setIsLoadingBanks(false);
+    }
+  }, []);
 
   const loadUsers = useCallback(() => {
     dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 200 }));
@@ -51,7 +75,8 @@ export function AdminAssignBankAccountView() {
 
   useEffect(() => {
     loadUsers();
-  }, [loadUsers]);
+    void loadBankAccounts();
+  }, [loadUsers, loadBankAccounts]);
 
   const assignedRows = useMemo<AssignmentRow[]>(() => {
     const rows: AssignmentRow[] = [];
@@ -176,8 +201,32 @@ export function AdminAssignBankAccountView() {
       <AdminAssignBankAccountModal
         isOpen={assignModalOpen}
         onClose={() => setAssignModalOpen(false)}
-        onSuccess={loadUsers}
+        onSuccess={() => {
+          loadUsers();
+          void loadBankAccounts();
+        }}
+        bankAccounts={bankAccounts}
+        isLoadingBanks={isLoadingBanks}
       />
+
+      <Card>
+        <CardHeader
+          title="System Bank Accounts"
+          subtitle="Active bank accounts from PayTrue (used for assignment)"
+        />
+        {banksError ? (
+          <div className="mb-4 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+            {banksError}
+          </div>
+        ) : null}
+        <DataTable
+          data={bankAccounts}
+          columns={bankColumns}
+          isLoading={isLoadingBanks}
+          hideSearch
+          pageSize={10}
+        />
+      </Card>
 
       <Card>
         <CardHeader

@@ -14,6 +14,18 @@ interface BankAccountColumnActions {
   disabled?: boolean;
 }
 
+export function createBankAccountListColumns(): ColumnDef<
+  BankAccountRecord,
+  unknown
+>[] {
+  return createBankAccountColumns({
+    onView: () => undefined,
+    onEdit: () => undefined,
+    onDelete: () => undefined,
+    disabled: true,
+  }).filter((column) => column.id !== "actions");
+}
+
 export function createBankAccountColumns(
   actions: BankAccountColumnActions
 ): ColumnDef<BankAccountRecord, unknown>[] {

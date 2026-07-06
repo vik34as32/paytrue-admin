@@ -1,4 +1,4 @@
-import { superAdminClient } from "@/lib/api/client";
+import { adminClient, superAdminClient } from "@/lib/api/client";
 import { normalizeBankAccountRecord } from "@/lib/normalizeBankAccount";
 import {
   BankAccountListParams,
@@ -107,11 +107,12 @@ function unwrapRecord(data: unknown): Record<string, unknown> {
   return {};
 }
 
-export async function getBankAccounts(
+async function fetchBankAccounts(
+  client: typeof adminClient,
   params: BankAccountListParams = {}
 ): Promise<PaginatedBankAccounts> {
-  const { pageSize, page, sortOrder, sortBy, ...rest } = params;
-  const { data } = await superAdminClient.get<
+  const { pageSize = 100, page = 1, sortOrder, sortBy, ...rest } = params;
+  const { data } = await client.get<
     ApiResponse<PaginatedBankAccounts | BankAccountRecord[]>
   >("/bank-accounts", {
     params: {
@@ -125,6 +126,24 @@ export async function getBankAccounts(
   });
 
   return normalizePaginated(data.data, ["bankAccounts", "accounts"]);
+}
+
+export async function getBankAccounts(
+  params: BankAccountListParams = {}
+): Promise<PaginatedBankAccounts> {
+  return fetchBankAccounts(superAdminClient, params);
+}
+
+/** Authorized bank list for admin assign-bank page */
+export async function getAdminBankAccounts(
+  params: BankAccountListParams = { page: 1, pageSize: 100 }
+): Promise<BankAccountRecord[]> {
+  const result = await fetchBankAccounts(adminClient, params);
+  return result.data.filter(
+    (account) =>
+      account.isActive !== false &&
+      (account.status?.toUpperCase() ?? "ACTIVE") !== "INACTIVE"
+  );
 }
 
 export async function getBankAccountById(id: string): Promise<BankAccountRecord> {
