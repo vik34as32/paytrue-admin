@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {},
   webpack: (config, { dev }) => {
     if (dev) {
       // Prevent broken pages when .next cache is cleared while dev server is running
