@@ -203,7 +203,7 @@ export function SuperAdminWalletDashboardView() {
         ))}
       </div>
 
-      <Card>
+      {/* <Card>
         <CardHeader
           title="Recent Transfers"
           subtitle="Latest wallet transactions"
@@ -222,7 +222,7 @@ export function SuperAdminWalletDashboardView() {
           pageSize={5}
           hideSearch
         />
-      </Card>
+      </Card> */}
 
       <TransferBalanceModal
         isOpen={transferOpen}

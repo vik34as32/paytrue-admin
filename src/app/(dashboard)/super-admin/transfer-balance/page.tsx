@@ -62,7 +62,10 @@ export default function SuperAdminTransferBalancePage() {
         </Card>
       </div>
 
-      <SuperAdminWalletHistoryTable refreshKey={historyRefreshKey} />
+      <SuperAdminWalletHistoryTable
+        variant="transfer"
+        refreshKey={historyRefreshKey}
+      />
 
       <TransferBalanceModal
         isOpen={modalOpen}

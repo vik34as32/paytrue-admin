@@ -20,7 +20,7 @@ export const bankAccountFormSchema = z.object({
     .refine((value) => ifscRegex.test(value), "Enter a valid IFSC code"),
   branchName: z.string().optional(),
   upiId: z.string().optional(),
-  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
+  status: z.enum(["ACTIVE", "INACTIVE"]),
 });
 
 export type BankAccountFormValues = z.infer<typeof bankAccountFormSchema>;

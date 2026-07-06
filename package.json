@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/start-dev.mjs",
+    "dev:stop": "node scripts/stop-dev.mjs",
+    "dev:turbo": "next dev --turbopack",
+    "dev:reset": "node scripts/clean-next.mjs && node scripts/start-dev.mjs",
+    "clean": "node scripts/clean-next.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

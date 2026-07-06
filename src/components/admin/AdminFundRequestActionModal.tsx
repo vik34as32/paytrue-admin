@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,15 +10,9 @@ import { Button } from "@/components/common/Button";
 import { AdminFundRequestRecord } from "@/types/admin";
 import { formatCurrency } from "@/lib/utils";
 
-const actionSchema = z.object({
-  remarks: z.string().min(1, "Remarks are required"),
-});
-
-const approveSchema = z.object({
-  remarks: z.string().optional(),
-});
-
-type ActionFormValues = z.infer<typeof actionSchema>;
+type ActionFormValues = {
+  remarks: string;
+};
 
 interface AdminFundRequestActionModalProps {
   isOpen: boolean;
@@ -54,13 +48,24 @@ export function AdminFundRequestActionModal({
   onSubmit,
 }: AdminFundRequestActionModalProps) {
   const isReject = action === "reject";
+
+  const validationSchema = useMemo(
+    () =>
+      z.object({
+        remarks: isReject
+          ? z.string().trim().min(1, "Remarks are required")
+          : z.string(),
+      }),
+    [isReject]
+  );
+
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
   } = useForm<ActionFormValues>({
-    resolver: zodResolver(isReject ? actionSchema : approveSchema),
+    resolver: zodResolver(validationSchema),
     defaultValues: { remarks: "" },
   });
 
@@ -68,10 +73,10 @@ export function AdminFundRequestActionModal({
     if (!isOpen) {
       reset({ remarks: "" });
     }
-  }, [isOpen, reset]);
+  }, [isOpen, action, reset]);
 
   const handleFormSubmit = handleSubmit((values) => {
-    onSubmit(values.remarks?.trim() || "");
+    onSubmit(values.remarks.trim());
   });
 
   return (

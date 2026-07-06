@@ -13,18 +13,23 @@ import {
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchWalletHistory } from "@/store/api/superAdminWalletApi";
 import { clearWalletError } from "@/store/slices/superAdminWalletSlice";
-import { buildWalletHistoryColumns } from "@/lib/walletHistoryColumns";
+import { buildTransferBalanceColumns, buildWalletHistoryColumns } from "@/lib/walletHistoryColumns";
 
 interface SuperAdminWalletHistoryTableProps {
   /** Increment to reload history (e.g. after a successful transfer). */
   refreshKey?: number;
   /** When true, resets to page 1 on refreshKey change. Default true. */
   resetPageOnRefresh?: boolean;
+  /** Restrict list to transfer-balance records with tailored columns. */
+  variant?: "default" | "transfer";
 }
+
+const TRANSFER_TYPE = "TRANSFER";
 
 export function SuperAdminWalletHistoryTable({
   refreshKey = 0,
   resetPageOnRefresh = true,
+  variant = "default",
 }: SuperAdminWalletHistoryTableProps) {
   const dispatch = useAppDispatch();
   const { history, isLoadingHistory, error, historyTotal } = useAppSelector(
@@ -36,6 +41,8 @@ export function SuperAdminWalletHistoryTable({
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({});
   const lastErrorRef = useRef<string | null>(null);
 
+  const isTransferVariant = variant === "transfer";
+
   const loadHistory = useCallback(
     (page = pageIndex + 1) => {
       dispatch(clearWalletError());
@@ -43,14 +50,16 @@ export function SuperAdminWalletHistoryTable({
         fetchWalletHistory({
           page,
           pageSize,
-          search: search || undefined,
-          transactionType: filters.transactionType,
+          search: isTransferVariant ? undefined : search || undefined,
+          transactionType: isTransferVariant
+            ? TRANSFER_TYPE
+            : filters.transactionType,
           startDate: filters.startDate,
           endDate: filters.endDate,
         })
       );
     },
-    [dispatch, pageIndex, pageSize, search, filters]
+    [dispatch, pageIndex, pageSize, search, filters, isTransferVariant]
   );
 
   useEffect(() => {
@@ -78,8 +87,11 @@ export function SuperAdminWalletHistoryTable({
   }, [error, isLoadingHistory]);
 
   const columns = useMemo(
-    () => buildWalletHistoryColumns(history),
-    [history]
+    () =>
+      isTransferVariant
+        ? buildTransferBalanceColumns()
+        : buildWalletHistoryColumns(history),
+    [history, isTransferVariant]
   );
 
   const pageCount = Math.max(1, Math.ceil(historyTotal / pageSize));
@@ -87,8 +99,12 @@ export function SuperAdminWalletHistoryTable({
   return (
     <Card className="mt-6">
       <CardHeader
-        title="Wallet History"
-        subtitle="All balance transfers and wallet transactions"
+        title={isTransferVariant ? "Transfer History" : "Wallet History"}
+        subtitle={
+          isTransferVariant
+            ? "Balance transfers to admin accounts"
+            : "All balance transfers and wallet transactions"
+        }
         action={
           <Button
             variant="outline"
@@ -112,12 +128,16 @@ export function SuperAdminWalletHistoryTable({
         }}
         showStatus={false}
         showDateRange
-        showTransactionType
-        search={search}
-        onSearch={(value) => {
-          setSearch(value);
-          setPageIndex(0);
-        }}
+        showTransactionType={!isTransferVariant}
+        search={isTransferVariant ? undefined : search}
+        onSearch={
+          isTransferVariant
+            ? undefined
+            : (value) => {
+                setSearch(value);
+                setPageIndex(0);
+              }
+        }
         searchPlaceholder="Search by transaction ID, receiver, remarks..."
         resultsCount={history.length}
         resultsLabel="records"

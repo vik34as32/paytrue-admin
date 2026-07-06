@@ -108,6 +108,100 @@ function getExtraColumnKeys(records: WalletHistoryRecord[]): string[] {
   return Array.from(extras).sort();
 }
 
+function truncateId(id: string | undefined, visible = 8): string {
+  if (!id) return "—";
+  if (id.length <= visible) return id;
+  return `${id.slice(0, visible)}...`;
+}
+
+function resolveTransferRecipient(record: WalletHistoryRecord): {
+  name: string;
+  role?: string;
+} {
+  const name =
+    record.receiverName ||
+    record.adminName ||
+    record.recipientName ||
+    record.adminId ||
+    "—";
+  return { name, role: record.receiverRole };
+}
+
+function HighlightAmount({ value }: { value: number }) {
+  return (
+    <span className="inline-block rounded-md bg-accent-green/10 px-2.5 py-1 text-sm font-semibold text-accent-green">
+      {formatCurrency(value)}
+    </span>
+  );
+}
+
+export function buildTransferBalanceColumns(): ColumnDef<
+  WalletHistoryRecord,
+  unknown
+>[] {
+  return [
+    {
+      id: "createdAt",
+      header: "Date",
+      cell: ({ row }) =>
+        formatDate(row.original.createdAt || row.original.date || ""),
+    },
+    {
+      accessorKey: "transactionId",
+      header: "Transaction ID",
+      cell: ({ row }) => {
+        const fullId = row.original.transactionId || row.original.id;
+        return (
+          <span className="font-mono text-sm" title={fullId}>
+            {truncateId(fullId)}
+          </span>
+        );
+      },
+    },
+    {
+      id: "transferredTo",
+      header: "Transferred To",
+      cell: ({ row }) => {
+        const { name, role } = resolveTransferRecipient(row.original);
+        return (
+          <div className="min-w-[140px]">
+            <span className="font-medium text-foreground">{name}</span>
+            {role ? (
+              <span className="ml-1.5 text-sm text-muted">({role})</span>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "amount",
+      header: "Transfer Amount",
+      cell: ({ row }) => <HighlightAmount value={row.original.amount} />,
+    },
+    {
+      id: "balanceBefore",
+      header: "Balance Before",
+      cell: ({ row }) => {
+        const value = resolveBalanceBefore(row.original);
+        return value !== undefined ? formatCurrency(value) : "—";
+      },
+    },
+    {
+      id: "balanceAfter",
+      header: "Balance After",
+      cell: ({ row }) => {
+        const value = resolveBalanceAfter(row.original);
+        return value !== undefined ? formatCurrency(value) : "—";
+      },
+    },
+    {
+      accessorKey: "remarks",
+      header: "Remarks",
+      cell: ({ row }) => row.original.remarks || "—",
+    },
+  ];
+}
+
 export function buildWalletHistoryColumns(
   records: WalletHistoryRecord[]
 ): ColumnDef<WalletHistoryRecord, unknown>[] {

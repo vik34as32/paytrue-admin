@@ -36,7 +36,7 @@ export function SuperAdminLoginForm() {
     const result = await dispatch(superAdminLogin(data));
     if (superAdminLogin.fulfilled.match(result)) {
       toast.success("Welcome, Super Admin!");
-      router.push(ROUTES.superAdminDashboard);
+      router.replace(ROUTES.superAdminDashboard);
     } else {
       toast.error((result.payload as string) || "Login failed");
     }

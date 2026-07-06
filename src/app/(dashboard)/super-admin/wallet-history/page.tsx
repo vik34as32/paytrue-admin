@@ -6,7 +6,6 @@ import { ColumnDef } from "@tanstack/react-table";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
 import { DataTable } from "@/components/tables/DataTable";
-import { Badge } from "@/components/common/Badge";
 import {
   SuperAdminListFilters,
   SuperAdminListFiltersValue,
@@ -19,6 +18,15 @@ import { WalletHistoryRecord } from "@/types/superAdmin";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 const PAGE_SIZE = 10;
+const ADD_BALANCE_TYPE = "ADD_BALANCE";
+
+function HighlightAmount({ value }: { value: number }) {
+  return (
+    <span className="inline-block rounded-md bg-accent-green/10 px-2.5 py-1 text-sm font-semibold text-accent-green">
+      {formatCurrency(value)}
+    </span>
+  );
+}
 
 export default function WalletHistoryPage() {
   const router = useRouter();
@@ -27,7 +35,6 @@ export default function WalletHistoryPage() {
   const { history, isLoadingHistory, error, historyTotal } = useAppSelector(
     (state) => state.superAdminWallet
   );
-  const [search, setSearch] = useState("");
   const [pageIndex, setPageIndex] = useState(0);
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({});
 
@@ -36,13 +43,12 @@ export default function WalletHistoryPage() {
       fetchWalletHistory({
         page: pageIndex + 1,
         pageSize: PAGE_SIZE,
-        search: search || undefined,
-        transactionType: filters.transactionType,
+        transactionType: ADD_BALANCE_TYPE,
         startDate: filters.startDate,
         endDate: filters.endDate,
       })
     );
-  }, [dispatch, pageIndex, search, filters]);
+  }, [dispatch, pageIndex, filters.startDate, filters.endDate]);
 
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
@@ -60,21 +66,9 @@ export default function WalletHistoryPage() {
         formatDate(row.original.date || row.original.createdAt || ""),
     },
     {
-      accessorKey: "transactionId",
-      header: "Transaction ID",
-      cell: ({ row }) => row.original.transactionId || row.original.id || "—",
-    },
-    {
-      accessorKey: "adminName",
-      header: "Admin Name",
-      cell: ({ row }) => row.original.adminName || "—",
-    },
-    {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => (
-        <span className="font-semibold">{formatCurrency(row.original.amount)}</span>
-      ),
+      cell: ({ row }) => <HighlightAmount value={row.original.amount} />,
     },
     {
       accessorKey: "previousBalance",
@@ -84,36 +78,18 @@ export default function WalletHistoryPage() {
     {
       id: "updatedBalance",
       header: "Updated Balance",
-      cell: ({ row }) =>
-        formatCurrency(
-          row.original.updatedBalance ?? row.original.currentBalance
-        ),
-    },
-    {
-      accessorKey: "transactionType",
-      header: "Transaction Type",
       cell: ({ row }) => (
-        <Badge variant="default">{row.original.transactionType}</Badge>
+        <HighlightAmount
+          value={
+            row.original.updatedBalance ?? row.original.currentBalance ?? 0
+          }
+        />
       ),
     },
     {
       accessorKey: "remarks",
       header: "Remarks",
       cell: ({ row }) => row.original.remarks || "—",
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            (row.original.status?.toLowerCase() as "success" | "pending" | "rejected") ||
-            "default"
-          }
-        >
-          {row.original.status || "—"}
-        </Badge>
-      ),
     },
   ];
 
@@ -126,7 +102,7 @@ export default function WalletHistoryPage() {
       <PageHeader
         breadcrumb="Super Admin"
         title="Wallet History"
-        subtitle="Complete transaction history for super admin wallet"
+        subtitle="Add balance transactions for super admin wallet"
       />
 
       {error && (
@@ -144,13 +120,7 @@ export default function WalletHistoryPage() {
           }}
           showStatus={false}
           showDateRange
-          showTransactionType
-          search={search}
-          onSearch={(value) => {
-            setSearch(value);
-            setPageIndex(0);
-          }}
-          searchPlaceholder="Search history..."
+          showTransactionType={false}
           resultsCount={history.length}
         />
         <DataTable

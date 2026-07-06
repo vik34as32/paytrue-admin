@@ -12,8 +12,30 @@ import { isAdminRole } from "@/lib/normalizeAuthRole";
 
 const PUBLIC_ROUTES = [ROUTES.login, ROUTES.superAdminLogin];
 
+const SUPER_ADMIN_API_ROUTES = [
+  ROUTES.superAdmin,
+  ROUTES.superAdminDashboard,
+  ROUTES.superAdminAdmins,
+  ROUTES.superAdminAddBalance,
+  ROUTES.superAdminTransferBalance,
+  ROUTES.superAdminWalletHistory,
+  ROUTES.superAdminStatistics,
+  ROUTES.superAdminRetailers,
+  ROUTES.superAdminMasterDistributors,
+  ROUTES.superAdminDistributors,
+  ROUTES.superAdminFundRequests,
+  ROUTES.superAdminChangePassword,
+  ROUTES.superAdminBankAccounts,
+  ROUTES.superAdminCreateAdmin,
+];
+
 const ROLE_ROUTES: Record<UserRole, string[]> = {
-  super_admin: Object.values(ROUTES),
+  super_admin: [
+    ...SUPER_ADMIN_API_ROUTES,
+    ROUTES.hierarchy,
+    ROUTES.profile,
+    ROUTES.settings,
+  ],
   admin: [
     ROUTES.admin,
     ROUTES.adminDashboard,
@@ -65,22 +87,6 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.settings,
   ],
 };
-
-const SUPER_ADMIN_API_ROUTES = [
-  ROUTES.superAdmin,
-  ROUTES.superAdminDashboard,
-  ROUTES.superAdminAdmins,
-  ROUTES.superAdminAddBalance,
-  ROUTES.superAdminTransferBalance,
-  ROUTES.superAdminWalletHistory,
-  ROUTES.superAdminStatistics,
-  ROUTES.superAdminRetailers,
-  ROUTES.superAdminMasterDistributors,
-  ROUTES.superAdminDistributors,
-  ROUTES.superAdminFundRequests,
-  ROUTES.superAdminChangePassword,
-  ROUTES.superAdminBankAccounts,
-];
 
 export function useAuthGuard(allowedRoles?: UserRole[]) {
   const router = useRouter();
@@ -135,6 +141,16 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
     if (superAdminAuth.isAuthenticated && pathname === ROUTES.superAdminLogin) {
       router.replace(ROUTES.superAdminDashboard);
       return;
+    }
+
+    if (superAdminAuth.isAuthenticated) {
+      const superAdminAllowed = ROLE_ROUTES.super_admin.some((r) =>
+        pathname.startsWith(r)
+      );
+      if (!superAdminAllowed && !isPublic) {
+        router.replace(ROUTES.superAdminDashboard);
+        return;
+      }
     }
 
     if (isAuthenticated && user && !isPublic) {
