@@ -36,9 +36,17 @@ export const outletStepSchema = z.object({
   longitude: z.string().optional(),
 });
 
+const aadhaarRegex = /^\d{12}$/;
+const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
 export const kycStepSchema = z.object({
-  aadhaarNumber: z.string().min(12, "Valid Aadhaar number required"),
-  panNumber: z.string().min(10, "Valid PAN number required"),
+  aadhaarNumber: z
+    .string()
+    .regex(aadhaarRegex, "Enter a valid 12-digit Aadhaar number"),
+  panNumber: z
+    .string()
+    .length(10, "PAN must be 10 characters")
+    .regex(panRegex, "Enter a valid PAN (e.g. ABCDE1234F)"),
   aadhaarFront: z
     .custom<File | null>()
     .nullable()
@@ -55,10 +63,7 @@ export const kycStepSchema = z.object({
     .custom<File | null>()
     .nullable()
     .refine((file) => file instanceof File, "Owner photo is required"),
-  videoVerification: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "Video verification is required"),
+  videoVerification: z.custom<File | null>().nullable().optional(),
 });
 
 export const bankStepSchema = z.object({

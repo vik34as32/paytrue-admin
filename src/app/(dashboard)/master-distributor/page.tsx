@@ -17,6 +17,7 @@ import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchAdminMasterDistributors } from "@/store/api/adminModuleApi";
 import { selectAdminMasterDistributors } from "@/store/selectors/adminSelectors";
 import { getNetworkUserName } from "@/services/adminApi";
+import { clearUserFormDraft } from "@/lib/userFormDraftStorage";
 import { ROUTES } from "@/constants";
 import { AdminNetworkUser } from "@/types/admin";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -90,7 +91,10 @@ export default function MasterDistributorPage() {
           title="Master Distributors"
           subtitle="Master distributors under your administration"
           action={
-            <Link href={ROUTES.adminCreateMasterDistributor}>
+            <Link
+              href={ROUTES.adminCreateMasterDistributor}
+              onClick={() => clearUserFormDraft("MASTER_DISTRIBUTOR")}
+            >
               <Button>
                 <UserPlus className="h-4 w-4" />
                 Create Master Distributor

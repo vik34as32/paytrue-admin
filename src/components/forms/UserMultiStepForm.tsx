@@ -1,6 +1,6 @@
 "use client";
 import { State, City } from "country-state-city";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/common/Select";
 import {
@@ -9,16 +9,25 @@ import {
   UseFormReturn,
   FieldValues,
   Path,
+  Controller,
 } from "react-hook-form";
 import { toast } from "sonner";
 import { ZodIssue } from "zod";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
 import { Card, CardHeader } from "@/components/common/Card";
 import { ImageUpload } from "@/components/common/ImageUpload";
 import { VideoUpload } from "@/components/common/VideoUpload";
+import { BankLogoGrid } from "@/components/common/BankLogoGrid";
+import { ImagePreviewModal } from "@/components/common/ImagePreviewModal";
 import { PasswordStrengthMeter } from "@/components/common/PasswordStrengthMeter";
+import { generateSecurePassword } from "@/lib/generatePassword";
+import {
+  clearUserFormDraft,
+  loadUserFormDraft,
+  saveUserFormDraft,
+} from "@/lib/userFormDraftStorage";
 import { SuccessModal } from "@/components/common/SuccessModal";
 import {
   AdminCreateUserType,
@@ -96,6 +105,64 @@ function PreviewSection({
   );
 }
 
+function PreviewImageCard({
+  label,
+  file,
+}: {
+  label: string;
+  file: File | null;
+}) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!(file instanceof File)) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  if (!previewUrl) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-background/40 p-4 text-center">
+        <p className="text-xs font-semibold text-muted">{label}</p>
+        <p className="mt-1 text-xs text-muted">Not uploaded</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="group overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+      >
+        <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={previewUrl}
+            alt={label}
+            className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]"
+          />
+        </div>
+        <p className="border-t border-border px-3 py-2 text-xs font-semibold text-foreground">
+          {label}
+        </p>
+      </button>
+      <ImagePreviewModal
+        open={open}
+        onClose={() => setOpen(false)}
+        src={previewUrl}
+        title={label}
+      />
+    </>
+  );
+}
+
 export interface UserMultiStepFormProps {
   userType: AdminCreateUserType;
   submitLabel: string;
@@ -124,6 +191,8 @@ export function UserMultiStepForm({
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
+  const draftReadyRef = useRef(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const methods = useForm<UserFormValues>({
     defaultValues: userFormEmptyDefaults,
@@ -212,9 +281,12 @@ export function UserMultiStepForm({
             : successToast || "User created successfully",
         );
         setSuccessOpen(true);
+        clearUserFormDraft(userType);
         reset(userFormEmptyDefaults);
+        setValue("password", generateSecurePassword(), { shouldValidate: true });
         emailVerification.resetVerification();
         setStep(1);
+        setMaxStepReached(1);
       } else {
         toast.error((result.payload as string) || "Failed to create user");
       }
@@ -223,10 +295,82 @@ export function UserMultiStepForm({
 
     toast.success(successToast || "Registration submitted (UI preview)");
     setSuccessOpen(true);
+    clearUserFormDraft(userType);
     reset(userFormEmptyDefaults);
+    setValue("password", generateSecurePassword(), { shouldValidate: true });
     emailVerification.resetVerification();
     setStep(1);
+    setMaxStepReached(1);
   };
+  const persistDraft = useCallback(() => {
+    if (!draftReadyRef.current) return;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      void saveUserFormDraft(userType, {
+        step,
+        maxStepReached,
+        values: getValues(),
+      });
+    }, 600);
+  }, [getValues, maxStepReached, step, userType]);
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      const draft = await loadUserFormDraft(userType);
+      if (!active) return;
+
+      if (draft) {
+        reset(draft.values);
+        setStep(draft.step);
+        setMaxStepReached(draft.maxStepReached);
+      } else {
+        setValue("password", generateSecurePassword(), { shouldValidate: true });
+      }
+
+      draftReadyRef.current = true;
+    })();
+
+    return () => {
+      active = false;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [reset, setValue, userType]);
+
+  useEffect(() => {
+    const subscription = watch(() => {
+      persistDraft();
+    });
+
+    return () => subscription.unsubscribe();
+  }, [watch, persistDraft]);
+
+  useEffect(() => {
+    persistDraft();
+  }, [step, maxStepReached, persistDraft]);
+
+  const regeneratePassword = () => {
+    const nextPassword = generateSecurePassword();
+    setValue("password", nextPassword, { shouldValidate: true });
+  };
+
+  const copyPassword = async () => {
+    if (!password) return;
+    try {
+      await navigator.clipboard.writeText(password);
+      toast.success("Password copied to clipboard");
+    } catch {
+      toast.error("Unable to copy password");
+    }
+  };
+
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -265,6 +409,16 @@ export function UserMultiStepForm({
         methods.setValue("city", postOffice.Block || postOffice.Name, {
           shouldValidate: true,
         });
+
+        const matchedState = states.find(
+          (state) =>
+            state.name.toLowerCase() === String(postOffice.State).toLowerCase()
+        );
+        if (matchedState) {
+          methods.setValue("state", matchedState.isoCode, {
+            shouldValidate: true,
+          });
+        }
       }
     } catch (error) {
       console.error("Pincode lookup failed", error);
@@ -272,7 +426,7 @@ export function UserMultiStepForm({
   };
 
   fetchPincodeDetails();
-}, [pincode, methods]);
+}, [pincode, methods, states]);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">
@@ -355,22 +509,54 @@ export function UserMultiStepForm({
                     placeholder="Optional"
                     methods={methods}
                   />
-                  <div className="space-y-2">
-                    <Input
-                      label="Password"
-                      type={showPassword ? "text" : "password"}
-                      autoComplete="new-password"
-                      placeholder="Create password"
-                      error={errors.password?.message}
-                      {...methods.register("password")}
-                    />
-                    <button
-                      type="button"
-                      className="text-xs font-semibold text-primary"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                    >
-                      {showPassword ? "Hide password" : "Show password"}
-                    </button>
+                  <div className="space-y-2 lg:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-foreground">
+                      Auto-generated Password
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="relative min-w-[200px] flex-1">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          readOnly
+                          value={password}
+                          className="w-full rounded-xl border border-border bg-card py-2.5 pl-4 pr-11 font-mono text-sm text-foreground shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={regeneratePassword}
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                        Regenerate
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void copyPassword()}
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </Button>
+                    </div>
+                    {errors.password?.message ? (
+                      <p className="text-xs text-accent-red">{errors.password.message}</p>
+                    ) : null}
                     <PasswordStrengthMeter password={password} />
                   </div>
                   <div className="lg:col-span-2">
@@ -499,17 +685,43 @@ export function UserMultiStepForm({
 
               {step === 3 && (
                 <div className="grid gap-6 lg:grid-cols-2">
-                  <FormField
+                  <Controller
                     name="aadhaarNumber"
-                    label="Aadhaar Number"
-                    placeholder="12-digit Aadhaar"
-                    methods={methods}
+                    control={methods.control}
+                    render={({ field }) => (
+                      <Input
+                        label="Aadhaar Number"
+                        placeholder="12-digit Aadhaar"
+                        inputMode="numeric"
+                        maxLength={12}
+                        value={field.value}
+                        error={errors.aadhaarNumber?.message}
+                        onChange={(event) => {
+                          const digits = event.target.value.replace(/\D/g, "").slice(0, 12);
+                          field.onChange(digits);
+                        }}
+                      />
+                    )}
                   />
-                  <FormField
+                  <Controller
                     name="panNumber"
-                    label="PAN Number"
-                    placeholder="PAN number"
-                    methods={methods}
+                    control={methods.control}
+                    render={({ field }) => (
+                      <Input
+                        label="PAN Number"
+                        placeholder="ABCDE1234F"
+                        maxLength={10}
+                        value={field.value}
+                        error={errors.panNumber?.message}
+                        onChange={(event) => {
+                          const normalized = event.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 10);
+                          field.onChange(normalized);
+                        }}
+                      />
+                    )}
                   />
                   <ImageUpload
                     label="Aadhaar Front"
@@ -538,6 +750,7 @@ export function UserMultiStepForm({
                   <div className="lg:col-span-2">
                     <VideoUpload
                       label="Video Verification"
+                      optional
                       file={values.videoVerification}
                       onChange={(file) => setFile("videoVerification", file)}
                       error={
@@ -556,11 +769,12 @@ export function UserMultiStepForm({
                     placeholder="As per bank"
                     methods={methods}
                   />
-                  <FormField
-                    name="bankName"
-                    label="Bank Name"
-                    placeholder="Bank name"
-                    methods={methods}
+                  <BankLogoGrid
+                    value={values.bankName}
+                    onChange={(bankName) => {
+                      setValue("bankName", bankName, { shouldValidate: true });
+                    }}
+                    error={errors.bankName?.message as string | undefined}
                   />
                   <FormField
                     name="accountNumber"
@@ -576,12 +790,14 @@ export function UserMultiStepForm({
                   />
                   <ImageUpload
                     label="Passbook Image"
+                    optional
                     file={values.passbookImage}
                     onChange={(file) => setFile("passbookImage", file)}
                     error={errors.passbookImage?.message as string | undefined}
                   />
                   <ImageUpload
                     label="Cancelled Cheque"
+                    optional
                     file={values.cancelledChequeImage}
                     onChange={(file) => setFile("cancelledChequeImage", file)}
                     error={
@@ -611,7 +827,12 @@ export function UserMultiStepForm({
                       ["Address", values.address],
                       [
                         "City",
-                        [values.city, values.district, values.state]
+                        [
+                          values.city,
+                          values.district,
+                          states.find((state) => state.isoCode === values.state)
+                            ?.name || values.state,
+                        ]
                           .filter(Boolean)
                           .join(", "),
                       ],
@@ -623,8 +844,44 @@ export function UserMultiStepForm({
                     items={[
                       ["Aadhaar", values.aadhaarNumber],
                       ["PAN", values.panNumber],
+                      [
+                        "Video Verification",
+                        values.videoVerification?.name || "Not provided",
+                      ],
                     ]}
                   />
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <h4 className="mb-3 text-sm font-bold text-foreground">
+                      Uploaded Documents
+                    </h4>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      <PreviewImageCard
+                        label="Profile Image"
+                        file={values.profileImage}
+                      />
+                      <PreviewImageCard
+                        label="Aadhaar Front"
+                        file={values.aadhaarFront}
+                      />
+                      <PreviewImageCard
+                        label="Aadhaar Back"
+                        file={values.aadhaarBack}
+                      />
+                      <PreviewImageCard label="PAN Card" file={values.panCard} />
+                      <PreviewImageCard
+                        label="Owner Photo"
+                        file={values.ownerPhoto}
+                      />
+                      <PreviewImageCard
+                        label="Passbook"
+                        file={values.passbookImage}
+                      />
+                      <PreviewImageCard
+                        label="Cancelled Cheque"
+                        file={values.cancelledChequeImage}
+                      />
+                    </div>
+                  </div>
                   <PreviewSection
                     title="Bank"
                     items={[
