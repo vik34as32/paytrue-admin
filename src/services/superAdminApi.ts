@@ -454,10 +454,10 @@ export async function updateProfile(payload: UpdateProfilePayload) {
 }
 
 export async function changePassword(payload: ChangePasswordPayload) {
-  // Backend schema requires `oldPassword` + `newPassword` as a JSON object
   const body = {
     oldPassword: payload.oldPassword,
     newPassword: payload.newPassword,
+    confirmPassword: payload.confirmPassword,
   };
 
   const { data } = await superAdminModuleClient.put<ApiResponse<unknown>>(

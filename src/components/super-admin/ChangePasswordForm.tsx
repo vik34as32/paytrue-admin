@@ -38,6 +38,7 @@ export function ChangePasswordForm({ className }: ChangePasswordFormProps) {
       updateSuperAdminPassword({
         oldPassword: data.currentPassword,
         newPassword: data.newPassword,
+        confirmPassword: data.confirmPassword,
       })
     );
 

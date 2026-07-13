@@ -19,7 +19,7 @@ import {
   getNetworkUserName,
   getWalletBalance,
 } from "@/lib/normalizeUser";
-import { mapUserDetailToEditValues } from "@/services/userApi";
+import { mapUserDetailToEditValues, SUPER_ADMIN_BUSINESS_TYPE_OPTIONS } from "@/services/userApi";
 import { resolveMediaUrl, formatCurrency, cn } from "@/lib/utils";
 import {
   networkUserEditSchema,
@@ -214,6 +214,15 @@ export function NetworkUserEditModal({
                       error={errors.alternateMobileNumber?.message}
                       {...register("alternateMobileNumber")}
                     />
+                    <Input
+                      label="New Password (optional)"
+                      type="password"
+                      revealable
+                      autoComplete="new-password"
+                      placeholder="Leave blank to keep current"
+                      error={errors.password?.message}
+                      {...register("password")}
+                    />
                   </div>
                 </DetailSection>
               )}
@@ -226,8 +235,9 @@ export function NetworkUserEditModal({
                       error={errors.outletName?.message}
                       {...register("outletName")}
                     />
-                    <Input
+                    <Select
                       label="Business Type"
+                      options={SUPER_ADMIN_BUSINESS_TYPE_OPTIONS}
                       error={errors.businessType?.message}
                       {...register("businessType")}
                     />
@@ -336,7 +346,10 @@ export function NetworkUserEditModal({
                       ]}
                       value={watch("status") || ""}
                       onChange={(event) =>
-                        setValue("status", event.target.value)
+                        setValue(
+                          "status",
+                          event.target.value as NetworkUserEditValues["status"]
+                        )
                       }
                     />
                     <div className="sm:col-span-2">

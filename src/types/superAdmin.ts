@@ -189,6 +189,7 @@ export interface ChangePasswordPayload {
   /** API field name for current password */
   oldPassword: string;
   newPassword: string;
+  confirmPassword: string;
 }
 
 export interface UserProfileRecord {

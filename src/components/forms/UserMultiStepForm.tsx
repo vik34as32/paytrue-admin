@@ -38,11 +38,16 @@ import {
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
 import { EmailVerificationField } from "@/components/common/EmailVerificationField";
+import { MobileVerificationField } from "@/components/common/MobileVerificationField";
 import {
   EMAIL_VERIFICATION_REQUIRED_MESSAGE,
   USER_CREATED_SUCCESS_MESSAGE,
   useEmailVerification,
 } from "@/hooks/useEmailVerification";
+import {
+  MOBILE_VERIFICATION_REQUIRED_MESSAGE,
+  useMobileVerification,
+} from "@/hooks/useMobileVerification";
 import { registerUser } from "@/store/api/adminModuleApi";
 
 function FormField<T extends FieldValues>({
@@ -171,6 +176,7 @@ export interface UserMultiStepFormProps {
   successRedirect: string;
   successToast?: string;
   requireEmailVerification?: boolean;
+  requireMobileVerification?: boolean;
 }
 
 export function UserMultiStepForm({
@@ -181,6 +187,7 @@ export function UserMultiStepForm({
   successRedirect,
   successToast,
   requireEmailVerification = false,
+  requireMobileVerification = false,
 }: UserMultiStepFormProps) {
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -204,6 +211,7 @@ export function UserMultiStepForm({
     watch,
     setValue,
     setError,
+    clearErrors,
     getValues,
     reset,
     formState: { errors },
@@ -211,6 +219,7 @@ export function UserMultiStepForm({
 
   const password = watch("password");
   const email = watch("email") || "";
+  const mobile = watch("mobile") || "";
   const values = watch();
   const selectedState = methods.watch("state");
   const states = State.getStatesOfCountry("IN");
@@ -220,12 +229,20 @@ export function UserMultiStepForm({
     ? City.getCitiesOfState("IN", selectedState)
     : [];
   const emailVerification = useEmailVerification(email);
+  const mobileVerification = useMobileVerification(mobile);
   const needsEmailVerification = requireEmailVerification;
+  const needsMobileVerification = requireMobileVerification;
 
   const setFile = (field: keyof UserFormValues, file: File | null) => {
     setValue(field, file as UserFormValues[typeof field], {
-      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
     });
+    // Manual step errors (setError) must be cleared — File fields are not
+    // registered, so shouldValidate alone will not clear them / unblock Next.
+    if (file instanceof File) {
+      clearErrors(field);
+    }
   };
 
   const applyStepErrors = (issues: ZodIssue[]) => {
@@ -246,6 +263,10 @@ export function UserMultiStepForm({
         toast.error("Please fix validation errors before continuing");
         return;
       }
+      // Clear any stale step errors so the next click is not blocked
+      clearErrors(
+        Object.keys(result.data) as Array<keyof UserFormValues>
+      );
     }
 
     if (step === 1 && needsEmailVerification && !emailVerification.isVerified) {
@@ -253,13 +274,16 @@ export function UserMultiStepForm({
       return;
     }
 
+    if (step === 1 && needsMobileVerification && !mobileVerification.isVerified) {
+      toast.error(MOBILE_VERIFICATION_REQUIRED_MESSAGE);
+      return;
+    }
+
     setStep((current) => {
-  const nextStep = Math.min(current + 1, USER_FORM_STEPS.length);
-
-  setMaxStepReached((prev) => Math.max(prev, nextStep));
-
-  return nextStep;
-});
+      const nextStep = Math.min(current + 1, USER_FORM_STEPS.length);
+      setMaxStepReached((prev) => Math.max(prev, nextStep));
+      return nextStep;
+    });
   };
 
   const goBack = () => setStep((current) => Math.max(current - 1, 1));
@@ -269,6 +293,11 @@ export function UserMultiStepForm({
 
     if (needsEmailVerification && !emailVerification.isVerified) {
       toast.error(EMAIL_VERIFICATION_REQUIRED_MESSAGE);
+      return;
+    }
+
+    if (needsMobileVerification && !mobileVerification.isVerified) {
+      toast.error(MOBILE_VERIFICATION_REQUIRED_MESSAGE);
       return;
     }
 
@@ -285,6 +314,7 @@ export function UserMultiStepForm({
         reset(userFormEmptyDefaults);
         setValue("password", generateSecurePassword(), { shouldValidate: true });
         emailVerification.resetVerification();
+        mobileVerification.resetVerification();
         setStep(1);
         setMaxStepReached(1);
       } else {
@@ -299,6 +329,7 @@ export function UserMultiStepForm({
     reset(userFormEmptyDefaults);
     setValue("password", generateSecurePassword(), { shouldValidate: true });
     emailVerification.resetVerification();
+    mobileVerification.resetVerification();
     setStep(1);
     setMaxStepReached(1);
   };
@@ -455,7 +486,16 @@ export function UserMultiStepForm({
       </div>
 
       <FormProvider {...methods}>
-        <form onSubmit={handleSubmit(step === 5 ? onSubmit : goNext)}>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            // Only the final step submits; intermediate Next must not use
+            // handleSubmit (stale File-field errors block navigation).
+            if (step === 5) {
+              void handleSubmit(onSubmit)();
+            }
+          }}
+        >
           <Card>
             <CardHeader
               title={USER_FORM_STEPS[step - 1].title}
@@ -498,17 +538,31 @@ export function UserMultiStepForm({
                     />
                   )}
                   <FormField
-                    name="mobile"
-                    label="Mobile"
-                    placeholder="10-digit mobile"
-                    methods={methods}
-                  />
-                  <FormField
                     name="alternateMobileNumber"
                     label="Alternate Mobile"
                     placeholder="Optional"
                     methods={methods}
                   />
+                  {needsMobileVerification ? (
+                    <MobileVerificationField
+                      mobile={mobile}
+                      onMobileChange={(value) =>
+                        setValue("mobile", value, { shouldValidate: true })
+                      }
+                      verification={mobileVerification}
+                      label="Mobile"
+                      placeholder="10-digit mobile"
+                      error={errors.mobile?.message}
+                      className="space-y-2"
+                    />
+                  ) : (
+                    <FormField
+                      name="mobile"
+                      label="Mobile"
+                      placeholder="10-digit mobile"
+                      methods={methods}
+                    />
+                  )}
                   <div className="space-y-2 lg:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-foreground">
                       Auto-generated Password
@@ -905,7 +959,7 @@ export function UserMultiStepForm({
                   Back
                 </Button>
                 {step < 5 ? (
-                  <Button type="submit">
+                  <Button type="button" onClick={() => void goNext()}>
                     Next
                     <ChevronRight className="h-4 w-4" />
                   </Button>
@@ -915,7 +969,8 @@ export function UserMultiStepForm({
                     isLoading={isAdminApiAuth && createUserLoading}
                     disabled={
                       (isAdminApiAuth && createUserLoading) ||
-                      (needsEmailVerification && !emailVerification.isVerified)
+                      (needsEmailVerification && !emailVerification.isVerified) ||
+                      (needsMobileVerification && !mobileVerification.isVerified)
                     }
                   >
                     {submitLabel}

@@ -17,9 +17,9 @@ export const personalStepSchema = z.object({
     ),
   alternateMobileNumber: z.string().optional(),
   profileImage: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "Profile image is required"),
+    .custom<File | null>((value) => value instanceof File, {
+      message: "Profile image is required",
+    }),
 });
 
 export const outletStepSchema = z.object({
@@ -47,22 +47,18 @@ export const kycStepSchema = z.object({
     .string()
     .length(10, "PAN must be 10 characters")
     .regex(panRegex, "Enter a valid PAN (e.g. ABCDE1234F)"),
-  aadhaarFront: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "Aadhaar front image is required"),
-  aadhaarBack: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "Aadhaar back image is required"),
-  panCard: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "PAN card image is required"),
-  ownerPhoto: z
-    .custom<File | null>()
-    .nullable()
-    .refine((file) => file instanceof File, "Owner photo is required"),
+  aadhaarFront: z.custom<File | null>((value) => value instanceof File, {
+    message: "Aadhaar front image is required",
+  }),
+  aadhaarBack: z.custom<File | null>((value) => value instanceof File, {
+    message: "Aadhaar back image is required",
+  }),
+  panCard: z.custom<File | null>((value) => value instanceof File, {
+    message: "PAN card image is required",
+  }),
+  ownerPhoto: z.custom<File | null>((value) => value instanceof File, {
+    message: "Owner photo is required",
+  }),
   videoVerification: z.custom<File | null>().nullable().optional(),
 });
 

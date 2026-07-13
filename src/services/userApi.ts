@@ -1,6 +1,4 @@
-import { AxiosRequestConfig } from "axios";
 import { superAdminModuleClient } from "@/lib/api/client";
-import { buildUserFormData } from "@/lib/buildUserFormData";
 import {
   normalizeUserDetail,
   userDetailToApiRecord,
@@ -9,57 +7,150 @@ import { mapApiUserToFormValues } from "@/lib/buildUserFormData";
 import { UserDetailRecord, AdminDetailRecord } from "@/types/superAdmin";
 import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
 import { AdminEditValues } from "@/validations/adminSchemas";
-import { UserFormValues } from "@/validations/userStepSchemas";
 import { ApiResponse } from "@/types";
-import { UserFileFieldKey } from "@/constants/uploadConfig";
 import { normalizeAdminDetail } from "@/lib/normalizeAdmin";
 
-/** Super Admin user routes: GET/PUT/DELETE `/api/v1/super-admin/users/:userId` */
+/** GET / PUT / DELETE `api/v1/super-admin/users/:userId` */
 function superAdminUserPath(userId: string) {
   return `/users/${userId}`;
 }
 
-/** Let axios set multipart boundary (strip default application/json). */
-const multipartConfig: AxiosRequestConfig = {
-  headers: {
-    "Content-Type": false as unknown as string,
-  },
-};
+const STATUS_ENUM = new Set([
+  "ACTIVE",
+  "INACTIVE",
+  "SUSPENDED",
+  "PENDING",
+]);
 
-function mapEditValuesToFormValues(values: NetworkUserEditValues): UserFormValues {
-  return {
-    firstName: values.firstName,
-    lastName: values.lastName,
-    email: values.email,
-    mobile: values.mobile,
-    password: "",
-    alternateMobileNumber: values.alternateMobileNumber || "",
-    outletName: values.outletName,
-    businessType: values.businessType || "",
-    gstNumber: values.gstNumber || "",
-    address: values.address,
-    state: values.state,
-    district: values.district || "",
-    city: values.city,
-    village: values.village || "",
-    pincode: values.pincode || "",
-    latitude: values.latitude || "",
-    longitude: values.longitude || "",
-    aadhaarNumber: values.aadhaarNumber || "",
-    panNumber: values.panNumber || "",
-    accountHolderName: values.accountHolderName || "",
-    bankName: values.bankName || "",
-    accountNumber: values.accountNumber || "",
-    ifscCode: values.ifscCode || "",
-    profileImage: values.profileImage ?? null,
-    aadhaarFront: null,
-    aadhaarBack: null,
-    panCard: null,
-    ownerPhoto: null,
-    videoVerification: null,
-    passbookImage: null,
-    cancelledChequeImage: null,
+const BUSINESS_TYPE_ENUM = new Set([
+  "INDIVIDUAL",
+  "PARTNERSHIP",
+  "PRIVATE_LIMITED",
+  "PROPRIETORSHIP",
+  "OTHER",
+]);
+
+export const SUPER_ADMIN_BUSINESS_TYPE_OPTIONS = [
+  { value: "", label: "Select business type" },
+  { value: "INDIVIDUAL", label: "Individual" },
+  { value: "PARTNERSHIP", label: "Partnership" },
+  { value: "PRIVATE_LIMITED", label: "Private Limited" },
+  { value: "PROPRIETORSHIP", label: "Proprietorship" },
+  { value: "OTHER", label: "Other" },
+];
+
+function emptyToUndefined(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseOptionalNumber(value?: string | null): number | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function normalizeBusinessType(value?: string | null): string | undefined {
+  const raw = emptyToUndefined(value);
+  if (!raw) return undefined;
+  const upper = raw.toUpperCase().replace(/[\s-]+/g, "_");
+  if (BUSINESS_TYPE_ENUM.has(upper)) return upper;
+  const aliases: Record<string, string> = {
+    INDIVIDUAL: "INDIVIDUAL",
+    PARTNERSHIP: "PARTNERSHIP",
+    PRIVATE_LIMITED: "PRIVATE_LIMITED",
+    PRIVATELIMITED: "PRIVATE_LIMITED",
+    PVT_LTD: "PRIVATE_LIMITED",
+    PROPRIETORSHIP: "PROPRIETORSHIP",
+    PROPRIETOR: "PROPRIETORSHIP",
+    OTHER: "OTHER",
   };
+  return aliases[upper];
+}
+
+function normalizeStatus(value?: string | null): string | undefined {
+  const upper = emptyToUndefined(value)?.toUpperCase();
+  if (!upper || !STATUS_ENUM.has(upper)) return undefined;
+  return upper;
+}
+
+function compactObject(
+  value: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined || entry === null || entry === "") continue;
+    if (typeof entry === "object" && !Array.isArray(entry)) {
+      const nested = compactObject(entry as Record<string, unknown>);
+      if (nested && Object.keys(nested).length > 0) {
+        result[key] = nested;
+      }
+      continue;
+    }
+    result[key] = entry;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Body for PUT `/super-admin/users/:userId`
+ * Matches Fastify `superAdminEditUserSchema` — JSON object only, no userType.
+ */
+function buildSuperAdminEditUserBody(
+  values: NetworkUserEditValues | AdminEditValues,
+  options?: { includeOutlet?: boolean }
+): Record<string, unknown> {
+  const includeOutlet = options?.includeOutlet ?? true;
+  const password =
+    "password" in values
+      ? emptyToUndefined((values as NetworkUserEditValues).password)
+      : undefined;
+
+  const body: Record<string, unknown> = {
+    firstName: emptyToUndefined(values.firstName),
+    lastName: emptyToUndefined(values.lastName),
+    name: emptyToUndefined(
+      [values.firstName, values.lastName].filter(Boolean).join(" ")
+    ),
+    email: emptyToUndefined(values.email),
+    mobile: emptyToUndefined(values.mobile),
+    alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),
+    status: normalizeStatus(values.status),
+    password,
+  };
+
+  if (includeOutlet && "outletName" in values) {
+    const networkValues = values as NetworkUserEditValues;
+    body.outlet = {
+      outletName: emptyToUndefined(networkValues.outletName),
+      businessType: normalizeBusinessType(networkValues.businessType),
+      gstNumber: emptyToUndefined(networkValues.gstNumber),
+      address: emptyToUndefined(networkValues.address),
+      state: emptyToUndefined(networkValues.state),
+      district: emptyToUndefined(networkValues.district),
+      city: emptyToUndefined(networkValues.city),
+      village: emptyToUndefined(networkValues.village),
+      pincode: emptyToUndefined(networkValues.pincode),
+      latitude: parseOptionalNumber(networkValues.latitude),
+      longitude: parseOptionalNumber(networkValues.longitude),
+    };
+    body.bankAccount = {
+      accountHolderName: emptyToUndefined(networkValues.accountHolderName),
+      bankName: emptyToUndefined(networkValues.bankName),
+      accountNumber: emptyToUndefined(networkValues.accountNumber),
+      ifscCode: emptyToUndefined(networkValues.ifscCode),
+    };
+    body.kyc = {
+      aadhaarNumber: emptyToUndefined(networkValues.aadhaarNumber),
+      panNumber: emptyToUndefined(networkValues.panNumber),
+    };
+    body.aadhaarNumber = emptyToUndefined(networkValues.aadhaarNumber);
+    body.panNumber = emptyToUndefined(networkValues.panNumber);
+  }
+
+  // profileImage must be a URI string per schema — skip File uploads
+  return compactObject(body) ?? {};
 }
 
 export function mapUserDetailToEditValues(
@@ -74,9 +165,12 @@ export function mapUserDetailToEditValues(
     lastName: mapped.lastName,
     email: mapped.email,
     mobile: mapped.mobile,
+    password: "",
     alternateMobileNumber: mapped.alternateMobileNumber,
     outletName: mapped.outletName || user.businessName || outlet.outletName || "",
-    businessType: mapped.businessType || outlet.businessType || "",
+    businessType: (normalizeBusinessType(
+      mapped.businessType || outlet.businessType
+    ) || "") as NetworkUserEditValues["businessType"],
     gstNumber: mapped.gstNumber || outlet.gstNumber || "",
     state: mapped.state || user.state || outlet.state || "",
     district: mapped.district || outlet.district || "",
@@ -96,73 +190,9 @@ export function mapUserDetailToEditValues(
     bankName: mapped.bankName || bank.bankName || "",
     accountNumber: mapped.accountNumber || bank.accountNumber || "",
     ifscCode: mapped.ifscCode || bank.ifscCode || "",
-    status: user.status || "",
+    status: (normalizeStatus(user.status) ||
+      "") as NetworkUserEditValues["status"],
     profileImage: null,
-  };
-}
-
-function extractEditFiles(
-  values: NetworkUserEditValues
-): Partial<Record<UserFileFieldKey, File>> {
-  if (values.profileImage instanceof File) {
-    return { profileImage: values.profileImage };
-  }
-  return {};
-}
-
-function emptyToUndefined(value?: string): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-/** JSON body expected by PUT `/super-admin/users/:userId` */
-function buildNetworkUserUpdateBody(
-  values: NetworkUserEditValues,
-  userType: string
-) {
-  return {
-    firstName: values.firstName.trim(),
-    lastName: values.lastName.trim(),
-    email: values.email.trim(),
-    mobile: values.mobile.trim(),
-    alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),
-    userType,
-    status: emptyToUndefined(values.status),
-    outlet: {
-      outletName: values.outletName,
-      businessType: emptyToUndefined(values.businessType),
-      gstNumber: emptyToUndefined(values.gstNumber),
-      address: values.address,
-      state: values.state,
-      district: emptyToUndefined(values.district),
-      city: values.city,
-      village: emptyToUndefined(values.village),
-      pincode: emptyToUndefined(values.pincode),
-      latitude: emptyToUndefined(values.latitude),
-      longitude: emptyToUndefined(values.longitude),
-    },
-    kyc: {
-      aadhaarNumber: emptyToUndefined(values.aadhaarNumber),
-      panNumber: emptyToUndefined(values.panNumber),
-    },
-    bankAccount: {
-      accountHolderName: emptyToUndefined(values.accountHolderName),
-      bankName: emptyToUndefined(values.bankName),
-      accountNumber: emptyToUndefined(values.accountNumber),
-      ifscCode: emptyToUndefined(values.ifscCode),
-    },
-  };
-}
-
-function buildAdminUpdateBody(values: AdminEditValues) {
-  return {
-    firstName: values.firstName.trim(),
-    lastName: values.lastName.trim(),
-    email: values.email.trim(),
-    mobile: values.mobile.trim(),
-    alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),
-    userType: "ADMIN",
-    status: emptyToUndefined(values.status),
   };
 }
 
@@ -176,72 +206,21 @@ export async function getUserById(id: string): Promise<UserDetailRecord> {
 export async function updateUserById(
   id: string,
   values: NetworkUserEditValues,
-  userType: string
+  _userType?: string
 ): Promise<UserDetailRecord> {
-  const files = extractEditFiles(values);
-  const hasFile = Object.keys(files).length > 0;
-
-  if (hasFile) {
-    const formValues = mapEditValuesToFormValues(values);
-    const formData = buildUserFormData(formValues, files, {
-      userType,
-      includePassword: false,
-    });
-    if (values.status) {
-      formData.append("status", values.status);
-    }
-
-    const { data } = await superAdminModuleClient.put<
-      ApiResponse<UserDetailRecord>
-    >(superAdminUserPath(id), formData, multipartConfig);
-    return normalizeUserDetail(data.data);
-  }
+  const body = buildSuperAdminEditUserBody(values, { includeOutlet: true });
 
   const { data } = await superAdminModuleClient.put<
     ApiResponse<UserDetailRecord>
-  >(superAdminUserPath(id), buildNetworkUserUpdateBody(values, userType));
+  >(superAdminUserPath(id), body, {
+    headers: { "Content-Type": "application/json" },
+  });
 
   return normalizeUserDetail(data.data);
 }
 
 export async function deleteUserById(id: string): Promise<void> {
   await superAdminModuleClient.delete(superAdminUserPath(id));
-}
-
-function mapAdminEditValuesToFormValues(values: AdminEditValues): UserFormValues {
-  return {
-    firstName: values.firstName,
-    lastName: values.lastName,
-    email: values.email,
-    mobile: values.mobile,
-    password: "",
-    alternateMobileNumber: values.alternateMobileNumber || "",
-    outletName: "",
-    businessType: "",
-    gstNumber: "",
-    address: "",
-    state: "",
-    district: "",
-    city: "",
-    village: "",
-    pincode: "",
-    latitude: "",
-    longitude: "",
-    aadhaarNumber: "",
-    panNumber: "",
-    accountHolderName: "",
-    bankName: "",
-    accountNumber: "",
-    ifscCode: "",
-    profileImage: values.profileImage ?? null,
-    aadhaarFront: null,
-    aadhaarBack: null,
-    panCard: null,
-    ownerPhoto: null,
-    videoVerification: null,
-    passbookImage: null,
-    cancelledChequeImage: null,
-  };
 }
 
 export async function getAdminById(id: string): Promise<AdminDetailRecord> {
@@ -255,28 +234,13 @@ export async function updateAdminById(
   id: string,
   values: AdminEditValues
 ): Promise<AdminDetailRecord> {
-  const hasFile = values.profileImage instanceof File;
-
-  if (hasFile) {
-    const formValues = mapAdminEditValuesToFormValues(values);
-    const formData = buildUserFormData(
-      formValues,
-      { profileImage: values.profileImage as File },
-      { userType: "ADMIN", includePassword: false }
-    );
-    if (values.status) {
-      formData.append("status", values.status);
-    }
-
-    const { data } = await superAdminModuleClient.put<
-      ApiResponse<AdminDetailRecord>
-    >(superAdminUserPath(id), formData, multipartConfig);
-    return normalizeAdminDetail(data.data);
-  }
+  const body = buildSuperAdminEditUserBody(values, { includeOutlet: false });
 
   const { data } = await superAdminModuleClient.put<
     ApiResponse<AdminDetailRecord>
-  >(superAdminUserPath(id), buildAdminUpdateBody(values));
+  >(superAdminUserPath(id), body, {
+    headers: { "Content-Type": "application/json" },
+  });
 
   return normalizeAdminDetail(data.data);
 }
