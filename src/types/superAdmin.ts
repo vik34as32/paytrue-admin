@@ -186,7 +186,8 @@ export interface UpdateProfilePayload {
 }
 
 export interface ChangePasswordPayload {
-  currentPassword: string;
+  /** API field name for current password */
+  oldPassword: string;
   newPassword: string;
 }
 

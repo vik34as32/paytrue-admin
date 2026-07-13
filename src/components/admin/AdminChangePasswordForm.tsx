@@ -57,6 +57,7 @@ export function AdminChangePasswordForm() {
       <Input
         label="Current Password"
         type="password"
+        revealable
         autoComplete="current-password"
         error={errors.currentPassword?.message}
         {...register("currentPassword")}
@@ -65,6 +66,7 @@ export function AdminChangePasswordForm() {
       <Input
         label="New Password"
         type="password"
+        revealable
         autoComplete="new-password"
         error={errors.newPassword?.message}
         {...register("newPassword")}
@@ -72,6 +74,7 @@ export function AdminChangePasswordForm() {
       <Input
         label="Confirm Password"
         type="password"
+        revealable
         autoComplete="new-password"
         error={errors.confirmPassword?.message}
         {...register("confirmPassword")}

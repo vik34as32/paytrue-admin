@@ -36,7 +36,7 @@ export function ChangePasswordForm({ className }: ChangePasswordFormProps) {
     dispatch(clearSuperAdminError());
     const result = await dispatch(
       updateSuperAdminPassword({
-        currentPassword: data.currentPassword,
+        oldPassword: data.currentPassword,
         newPassword: data.newPassword,
       })
     );
@@ -66,6 +66,7 @@ export function ChangePasswordForm({ className }: ChangePasswordFormProps) {
       <Input
         label="Current Password"
         type="password"
+        revealable
         autoComplete="current-password"
         error={errors.currentPassword?.message}
         {...register("currentPassword")}
@@ -74,6 +75,7 @@ export function ChangePasswordForm({ className }: ChangePasswordFormProps) {
       <Input
         label="New Password"
         type="password"
+        revealable
         autoComplete="new-password"
         error={errors.newPassword?.message}
         {...register("newPassword")}
@@ -81,6 +83,7 @@ export function ChangePasswordForm({ className }: ChangePasswordFormProps) {
       <Input
         label="Confirm Password"
         type="password"
+        revealable
         autoComplete="new-password"
         error={errors.confirmPassword?.message}
         {...register("confirmPassword")}

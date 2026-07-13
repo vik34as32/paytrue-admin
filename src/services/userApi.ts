@@ -1,4 +1,5 @@
-import { superAdminClient } from "@/lib/api/client";
+import { AxiosRequestConfig } from "axios";
+import { superAdminModuleClient } from "@/lib/api/client";
 import { buildUserFormData } from "@/lib/buildUserFormData";
 import {
   normalizeUserDetail,
@@ -12,6 +13,18 @@ import { UserFormValues } from "@/validations/userStepSchemas";
 import { ApiResponse } from "@/types";
 import { UserFileFieldKey } from "@/constants/uploadConfig";
 import { normalizeAdminDetail } from "@/lib/normalizeAdmin";
+
+/** Super Admin user routes: GET/PUT/DELETE `/api/v1/super-admin/users/:userId` */
+function superAdminUserPath(userId: string) {
+  return `/users/${userId}`;
+}
+
+/** Let axios set multipart boundary (strip default application/json). */
+const multipartConfig: AxiosRequestConfig = {
+  headers: {
+    "Content-Type": false as unknown as string,
+  },
+};
 
 function mapEditValuesToFormValues(values: NetworkUserEditValues): UserFormValues {
   return {
@@ -71,8 +84,12 @@ export function mapUserDetailToEditValues(
     village: mapped.village || outlet.village || "",
     pincode: mapped.pincode || outlet.pincode || "",
     address: mapped.address || outlet.address || "",
-    latitude: mapped.latitude || (outlet.latitude != null ? String(outlet.latitude) : ""),
-    longitude: mapped.longitude || (outlet.longitude != null ? String(outlet.longitude) : ""),
+    latitude:
+      mapped.latitude ||
+      (outlet.latitude != null ? String(outlet.latitude) : ""),
+    longitude:
+      mapped.longitude ||
+      (outlet.longitude != null ? String(outlet.longitude) : ""),
     aadhaarNumber: mapped.aadhaarNumber,
     panNumber: mapped.panNumber,
     accountHolderName: mapped.accountHolderName || bank.accountHolderName || "",
@@ -93,10 +110,66 @@ function extractEditFiles(
   return {};
 }
 
+function emptyToUndefined(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** JSON body expected by PUT `/super-admin/users/:userId` */
+function buildNetworkUserUpdateBody(
+  values: NetworkUserEditValues,
+  userType: string
+) {
+  return {
+    firstName: values.firstName.trim(),
+    lastName: values.lastName.trim(),
+    email: values.email.trim(),
+    mobile: values.mobile.trim(),
+    alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),
+    userType,
+    status: emptyToUndefined(values.status),
+    outlet: {
+      outletName: values.outletName,
+      businessType: emptyToUndefined(values.businessType),
+      gstNumber: emptyToUndefined(values.gstNumber),
+      address: values.address,
+      state: values.state,
+      district: emptyToUndefined(values.district),
+      city: values.city,
+      village: emptyToUndefined(values.village),
+      pincode: emptyToUndefined(values.pincode),
+      latitude: emptyToUndefined(values.latitude),
+      longitude: emptyToUndefined(values.longitude),
+    },
+    kyc: {
+      aadhaarNumber: emptyToUndefined(values.aadhaarNumber),
+      panNumber: emptyToUndefined(values.panNumber),
+    },
+    bankAccount: {
+      accountHolderName: emptyToUndefined(values.accountHolderName),
+      bankName: emptyToUndefined(values.bankName),
+      accountNumber: emptyToUndefined(values.accountNumber),
+      ifscCode: emptyToUndefined(values.ifscCode),
+    },
+  };
+}
+
+function buildAdminUpdateBody(values: AdminEditValues) {
+  return {
+    firstName: values.firstName.trim(),
+    lastName: values.lastName.trim(),
+    email: values.email.trim(),
+    mobile: values.mobile.trim(),
+    alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),
+    userType: "ADMIN",
+    status: emptyToUndefined(values.status),
+  };
+}
+
 export async function getUserById(id: string): Promise<UserDetailRecord> {
-  const { data } = await superAdminClient.get<ApiResponse<UserDetailRecord>>(
-    `/users/${id}`
-  );
+  const { data } = await superAdminModuleClient.get<
+    ApiResponse<UserDetailRecord>
+  >(superAdminUserPath(id));
   return normalizeUserDetail(data.data);
 }
 
@@ -105,28 +178,34 @@ export async function updateUserById(
   values: NetworkUserEditValues,
   userType: string
 ): Promise<UserDetailRecord> {
-  const formValues = mapEditValuesToFormValues(values);
   const files = extractEditFiles(values);
-  const formData = buildUserFormData(formValues, files, {
-    userType,
-    includePassword: false,
-  });
+  const hasFile = Object.keys(files).length > 0;
 
-  if (values.status) {
-    formData.append("status", values.status);
+  if (hasFile) {
+    const formValues = mapEditValuesToFormValues(values);
+    const formData = buildUserFormData(formValues, files, {
+      userType,
+      includePassword: false,
+    });
+    if (values.status) {
+      formData.append("status", values.status);
+    }
+
+    const { data } = await superAdminModuleClient.put<
+      ApiResponse<UserDetailRecord>
+    >(superAdminUserPath(id), formData, multipartConfig);
+    return normalizeUserDetail(data.data);
   }
 
-  const { data } = await superAdminClient.put<ApiResponse<UserDetailRecord>>(
-    `/users/${id}`,
-    formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
-  );
+  const { data } = await superAdminModuleClient.put<
+    ApiResponse<UserDetailRecord>
+  >(superAdminUserPath(id), buildNetworkUserUpdateBody(values, userType));
 
   return normalizeUserDetail(data.data);
 }
 
 export async function deleteUserById(id: string): Promise<void> {
-  await superAdminClient.delete(`/users/${id}`);
+  await superAdminModuleClient.delete(superAdminUserPath(id));
 }
 
 function mapAdminEditValuesToFormValues(values: AdminEditValues): UserFormValues {
@@ -166,9 +245,9 @@ function mapAdminEditValuesToFormValues(values: AdminEditValues): UserFormValues
 }
 
 export async function getAdminById(id: string): Promise<AdminDetailRecord> {
-  const { data } = await superAdminClient.get<ApiResponse<AdminDetailRecord>>(
-    `/users/${id}`
-  );
+  const { data } = await superAdminModuleClient.get<
+    ApiResponse<AdminDetailRecord>
+  >(superAdminUserPath(id));
   return normalizeAdminDetail(data.data);
 }
 
@@ -176,26 +255,28 @@ export async function updateAdminById(
   id: string,
   values: AdminEditValues
 ): Promise<AdminDetailRecord> {
-  const formValues = mapAdminEditValuesToFormValues(values);
-  const files =
-    values.profileImage instanceof File
-      ? { profileImage: values.profileImage }
-      : {};
+  const hasFile = values.profileImage instanceof File;
 
-  const formData = buildUserFormData(formValues, files, {
-    userType: "ADMIN",
-    includePassword: false,
-  });
+  if (hasFile) {
+    const formValues = mapAdminEditValuesToFormValues(values);
+    const formData = buildUserFormData(
+      formValues,
+      { profileImage: values.profileImage as File },
+      { userType: "ADMIN", includePassword: false }
+    );
+    if (values.status) {
+      formData.append("status", values.status);
+    }
 
-  if (values.status) {
-    formData.append("status", values.status);
+    const { data } = await superAdminModuleClient.put<
+      ApiResponse<AdminDetailRecord>
+    >(superAdminUserPath(id), formData, multipartConfig);
+    return normalizeAdminDetail(data.data);
   }
 
-  const { data } = await superAdminClient.put<ApiResponse<AdminDetailRecord>>(
-    `/users/${id}`,
-    formData,
-    { headers: { "Content-Type": "multipart/form-data" } }
-  );
+  const { data } = await superAdminModuleClient.put<
+    ApiResponse<AdminDetailRecord>
+  >(superAdminUserPath(id), buildAdminUpdateBody(values));
 
   return normalizeAdminDetail(data.data);
 }
