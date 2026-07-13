@@ -26,10 +26,6 @@ export function SuperAdminLoginForm() {
     formState: { errors },
   } = useForm<SuperAdminLoginFormData>({
     resolver: zodResolver(superAdminLoginSchema),
-    defaultValues: {
-    email: "care@paytrue.co.in",
-    password: "l(0s107F}9Va",
-  },
   });
 
   const onSubmit = async (data: SuperAdminLoginFormData) => {
@@ -48,7 +44,6 @@ export function SuperAdminLoginForm() {
         label="Email Address"
         variant="dark"
         type="email"
-        value="care@paytrue.co.in"
         placeholder="superadmin@paytrue.com"
         icon={<Mail className="h-4 w-4" />}
         error={errors.email?.message}
@@ -58,7 +53,6 @@ export function SuperAdminLoginForm() {
         <Input
           label="Password"
           variant="dark"
-          value="l(0s107F}9Va"
           type={showPassword ? "text" : "password"}
           placeholder="Enter your password"
           icon={<Lock className="h-4 w-4" />}

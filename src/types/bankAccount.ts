@@ -49,3 +49,37 @@ export interface PaginatedBankAccounts {
   pageSize?: number;
   totalPages?: number;
 }
+
+export interface BankAccountAssignmentRecord {
+  id: string;
+  userId: string;
+  bankAccountId: string;
+  userType?: string;
+  userTypeLabel?: string;
+  name: string;
+  mobile?: string;
+  email?: string;
+  userCode?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolderName?: string;
+  status?: string;
+  assignedAt?: string;
+}
+
+export interface BankAccountAssignmentsParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  userType?: string;
+  status?: string;
+}
+
+export interface PaginatedBankAccountAssignments {
+  data: BankAccountAssignmentRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages?: number;
+}

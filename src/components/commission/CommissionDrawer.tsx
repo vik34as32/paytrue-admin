@@ -169,17 +169,20 @@ export function CommissionDrawer({
           </Space>
 
           <Divider />
-          <Title level={5}>Commissions</Title>
+          <Title level={5}>Commissions (RT / DD / MD)</Title>
           {(
             [
-              ["retailerCommissionType", "retailerCommission", "Retailer"],
-              ["distributorCommissionType", "distributorCommission", "Distributor"],
+              ["retailerCommissionType", "retailerCommission", "Retailer (RT)"],
+              [
+                "distributorCommissionType",
+                "distributorCommission",
+                "Distributor (DD)",
+              ],
               [
                 "masterDistributorCommissionType",
                 "masterDistributorCommission",
-                "Master Distributor",
+                "Master Distributor (MD)",
               ],
-              ["companyMarginType", "companyMargin", "Company Margin"],
             ] as const
           ).map(([typeKey, valueKey, label]) => (
             <Space key={typeKey} style={{ width: "100%", marginBottom: 8 }}>

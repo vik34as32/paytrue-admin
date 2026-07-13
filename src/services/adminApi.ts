@@ -1,4 +1,7 @@
 import { adminModuleClient, adminClient } from "@/lib/api/client";
+import { WALLET_API } from "@/constants/walletApi";
+import { buildWalletTransferPayload, buildWalletDeductPayload } from "@/lib/walletAmount";
+import { normalizeWalletBalanceData } from "@/lib/walletBalance";
 import { STORAGE_KEYS } from "@/constants/storage";
 import {
   AdminDashboardData,
@@ -108,9 +111,12 @@ function normalizePaginated<T>(
 }
 
 function toApiListParams(params: AdminListQueryParams = {}) {
+  const limit = Math.min(params.pageSize ?? 10, 100);
+  const transactionType = params.transactionType?.trim() || undefined;
+
   return {
     page: params.page ?? 1,
-    limit: params.pageSize ?? 10,
+    limit,
     search: params.search,
     status: params.status,
     userType: params.userType,
@@ -120,7 +126,8 @@ function toApiListParams(params: AdminListQueryParams = {}) {
     endDate: params.endDate,
     city: params.city,
     state: params.state,
-    transactionType: params.transactionType,
+    // Only send when set — empty string fails API enum validation
+    ...(transactionType ? { transactionType } : {}),
   };
 }
 
@@ -327,8 +334,8 @@ function normalizeWalletBalance(payload: unknown): AdminWalletBalanceData {
 }
 
 export async function getWalletBalance(): Promise<AdminWalletBalanceData> {
-  const { data } = await adminClient.get<ApiResponse<unknown>>("/wallet");
-  return normalizeWalletBalance(data.data);
+  const { data } = await adminClient.get<ApiResponse<unknown>>(WALLET_API.balance);
+  return normalizeWalletBalanceData(data.data) as AdminWalletBalanceData;
 }
 
 export async function getWalletHistory(
@@ -352,7 +359,7 @@ export async function getTransferHistory(
   params: AdminListQueryParams = {}
 ): Promise<PaginatedAdminData<AdminWalletHistoryRecord>> {
   const { data } = await adminClient.get<ApiResponse<unknown>>(
-    "/wallet/transfers",
+    WALLET_API.transfers,
     { params: toApiListParams(params) }
   );
   const normalized = normalizePaginated<unknown>(data.data, [
@@ -368,8 +375,16 @@ export async function getTransferHistory(
 
 export async function transferBalance(payload: AdminTransferPayload) {
   const { data } = await adminClient.post<ApiResponse<unknown>>(
-    "/wallet/transfer",
-    payload
+    WALLET_API.transfer,
+    buildWalletTransferPayload(payload)
+  );
+  return data.data;
+}
+
+export async function deductBalance(payload: AdminTransferPayload) {
+  const { data } = await adminClient.post<ApiResponse<unknown>>(
+    WALLET_API.deduct,
+    buildWalletDeductPayload(payload)
   );
   return data.data;
 }
@@ -481,8 +496,12 @@ export async function getFundRequests(
     ApiResponse<
       PaginatedAdminData<AdminFundRequestRecord> | AdminFundRequestRecord[]
     >
-  >("/fund-requests", { params: toApiListParams(params) });
-  const normalized = normalizePaginated<unknown>(data.data, ["fundRequests"]);
+  >("/fund-requests/admin/all", { params: toApiListParams(params) });
+  const normalized = normalizePaginated<unknown>(data.data, [
+    "fundRequests",
+    "requests",
+    "items",
+  ]);
   return {
     ...normalized,
     data: normalized.data.map(normalizeFundRequestRecord),
@@ -502,9 +521,44 @@ function normalizeFundRequestRecord(raw: unknown): AdminFundRequestRecord {
         ? (obj.user as Record<string, unknown>)
         : undefined;
 
+  const companyAccount =
+    obj.companyAccount && typeof obj.companyAccount === "object"
+      ? (obj.companyAccount as Record<string, unknown>)
+      : obj.bankAccount && typeof obj.bankAccount === "object"
+        ? (obj.bankAccount as Record<string, unknown>)
+        : undefined;
+
+  const approver =
+    obj.approver && typeof obj.approver === "object"
+      ? (obj.approver as Record<string, unknown>)
+      : undefined;
+
+  const actionBy =
+    obj.actionBy && typeof obj.actionBy === "object"
+      ? (obj.actionBy as Record<string, unknown>)
+      : obj.approvedBy && typeof obj.approvedBy === "object"
+        ? (obj.approvedBy as Record<string, unknown>)
+        : obj.rejectedBy && typeof obj.rejectedBy === "object"
+          ? (obj.rejectedBy as Record<string, unknown>)
+          : obj.admin && typeof obj.admin === "object"
+            ? (obj.admin as Record<string, unknown>)
+            : approver;
+
   const requesterFirstName = requester?.firstName as string | undefined;
   const requesterLastName = requester?.lastName as string | undefined;
   const requesterFullName = [requesterFirstName, requesterLastName]
+    .filter(Boolean)
+    .join(" ");
+
+  const actionFirstName = actionBy?.firstName as string | undefined;
+  const actionLastName = actionBy?.lastName as string | undefined;
+  const actionFullName = [actionFirstName, actionLastName]
+    .filter(Boolean)
+    .join(" ");
+
+  const approverFirstName = approver?.firstName as string | undefined;
+  const approverLastName = approver?.lastName as string | undefined;
+  const approverFullName = [approverFirstName, approverLastName]
     .filter(Boolean)
     .join(" ");
 
@@ -516,17 +570,46 @@ function normalizeFundRequestRecord(raw: unknown): AdminFundRequestRecord {
     adminRemarks:
       (obj.adminRemarks as string | undefined) ??
       (obj.approvalRemarks as string | undefined) ??
-      (obj.rejectRemarks as string | undefined),
+      (obj.rejectRemarks as string | undefined) ??
+      (obj.rejectionRemarks as string | undefined) ??
+      undefined,
     createdAt: (obj.createdAt as string | undefined) ?? undefined,
     updatedAt: (obj.updatedAt as string | undefined) ?? undefined,
-    requesterId: String(
-      obj.requesterId ?? obj.userId ?? requester?.id ?? ""
-    ) || undefined,
+    reference: (obj.reference as string | undefined) ?? undefined,
+    utr: (obj.utr as string | undefined) ?? undefined,
+    referenceNumber:
+      (obj.referenceNumber as string | undefined) ??
+      (obj.utr as string | undefined) ??
+      undefined,
+    imageUrl: (obj.imageUrl as string | null | undefined) ?? null,
+    paymentMode: (obj.paymentMode as string | undefined) ?? undefined,
+    fundingMode: (obj.fundingMode as string | undefined) ?? undefined,
+    depositDate: (obj.depositDate as string | undefined) ?? undefined,
+    bankName:
+      (companyAccount?.bankName as string | undefined) ??
+      (obj.bankName as string | undefined),
+    accountHolderName:
+      (companyAccount?.accountHolderName as string | undefined) ??
+      (obj.accountHolderName as string | undefined),
+    accountNumber:
+      (companyAccount?.accountNumber as string | undefined) ??
+      (obj.accountNumber as string | undefined),
+    ifscCode:
+      (companyAccount?.ifscCode as string | undefined) ??
+      (obj.ifscCode as string | undefined),
+    branchName:
+      (companyAccount?.branchName as string | undefined) ??
+      (obj.branchName as string | undefined),
+    requesterId:
+      String(obj.requesterId ?? obj.userId ?? requester?.id ?? "") || undefined,
     requesterName:
       (obj.requesterName as string | undefined) ||
       (obj.userName as string | undefined) ||
       requesterFullName ||
-      (requester?.name as string | undefined),
+      (requester?.name as string | undefined) ||
+      (requester?.fullName as string | undefined),
+    requesterFirstName: requesterFirstName,
+    requesterLastName: requesterLastName,
     requesterType:
       (obj.requesterType as string | undefined) ||
       (obj.userType as string | undefined) ||
@@ -535,36 +618,76 @@ function normalizeFundRequestRecord(raw: unknown): AdminFundRequestRecord {
       (obj.requesterMobile as string | undefined) ||
       (obj.mobile as string | undefined) ||
       (requester?.mobile as string | undefined),
+    requesterEmail:
+      (obj.requesterEmail as string | undefined) ||
+      (requester?.email as string | undefined),
+    requesterUserCode:
+      (obj.requesterUserCode as string | undefined) ||
+      (requester?.userCode as string | undefined),
     userId: (obj.userId as string | undefined) ?? undefined,
     userName: (obj.userName as string | undefined) ?? undefined,
-    userType: (obj.userType as string | undefined) ?? undefined,
+    userType:
+      (obj.userType as string | undefined) ||
+      (requester?.userType as string | undefined),
+    actionById: String(obj.actionById ?? actionBy?.id ?? "") || undefined,
+    actionByName:
+      (obj.actionByName as string | undefined) ||
+      (obj.approvedByName as string | undefined) ||
+      (obj.rejectedByName as string | undefined) ||
+      actionFullName ||
+      (actionBy?.name as string | undefined) ||
+      (actionBy?.fullName as string | undefined),
+    actionByType:
+      (obj.actionByType as string | undefined) ||
+      (actionBy?.userType as string | undefined),
+    approverName:
+      approverFullName ||
+      (approver?.name as string | undefined) ||
+      (approver?.fullName as string | undefined),
+    approverType: (approver?.userType as string | undefined) ?? undefined,
+    approvedAt: (obj.approvedAt as string | undefined) ?? undefined,
+    rejectedAt: (obj.rejectedAt as string | undefined) ?? undefined,
   };
 }
 
 export async function approveFundRequest(
   payload: AdminApproveFundRequestPayload
-) {
+): Promise<{ record: AdminFundRequestRecord; message: string }> {
   const { data } = await adminClient.put<ApiResponse<AdminFundRequestRecord>>(
     "/fund-requests/approve",
     {
       id: payload.id,
       fundRequestId: payload.id,
+      adminRemarks: payload.remarks,
       remarks: payload.remarks,
     }
   );
-  return normalizeFundRequestRecord(data.data);
+  return {
+    record: normalizeFundRequestRecord(data.data),
+    message:
+      (typeof data.message === "string" && data.message.trim()) ||
+      "Fund request approved successfully",
+  };
 }
 
-export async function rejectFundRequest(payload: AdminRejectFundRequestPayload) {
+export async function rejectFundRequest(
+  payload: AdminRejectFundRequestPayload
+): Promise<{ record: AdminFundRequestRecord; message: string }> {
   const { data } = await adminClient.put<ApiResponse<AdminFundRequestRecord>>(
     "/fund-requests/reject",
     {
       id: payload.id,
       fundRequestId: payload.id,
+      adminRemarks: payload.remarks,
       remarks: payload.remarks,
     }
   );
-  return normalizeFundRequestRecord(data.data);
+  return {
+    record: normalizeFundRequestRecord(data.data),
+    message:
+      (typeof data.message === "string" && data.message.trim()) ||
+      "Fund request rejected",
+  };
 }
 
 export async function getBusinessReport(
@@ -594,21 +717,39 @@ export function getNetworkUserBalance(user: AdminNetworkUser): number {
 export { getAdminBankAccounts } from "@/services/bankAccountApi";
 
 export async function assignBankAccountToUser(
-  payload: AdminAssignBankAccountPayload
-) {
+  payload: AdminAssignBankAccountPayload | { userId: string; bankAccountId: string }
+): Promise<{ data: unknown; message: string }> {
+  const body: AdminAssignBankAccountPayload =
+    "userIds" in payload
+      ? payload
+      : {
+          userIds: [payload.userId],
+          bankAccountId: payload.bankAccountId,
+        };
+
   const { data } = await adminClient.post<ApiResponse<unknown>>(
     "/bank-accounts/assign",
-    payload
+    body
   );
-  return data.data;
+  return {
+    data: data.data,
+    message:
+      (typeof data.message === "string" && data.message.trim()) ||
+      "Bank account assigned successfully",
+  };
 }
 
 export async function removeBankAccountAssignment(
   payload: AdminRemoveBankAssignmentPayload
-) {
+): Promise<{ data: unknown; message: string }> {
   const { data } = await adminClient.delete<ApiResponse<unknown>>(
     "/bank-accounts/assign",
     { data: payload }
   );
-  return data.data;
+  return {
+    data: data.data,
+    message:
+      (typeof data.message === "string" && data.message.trim()) ||
+      "Bank assignment removed",
+  };
 }

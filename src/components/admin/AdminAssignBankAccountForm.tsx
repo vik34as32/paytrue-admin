@@ -4,20 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Select } from "@/components/common/Select";
 import { Button } from "@/components/common/Button";
-import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
+import { assignBankAccountToUser } from "@/services/adminApi";
 import {
-  fetchAdminDistributors,
-  fetchAdminMasterDistributors,
-  fetchAdminRetailers,
-} from "@/store/api/adminModuleApi";
-import {
-  assignBankAccountToUser,
-  getNetworkUserName,
-} from "@/services/adminApi";
-import { AdminNetworkUser } from "@/types/admin";
+  getPublicNetworkUserLabel,
+  getPublicNetworkUsers,
+  PublicNetworkUser,
+  PublicNetworkUserType,
+} from "@/services/publicNetworkUsersApi";
 import { BankAccountRecord } from "@/types/bankAccount";
-
-type AssignUserType = "MASTER_DISTRIBUTOR" | "DISTRIBUTOR" | "RETAILER";
 
 const USER_TYPE_OPTIONS = [
   { value: "", label: "Select user type" },
@@ -41,41 +35,62 @@ export function AdminAssignBankAccountForm({
   bankAccounts = [],
   isLoadingBanks = false,
 }: AdminAssignBankAccountFormProps) {
-  const dispatch = useAppDispatch();
-  const { masterDistributors, distributors, retailers } = useAppSelector(
-    (state) => state.adminModule
-  );
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bankAccountId, setBankAccountId] = useState("");
-  const [userType, setUserType] = useState<AssignUserType | "">("");
+  const [userType, setUserType] = useState<PublicNetworkUserType | "">("");
   const [userId, setUserId] = useState("");
+  const [users, setUsers] = useState<PublicNetworkUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       setBankAccountId("");
       setUserType("");
       setUserId("");
+      setUsers([]);
+      setUsersError(null);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !userType) {
+      setUsers([]);
+      setUsersError(null);
+      setIsLoadingUsers(false);
       return;
     }
 
-    dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 200 }));
-    dispatch(fetchAdminDistributors({ page: 1, pageSize: 200 }));
-    dispatch(fetchAdminRetailers({ page: 1, pageSize: 200 }));
-  }, [dispatch, isOpen]);
+    let cancelled = false;
 
-  const usersForType = useMemo(() => {
-    switch (userType) {
-      case "MASTER_DISTRIBUTOR":
-        return masterDistributors.data;
-      case "DISTRIBUTOR":
-        return distributors.data;
-      case "RETAILER":
-        return retailers.data;
-      default:
-        return [];
+    async function loadUsers() {
+      setIsLoadingUsers(true);
+      setUsersError(null);
+      setUsers([]);
+      try {
+        const data = await getPublicNetworkUsers(userType as PublicNetworkUserType);
+        if (!cancelled) {
+          setUsers(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setUsers([]);
+          setUsersError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load network users"
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingUsers(false);
+      }
     }
-  }, [userType, masterDistributors.data, distributors.data, retailers.data]);
+
+    void loadUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, userType]);
 
   const bankOptions = useMemo(
     () =>
@@ -99,21 +114,29 @@ export function AdminAssignBankAccountForm({
     if (!userType) {
       return [{ value: "", label: "Select user type first" }];
     }
-
-    if (usersForType.length === 0) {
+    if (isLoadingUsers) {
+      return [{ value: "", label: "Loading users..." }];
+    }
+    if (usersError) {
+      return [{ value: "", label: "Failed to load users" }];
+    }
+    if (users.length === 0) {
       return [{ value: "", label: "No users found for this type" }];
     }
-
-    return usersForType.map((user: AdminNetworkUser) => ({
+    return users.map((user) => ({
       value: user.id,
-      label: `${getNetworkUserName(user)}${user.mobile ? ` — ${user.mobile}` : ""}`,
+      label: getPublicNetworkUserLabel(user),
     }));
-  }, [userType, usersForType]);
+  }, [userType, isLoadingUsers, usersError, users]);
 
-  const isLoadingUsers =
-    (userType === "MASTER_DISTRIBUTOR" && masterDistributors.isLoading) ||
-    (userType === "DISTRIBUTOR" && distributors.isLoading) ||
-    (userType === "RETAILER" && retailers.isLoading);
+  const userLabel =
+    userType === "MASTER_DISTRIBUTOR"
+      ? "Master Distributor"
+      : userType === "DISTRIBUTOR"
+        ? "Distributor"
+        : userType === "RETAILER"
+          ? "Retailer"
+          : "User";
 
   const handleAssign = async () => {
     if (!bankAccountId) {
@@ -127,11 +150,16 @@ export function AdminAssignBankAccountForm({
 
     setIsSubmitting(true);
     try {
-      await assignBankAccountToUser({ userId, bankAccountId });
-      toast.success("Bank account assigned successfully");
+      await assignBankAccountToUser({
+        userIds: [userId],
+        bankAccountId,
+      }).then((result) => {
+        toast.success(result.message);
+      });
       setBankAccountId("");
       setUserType("");
       setUserId("");
+      setUsers([]);
       onSuccess?.();
     } catch (error) {
       toast.error(
@@ -162,39 +190,43 @@ export function AdminAssignBankAccountForm({
           label="User Type"
           value={userType}
           onChange={(event) => {
-            setUserType(event.target.value as AssignUserType | "");
+            setUserType(event.target.value as PublicNetworkUserType | "");
             setUserId("");
           }}
           options={USER_TYPE_OPTIONS}
         />
 
-        <Select
-          label={
-            userType === "MASTER_DISTRIBUTOR"
-              ? "Master Distributor"
-              : userType === "DISTRIBUTOR"
-                ? "Distributor"
-                : userType === "RETAILER"
-                  ? "Retailer"
-                  : "User"
-          }
-          value={userId}
-          onChange={(event) => setUserId(event.target.value)}
-          options={[{ value: "", label: "Select user" }, ...userOptions]}
-          disabled={!userType || isLoadingUsers}
-        />
+        <div className="md:col-span-2">
+          <Select
+            label={userLabel}
+            value={userId}
+            onChange={(event) => setUserId(event.target.value)}
+            options={[{ value: "", label: "Select user" }, ...userOptions]}
+            disabled={!userType || isLoadingUsers}
+          />
+          {usersError ? (
+            <p className="mt-2 text-sm text-accent-red">{usersError}</p>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
         )}
         <Button
           type="submit"
           isLoading={isSubmitting}
-          disabled={isLoadingBanks || isLoadingUsers || !bankAccountId || !userId}
+          disabled={
+            isLoadingBanks || isLoadingUsers || !bankAccountId || !userId
+          }
         >
           Assign Bank Account
         </Button>

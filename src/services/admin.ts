@@ -24,7 +24,7 @@ export async function getAdmins(
 }
 
 export async function getAllAdmins(): Promise<AdminRecord[]> {
-  const result = await getAdminsPaginated({ page: 1, pageSize: 500 });
+  const result = await getAdminsPaginated({ page: 1, pageSize: 100 });
   return result.data;
 }
 

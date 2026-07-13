@@ -22,7 +22,10 @@ export function CommissionAntdProvider({ children }: CommissionAntdProviderProps
         },
         components: {
           Card: { paddingLG: 20 },
-          Table: { headerBg: isDark ? "#1f1f1f" : "#f8fafc" },
+          Table: {
+            headerBg: isDark ? "#1f1f1f" : "#f8fafc",
+            stickyScrollBarBg: isDark ? "#334155" : "#cbd5e1",
+          },
         },
       }}
     >

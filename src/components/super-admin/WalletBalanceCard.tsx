@@ -103,15 +103,17 @@ export function WalletBalanceCards({ autoFetch = false }: WalletBalanceCardsProp
 
 /** Compact single-card variant for sub-pages (add balance, transfer) */
 export function WalletBalanceCard() {
-  const { balance, isLoading, error, refresh } = useWalletBalance({ autoFetch: false });
+  const { balance, isLoading, error, refresh } = useWalletBalance({
+    autoFetch: true,
+  });
 
-  const cards = buildDynamicBalanceCards(balance);
+  const primaryBalance = resolvePrimaryBalance(balance);
 
   return (
     <Card className="border-primary/10 bg-gradient-to-br from-primary/5 to-card">
       <CardHeader
-        title="Wallet Balance"
-        subtitle="Live super admin wallet"
+        title="Super Admin Wallet Balance"
+        subtitle="Live wallet balance"
         action={
           <Button variant="ghost" size="sm" onClick={refresh} disabled={isLoading}>
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
@@ -119,7 +121,7 @@ export function WalletBalanceCard() {
         }
       />
       {isLoading && !balance ? (
-        <div className="h-8 w-32 animate-pulse rounded-lg bg-border" />
+        <div className="h-10 w-40 animate-pulse rounded-lg bg-border" />
       ) : error && !balance ? (
         <div className="space-y-2">
           <p className="text-sm text-accent-red">{error}</p>
@@ -127,18 +129,9 @@ export function WalletBalanceCard() {
             Retry
           </Button>
         </div>
-      ) : cards.length > 0 ? (
-        <div className="space-y-3">
-          {cards.map((card) => (
-            <div key={card.key} className="flex items-center justify-between text-sm">
-              <span className="text-muted">{card.title}</span>
-              <span className="font-bold text-primary">{formatCurrency(card.value)}</span>
-            </div>
-          ))}
-        </div>
       ) : (
         <p className="text-3xl font-bold text-primary">
-          {formatCurrency(resolvePrimaryBalance(balance))}
+          {formatCurrency(primaryBalance)}
         </p>
       )}
     </Card>

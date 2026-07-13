@@ -1,37 +1,39 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { App, Modal } from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { App } from "antd";
 import {
   BulkUpdatePayload,
   CommissionRangeRow,
   CopyCommissionPayload,
+  FintechService,
 } from "@/types/commission";
-import {
-  MOCK_COMMISSION_ROWS,
-  MOCK_RETAILERS,
-} from "@/lib/commission/mockData";
 import { validateCommissionRow } from "@/lib/commission/validation";
 import { createRowId, downloadJson } from "@/lib/commission/utils";
-import { FINTECH_SERVICES } from "@/constants/commissionServices";
 import {
   bulkUpdateCommissions,
   copyCommissions,
   deleteCommissionRow,
+  fetchRetailerCommissions,
   importCommissions,
-  saveCommissionRow,
+  saveRetailerCommissions,
 } from "@/services/commissionApi";
 
+export interface CommissionRetailerOption {
+  id: string;
+  name: string;
+  code?: string;
+}
+
 function defaultRow(
-  serviceId = "dmt",
-  retailerId?: string,
+  service: FintechService | undefined,
+  retailerId: string,
   retailerName?: string
 ): CommissionRangeRow {
-  const service = FINTECH_SERVICES.find((s) => s.id === serviceId);
   return {
     id: createRowId(),
-    serviceId,
-    serviceName: service?.name ?? "DMT",
+    serviceId: service?.id ?? "",
+    serviceName: service?.name ?? "",
     scope: "retailer",
     retailerId,
     retailerName,
@@ -49,43 +51,57 @@ function defaultRow(
     companyMargin: 0,
     priority: 1,
     status: "active",
+    isNew: true,
   };
 }
 
-/** Retailer view shows all global commission slabs (DMT, AEPS, etc.) */
-function getRetailerCommissionRows(
-  rows: CommissionRangeRow[],
-  retailerId: string
-): CommissionRangeRow[] {
-  const retailer = MOCK_RETAILERS.find((r) => r.id === retailerId);
-
-  return rows
-    .filter((row) => row.scope === "global")
-    .map((row) => ({
-      ...row,
-      retailerId,
-      retailerName: retailer?.name,
-    }));
-}
-
-export function useCommissionManagement(selectedRetailerId: string | null) {
+export function useCommissionManagement(
+  selectedRetailerId: string | null,
+  selectedRetailer: CommissionRetailerOption | undefined,
+  services: FintechService[]
+) {
   const { message } = App.useApp();
-  const [rows, setRows] = useState<CommissionRangeRow[]>(MOCK_COMMISSION_ROWS);
+  const [rows, setRows] = useState<CommissionRangeRow[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [drawerRow, setDrawerRow] = useState<CommissionRangeRow | null>(null);
   const [historyRow, setHistoryRow] = useState<CommissionRangeRow | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const selectedRetailer = useMemo(
-    () => MOCK_RETAILERS.find((r) => r.id === selectedRetailerId),
-    [selectedRetailerId]
-  );
+  const loadCommissions = useCallback(async () => {
+    if (!selectedRetailerId) {
+      setRows([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await fetchRetailerCommissions(
+        selectedRetailerId,
+        selectedRetailer?.name
+      );
+      setRows(data);
+      setHasUnsavedChanges(false);
+      setSelectedRowKeys([]);
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Failed to load commissions"
+      );
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [message, selectedRetailer?.name, selectedRetailerId]);
+
+  useEffect(() => {
+    void loadCommissions();
+  }, [loadCommissions]);
 
   const filteredRows = useMemo(() => {
     if (!selectedRetailerId) return [];
-    return getRetailerCommissionRows(rows, selectedRetailerId);
+    return rows.filter((row) => row.retailerId === selectedRetailerId);
   }, [rows, selectedRetailerId]);
 
   const updateRow = useCallback(
@@ -105,37 +121,70 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
             : r
         )
       );
-      void saveCommissionRow(updated);
+      setHasUnsavedChanges(true);
     },
     [rows, message]
   );
 
-  const handleAddCommission = () => {
-    if (!selectedRetailerId || !selectedRetailer) return;
-    const row = defaultRow("dmt", selectedRetailerId, selectedRetailer.name);
+  const handleAddCommission = (service?: FintechService) => {
+    if (!selectedRetailerId) return;
+    const selectedService = service ?? services[0];
+    if (!selectedService) {
+      message.warning("No active services found. Add services in Service Master.");
+      return;
+    }
+    const row = defaultRow(
+      selectedService,
+      selectedRetailerId,
+      selectedRetailer?.name
+    );
     setRows((prev) => [row, ...prev]);
-    message.success("New commission slab added");
+    setHasUnsavedChanges(true);
+    message.success(`Commission slab added for ${selectedService.name}`);
   };
 
-  const handleAddRange = () => {
-    if (!selectedRetailerId || !selectedRetailer) return;
-    const last = filteredRows[0] ?? defaultRow("dmt", selectedRetailerId, selectedRetailer.name);
-    const maxTo = Math.max(
-      ...filteredRows
-        .filter((r) => r.serviceId === last.serviceId)
-        .map((r) => r.rangeTo),
+  const handleAddRange = (forRow?: CommissionRangeRow) => {
+    if (!selectedRetailerId) return;
+
+    const selectedRows = selectedRowKeys.length
+      ? filteredRows.filter((row) => selectedRowKeys.includes(row.id))
+      : [];
+
+    const referenceRow =
+      forRow ??
+      selectedRows[0] ??
+      filteredRows[filteredRows.length - 1];
+
+    if (!referenceRow) {
+      message.warning("Add a service commission first, then add more slabs.");
+      return;
+    }
+
+    const sameServiceRows = filteredRows.filter(
+      (row) => row.serviceId === referenceRow.serviceId
+    );
+    const maxTo = Math.max(...sameServiceRows.map((row) => row.rangeTo), 0);
+    const maxPriority = Math.max(
+      ...sameServiceRows.map((row) => row.priority),
       0
     );
+
     const row: CommissionRangeRow = {
-      ...defaultRow(last.serviceId, selectedRetailerId, selectedRetailer.name),
-      serviceId: last.serviceId,
-      serviceName: last.serviceName,
+      ...defaultRow(
+        services.find((s) => s.id === referenceRow.serviceId),
+        selectedRetailerId,
+        selectedRetailer?.name
+      ),
+      serviceId: referenceRow.serviceId,
+      serviceName: referenceRow.serviceName,
       rangeFrom: maxTo + 1,
       rangeTo: maxTo + 5000,
-      priority: (last.priority ?? 0) + 1,
+      priority: maxPriority + 1,
     };
+
     setRows((prev) => [...prev, row]);
-    message.success(`Range slab added for ${last.serviceName}`);
+    setHasUnsavedChanges(true);
+    message.success(`New slab added for ${referenceRow.serviceName}`);
   };
 
   const handleDuplicate = (row: CommissionRangeRow) => {
@@ -145,22 +194,59 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
       rangeFrom: row.rangeTo + 1,
       rangeTo: row.rangeTo + 5000,
       priority: row.priority + 1,
+      isNew: true,
     };
     setRows((prev) => [...prev, copy]);
+    setHasUnsavedChanges(true);
     message.success("Slab duplicated");
   };
 
-  const handleDelete = (row: CommissionRangeRow) => {
-    Modal.confirm({
-      title: "Delete commission slab?",
-      content: `Remove ${row.serviceName} (${row.rangeFrom}–${row.rangeTo})?`,
-      okType: "danger",
-      onOk: async () => {
-        setRows((prev) => prev.filter((r) => r.id !== row.id));
+  const handleDelete = async (row: CommissionRangeRow) => {
+    try {
+      if (!row.isNew && !row.id.startsWith("comm_")) {
         await deleteCommissionRow(row.id);
-        message.success("Slab deleted");
-      },
-    });
+      }
+      setRows((prev) => prev.filter((r) => r.id !== row.id));
+      setSelectedRowKeys((prev) => prev.filter((id) => id !== row.id));
+      if (row.isNew || row.id.startsWith("comm_")) {
+        setHasUnsavedChanges(true);
+      }
+      message.success("Slab removed");
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Failed to remove slab"
+      );
+    }
+  };
+
+  const handleSaveAll = async () => {
+    if (!selectedRetailerId) return;
+
+    for (const row of filteredRows) {
+      const error = validateCommissionRow(row, filteredRows);
+      if (error) {
+        message.error(`${row.serviceName}: ${error}`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const saved = await saveRetailerCommissions(
+        selectedRetailerId,
+        filteredRows
+      );
+      setRows(saved);
+      setHasUnsavedChanges(false);
+      message.success("Commission slabs saved successfully");
+      await loadCommissions();
+    } catch (error) {
+      message.error(
+        error instanceof Error ? error.message : "Failed to save commissions"
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleExport = () => {
@@ -178,14 +264,22 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
     input.accept = "application/json,.json";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      if (!file || !selectedRetailerId) return;
       try {
         const text = await file.text();
         const parsed = JSON.parse(text) as CommissionRangeRow[];
         if (!Array.isArray(parsed)) throw new Error("Invalid format");
-        setRows((prev) => [...prev, ...parsed]);
+        const imported = parsed.map((row) => ({
+          ...row,
+          id: createRowId(),
+          retailerId: selectedRetailerId,
+          retailerName: selectedRetailer?.name,
+          isNew: true,
+        }));
+        setRows((prev) => [...prev, ...imported]);
+        setHasUnsavedChanges(true);
         await importCommissions(file);
-        message.success(`Imported ${parsed.length} slab(s)`);
+        message.success(`Imported ${imported.length} slab(s)`);
       } catch {
         message.error("Failed to import commission file");
       }
@@ -230,6 +324,7 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
       })
     );
     await bulkUpdateCommissions(selectedRowKeys, payload);
+    setHasUnsavedChanges(true);
     message.success(`Updated ${selectedRowKeys.length} row(s)`);
     setSelectedRowKeys([]);
   };
@@ -237,47 +332,8 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
   const handleCopy = async (payload: CopyCommissionPayload) => {
     setLoading(true);
     try {
-      let sourceRows: CommissionRangeRow[] = [];
-
-      if (payload.mode === "service" && payload.sourceServiceId) {
-        sourceRows = rows.filter((r) => r.serviceId === payload.sourceServiceId);
-      } else if (payload.mode === "full" && payload.sourceRetailerId) {
-        sourceRows = getRetailerCommissionRows(rows, payload.sourceRetailerId);
-      } else if (
-        payload.mode === "clone_retailer" &&
-        payload.sourceRetailerId &&
-        payload.targetRetailerId
-      ) {
-        const target = MOCK_RETAILERS.find(
-          (r) => r.id === payload.targetRetailerId
-        );
-        sourceRows = getRetailerCommissionRows(
-          rows,
-          payload.sourceRetailerId
-        ).map((r) => ({
-          ...r,
-          id: createRowId(),
-          scope: "retailer" as const,
-          retailerId: payload.targetRetailerId,
-          retailerName: target?.name,
-        }));
-      }
-
-      if (!sourceRows.length) {
-        message.warning("No matching commission slabs to copy");
-        return;
-      }
-
-      const copied = sourceRows.map((r) => ({
-        ...r,
-        id: createRowId(),
-        scope: "retailer" as const,
-        updatedAt: new Date().toISOString(),
-      }));
-
       await copyCommissions(payload);
-      setRows((prev) => [...prev, ...copied]);
-      message.success(`Copied ${copied.length} slab(s)`);
+      message.info("Copy commission will be available after backend wiring");
     } finally {
       setLoading(false);
     }
@@ -285,7 +341,7 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
 
   const handleSaveDrawer = (row: CommissionRangeRow) => {
     updateRow(row);
-    message.success("Commission updated");
+    message.success("Commission updated locally — click Save Changes to persist");
   };
 
   return {
@@ -293,6 +349,8 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
     selectedRowKeys,
     setSelectedRowKeys,
     loading,
+    saving,
+    hasUnsavedChanges,
     drawerRow,
     setDrawerRow,
     historyRow,
@@ -303,6 +361,7 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
     setCopyOpen,
     handleAddCommission,
     handleAddRange,
+    handleSaveAll,
     updateRow,
     handleDuplicate,
     handleDelete,
@@ -311,6 +370,7 @@ export function useCommissionManagement(selectedRetailerId: string | null) {
     handleBulkUpdate,
     handleCopy,
     handleSaveDrawer,
+    reload: loadCommissions,
     totalSlabs: filteredRows.length,
     activeSlabs: filteredRows.filter((r) => r.status === "active").length,
   };

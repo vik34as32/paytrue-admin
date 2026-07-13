@@ -91,10 +91,9 @@ export function BulkUpdateModal({
           rules={[{ required: true }]}
         >
           <Radio.Group>
-            <Radio value="retailer">Retailer Commission</Radio>
-            <Radio value="distributor">Distributor Commission</Radio>
-            <Radio value="master_distributor">Master Distributor</Radio>
-            <Radio value="company">Company Margin</Radio>
+            <Radio value="retailer">Retailer (RT)</Radio>
+            <Radio value="distributor">Distributor (DD)</Radio>
+            <Radio value="master_distributor">Master Distributor (MD)</Radio>
           </Radio.Group>
         </Form.Item>
 

@@ -12,8 +12,11 @@ import {
   AdminListFiltersValue,
 } from "@/components/admin/AdminListFilters";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
-import { fetchAdminTransferHistory } from "@/store/api/adminModuleApi";
-import { selectAdminTransferHistory } from "@/store/selectors/adminSelectors";
+import { fetchAdminWalletHistory, fetchAdminTransferHistory } from "@/store/api/adminModuleApi";
+import {
+  selectAdminTransferHistory,
+  selectAdminWalletHistory,
+} from "@/store/selectors/adminSelectors";
 import { buildAdminTransferHistoryColumns } from "@/lib/adminHistoryColumns";
 import { AdminWalletHistoryRecord } from "@/types/admin";
 
@@ -27,15 +30,24 @@ interface AdminTransferHistoryTableProps {
   refreshKey?: number;
   title?: string;
   subtitle?: string;
+  transactionType?: string;
+  searchPlaceholder?: string;
+  /** Transfer list (`/wallet/transfers`) vs full wallet history (`/admin/wallet-history`) */
+  historyKind?: "transfer" | "wallet";
 }
 
 export function AdminTransferHistoryTable({
   refreshKey = 0,
   title = "Transfer History",
   subtitle = "Balance transfers to your master distributors",
+  transactionType,
+  searchPlaceholder = "Search transfers...",
+  historyKind = "transfer",
 }: AdminTransferHistoryTableProps) {
   const dispatch = useAppDispatch();
   const transferHistory = useAppSelector(selectAdminTransferHistory);
+  const walletHistory = useAppSelector(selectAdminWalletHistory);
+  const history = historyKind === "wallet" ? walletHistory : transferHistory;
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
@@ -43,18 +55,23 @@ export function AdminTransferHistoryTable({
 
   const loadHistory = useCallback(
     (page = pageIndex + 1) => {
-      dispatch(
-        fetchAdminTransferHistory({
-          page,
-          pageSize,
-          search: search || undefined,
-          status: filters.status,
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-        })
-      );
+      const params = {
+        page,
+        pageSize,
+        search: search || undefined,
+        status: filters.status,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        transactionType,
+      };
+      const fetchHistory =
+        historyKind === "wallet"
+          ? fetchAdminWalletHistory
+          : fetchAdminTransferHistory;
+
+      dispatch(fetchHistory(params));
     },
-    [dispatch, pageIndex, pageSize, search, filters]
+    [dispatch, pageIndex, pageSize, search, filters, transactionType, historyKind]
   );
 
   useEffect(() => {
@@ -72,7 +89,7 @@ export function AdminTransferHistoryTable({
     []
   );
 
-  const pageCount = Math.max(1, Math.ceil(transferHistory.total / pageSize));
+  const pageCount = Math.max(1, Math.ceil(history.total / pageSize));
 
   return (
     <Card>
@@ -84,18 +101,18 @@ export function AdminTransferHistoryTable({
             variant="outline"
             size="sm"
             onClick={() => loadHistory()}
-            disabled={transferHistory.isLoading}
+            disabled={history.isLoading}
           >
             <RefreshCw
-              className={`h-4 w-4 ${transferHistory.isLoading ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${history.isLoading ? "animate-spin" : ""}`}
             />
             Refresh
           </Button>
         }
       />
-      {transferHistory.error && (
+      {history.error && (
         <div className="mb-4 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
-          {transferHistory.error}
+          {history.error}
         </div>
       )}
       <AdminListFilters
@@ -119,10 +136,10 @@ export function AdminTransferHistoryTable({
         />
       </div>
       <DataTable
-        data={transferHistory.data}
+        data={history.data}
         columns={columns}
-        isLoading={transferHistory.isLoading}
-        searchPlaceholder="Search transfers..."
+        isLoading={history.isLoading}
+        searchPlaceholder={searchPlaceholder}
         onSearch={(value) => {
           setSearch(value);
           setPageIndex(0);

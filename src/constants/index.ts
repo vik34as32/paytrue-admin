@@ -53,7 +53,9 @@ export const ROUTES = {
   superAdminAdmins: "/super-admin/admins",
   superAdminAddBalance: "/super-admin/add-balance",
   superAdminTransferBalance: "/super-admin/transfer-balance",
+  superAdminDeductBalance: "/super-admin/deduct-balance",
   superAdminWalletHistory: "/super-admin/wallet-history",
+  superAdminWalletSummary: "/super-admin/wallet-summary",
   superAdminCreateAdmin: "/super-admin/create-admin",
   superAdminStatistics: "/super-admin/statistics",
   superAdminRetailers: "/super-admin/retailers",
@@ -67,6 +69,7 @@ export const ROUTES = {
   adminMasterDistributor: "/admin/master-distributor",
   adminCreateMasterDistributor: "/admin/create-master-distributor",
   adminBalanceTransfer: "/admin/balance-transfer",
+  adminBalanceDeduct: "/admin/balance-deduct",
   adminHistory: "/admin/history",
   adminProfile: "/admin/profile",
   adminChangePassword: "/admin/change-password",
@@ -76,6 +79,8 @@ export const ROUTES = {
   adminFundRequests: "/admin/requests",
   adminAssignBankAccount: "/admin/bank-account-assign",
   adminCommissionManagement: "/admin/commission-management",
+  adminServiceMaster: "/admin/service-master",
+  adminWalletSummary: "/admin/wallet-summary",
   masterDistributor: "/master-distributor",
   distributor: "/distributor",
   retailer: "/retailer",
@@ -93,10 +98,14 @@ export const SIDEBAR_ITEMS = [
 
   { label: "Fund Requests", href: ROUTES.superAdminFundRequests, icon: "requests", roles: ["super_admin"] as const },
   { label: "Bank Accounts", href: ROUTES.superAdminBankAccounts, icon: "ledger", roles: ["super_admin"] as const },
+  { label: "Service Master", href: ROUTES.adminServiceMaster, icon: "services", roles: ["super_admin"] as const },
   { label: "Add Balance", href: ROUTES.superAdminAddBalance, icon: "transfer", roles: ["super_admin"] as const },
   { label: "Change Password", href: ROUTES.superAdminChangePassword, icon: "profile", roles: ["super_admin"] as const },
   { label: "Transfer Balance", href: ROUTES.superAdminTransferBalance, icon: "transfer", roles: ["super_admin"] as const },
-  { label: "Wallet History", href: ROUTES.superAdminWalletHistory, icon: "history", roles: ["super_admin"] as const },
+  { label: "Deduct Balance", href: ROUTES.superAdminDeductBalance, icon: "transfer", roles: ["super_admin"] as const },
+  { label: "Commission Management", href: ROUTES.adminCommissionManagement, icon: "commission", roles: ["super_admin"] as const },
+  { label: "Wallet History Super Admin", href: ROUTES.superAdminWalletHistory, icon: "history", roles: ["super_admin"] as const },
+  { label: "Wallet Summary", href: ROUTES.superAdminWalletSummary, icon: "reports", roles: ["super_admin"] as const },
   { label: "Transactions", href: ROUTES.transactions, icon: "transactions", roles: ["master_distributor", "distributor"] as const },
   { label: "Balance Transfer", href: ROUTES.balanceTransfer, icon: "transfer", roles: ["master_distributor", "distributor"] as const },
   { label: "Fund Request", href: ROUTES.requests, icon: "requests", roles: ["super_admin", "master_distributor", "distributor", "retailer"] as const },
@@ -104,8 +113,8 @@ export const SIDEBAR_ITEMS = [
   { label: "Ledger", href: ROUTES.ledger, icon: "ledger", roles: ["master_distributor", "distributor"] as const },
   { label: "Hierarchy", href: ROUTES.hierarchy, icon: "hierarchy", roles: ["super_admin"] as const },
   { label: "History", href: ROUTES.history, icon: "history", roles: ["master_distributor", "distributor", "retailer"] as const },
-  { label: "Profile", href: ROUTES.profile, icon: "profile", roles: ["super_admin", "master_distributor", "distributor", "retailer"] as const },
-  { label: "Settings", href: ROUTES.settings, icon: "settings", roles: ["super_admin", "master_distributor", "distributor", "retailer"] as const },
+  // { label: "Profile", href: ROUTES.profile, icon: "profile", roles: ["super_admin", "master_distributor", "distributor", "retailer"] as const },
+  // { label: "Settings", href: ROUTES.settings, icon: "settings", roles: ["super_admin", "master_distributor", "distributor", "retailer"] as const },
 ] as const;
 
 /** Admin panel — separate navigation from Super Admin */
@@ -113,6 +122,8 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: "Dashboard", href: ROUTES.adminDashboard, icon: "dashboard" as const },
   { label: "Master Distributors", href: ROUTES.adminMasterDistributor, icon: "masterDistributor" as const },
   { label: "Balance Transfer", href: ROUTES.adminBalanceTransfer, icon: "transfer" as const },
+  { label: "Balance Deduct", href: ROUTES.adminBalanceDeduct, icon: "transfer" as const },
+  { label: "Wallet Summary", href: ROUTES.adminWalletSummary, icon: "reports" as const },
   { label: "Assign Bank Account", href: ROUTES.adminAssignBankAccount, icon: "ledger" as const },
   { label: "Commission Management", href: ROUTES.adminCommissionManagement, icon: "commission" as const },
   { label: "Fund Requests", href: ROUTES.adminFundRequests, icon: "requests" as const },
@@ -120,8 +131,8 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: "Reports", href: ROUTES.adminReports, icon: "reports" as const },
   { label: "Ledger", href: ROUTES.adminLedger, icon: "ledger" as const },
   { label: "Hierarchy", href: ROUTES.adminHierarchy, icon: "hierarchy" as const },
-  { label: "Profile", href: ROUTES.adminProfile, icon: "profile" as const },
-  { label: "Change Password", href: ROUTES.adminChangePassword, icon: "profile" as const },
+  // { label: "Profile", href: ROUTES.adminProfile, icon: "profile" as const },
+  // { label: "Change Password", href: ROUTES.adminChangePassword, icon: "profile" as const },
 ] as const;
 
 export const DEMO_CREDENTIALS = [

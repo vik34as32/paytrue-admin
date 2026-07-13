@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { STORAGE_KEYS, AuthTokenKey } from "@/constants/storage";
 import { handleUnauthorizedRedirect } from "@/lib/authSession";
+import { getErrorMessage } from "@/lib/api/messages";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://apis.paytrue.co.in/api/v1";
@@ -14,45 +15,21 @@ export const publicClient = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+publicClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => Promise.reject(new Error(getErrorMessage(error)))
+);
+
 export const superAdminPublicClient = axios.create({
   baseURL: SUPER_ADMIN_API_BASE,
   timeout: 30000,
   headers: { "Content-Type": "application/json" },
 });
 
-function getErrorMessage(error: AxiosError): string {
-  const status = error.response?.status;
-  const data = error.response?.data as
-    | {
-        message?: string;
-        error?: string;
-        errors?: Record<string, string[] | string> | string[];
-      }
-    | undefined;
-
-  if (data?.errors) {
-    if (Array.isArray(data.errors)) {
-      return data.errors.join(", ");
-    }
-    const fieldMessages = Object.values(data.errors)
-      .flatMap((value) => (Array.isArray(value) ? value : [value]))
-      .filter(Boolean);
-    if (fieldMessages.length > 0) {
-      return fieldMessages.join(", ");
-    }
-  }
-
-  if (data?.message) return data.message;
-  if (data?.error) return data.error;
-
-  if (status === 403) return "You do not have permission to perform this action";
-  if (status === 404) return "The requested resource was not found";
-  if (status === 422) return "Validation failed. Please check your input";
-  if (status === 500) return "Server error. Please try again later";
-  if (!error.response) return "Network error. Please check your connection";
-
-  return error.message || "An unexpected error occurred";
-}
+superAdminPublicClient.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => Promise.reject(new Error(getErrorMessage(error)))
+);
 
 export function createAuthenticatedClient(
   tokenKey: AuthTokenKey,

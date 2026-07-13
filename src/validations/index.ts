@@ -162,21 +162,20 @@ export const addBalanceSchema = z.object({
   remarks: z.string().min(3, "Remarks must be at least 3 characters"),
 });
 
-export const superAdminTransferSchema = z.object({
-  adminId: z.string().min(1, "Please select an admin"),
-  amount: z
-    .number({ error: "Amount is required" })
-    .min(1, "Amount must be greater than 0"),
-  remarks: z.string().min(3, "Remarks are required"),
-});
-
-export const adminTransferSchema = z.object({
+export const walletTransferSchema = z.object({
   receiverId: z.string().min(1, "Please select a receiver"),
   amount: z
     .number({ error: "Amount is required" })
-    .min(1, "Amount must be greater than 0"),
+    .int("Amount must be a whole number (no decimals)")
+    .min(1, "Amount must be at least ₹1"),
   description: z.string().min(3, "Description is required"),
 });
+
+export const superAdminTransferSchema = walletTransferSchema;
+
+export const adminTransferSchema = walletTransferSchema;
+
+export const walletDeductSchema = walletTransferSchema;
 
 export const superAdminProfileSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters"),
@@ -191,6 +190,8 @@ export type CreateAdminFormData = z.infer<typeof createAdminSchema>;
 export type SuperAdminLoginFormData = z.infer<typeof superAdminLoginSchema>;
 export type AdminEmailLoginFormData = z.infer<typeof adminEmailLoginSchema>;
 export type AddBalanceFormData = z.infer<typeof addBalanceSchema>;
-export type SuperAdminTransferFormData = z.infer<typeof superAdminTransferSchema>;
-export type AdminTransferFormData = z.infer<typeof adminTransferSchema>;
+export type WalletTransferFormData = z.infer<typeof walletTransferSchema>;
+export type WalletDeductFormData = z.infer<typeof walletDeductSchema>;
+export type SuperAdminTransferFormData = WalletTransferFormData;
+export type AdminTransferFormData = WalletTransferFormData;
 export type SuperAdminProfileFormData = z.infer<typeof superAdminProfileSchema>;

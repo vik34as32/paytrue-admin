@@ -1,7 +1,11 @@
 import {
   superAdminModuleClient,
   superAdminPublicClient,
+  superAdminClient,
 } from "@/lib/api/client";
+import { WALLET_API, SUPER_ADMIN_WALLET_API } from "@/constants/walletApi";
+import { buildWalletTransferPayload, buildWalletDeductPayload } from "@/lib/walletAmount";
+import { normalizeWalletBalanceData } from "@/lib/walletBalance";
 import { STORAGE_KEYS } from "@/constants/storage";
 import {
   SuperAdminLoginPayload,
@@ -10,9 +14,9 @@ import {
   SuperAdminStatisticsData,
   WalletBalanceData,
   AddBalancePayload,
-  TransferBalancePayload,
   WalletHistoryRecord,
   WalletHistoryParams,
+  WalletHistorySummary,
   PaginatedApiData,
   ListQueryParams,
   UpdateProfilePayload,
@@ -21,6 +25,7 @@ import {
   NetworkUserRecord,
   AdminFundRequest,
 } from "@/types/superAdmin";
+import type { WalletTransferPayload, WalletDeductInput } from "@/types/wallet";
 import { ApiResponse } from "@/types";
 import { normalizeNetworkUserRecord } from "@/lib/normalizeUser";
 import { normalizeAdminRecord } from "@/lib/normalizeAdmin";
@@ -47,6 +52,18 @@ function readPaginationMeta(
     totalPages:
       (meta.totalPages as number | undefined) ??
       (obj.totalPages as number | undefined),
+  };
+}
+
+function withListParams(params: ListQueryParams = {}) {
+  const { pageSize = 10, page, ...rest } = params;
+  const limit = Math.min(pageSize, 100);
+
+  return {
+    ...rest,
+    page,
+    pageSize: limit,
+    limit,
   };
 }
 
@@ -162,39 +179,52 @@ export async function getStatistics(): Promise<SuperAdminStatisticsData> {
 }
 
 export async function getWalletBalance(): Promise<WalletBalanceData> {
-  const { data } = await superAdminModuleClient.get<
-    ApiResponse<WalletBalanceData>
-  >("/wallet-balance");
+  const { data } = await superAdminModuleClient.get<ApiResponse<unknown>>(
+    SUPER_ADMIN_WALLET_API.balance
+  );
+  return normalizeWalletBalanceData(data.data);
+}
+
+export async function transferBalance(payload: WalletTransferPayload) {
+  const { data } = await superAdminClient.post<ApiResponse<unknown>>(
+    WALLET_API.transfer,
+    buildWalletTransferPayload(payload)
+  );
+  return data.data;
+}
+
+export async function deductBalance(payload: WalletDeductInput) {
+  const { data } = await superAdminClient.post<ApiResponse<unknown>>(
+    WALLET_API.deduct,
+    buildWalletDeductPayload(payload)
+  );
   return data.data;
 }
 
 export async function addBalance(payload: AddBalancePayload) {
-  const { data } = await superAdminModuleClient.post<
-    ApiResponse<WalletBalanceData>
-  >("/add-balance", payload);
-  return data.data;
-}
-
-export async function transferBalance(payload: TransferBalancePayload) {
   const { data } = await superAdminModuleClient.post<ApiResponse<unknown>>(
-    "/transfer-balance",
+    "/add-balance",
     payload
   );
-  return data.data;
+  return normalizeWalletBalanceData(data.data);
 }
 
 interface WalletHistoryApiItem {
   id: string;
   superAdminId?: string;
   adminId?: string | null;
-  transactionType: string;
+  transactionType?: string;
   amount?: string | number;
+  addedAmount?: string | number;
+  topupAmount?: string | number;
   openingBalance?: string | number;
   closingBalance?: string | number;
   previousBalance?: string | number;
   currentBalance?: string | number;
   updatedBalance?: string | number;
   remarks?: string | null;
+  date?: string;
+  time?: string;
   createdAt?: string;
   adminName?: string;
   receiverName?: string;
@@ -203,9 +233,13 @@ interface WalletHistoryApiItem {
   status?: string;
 }
 
-function parseWalletHistoryNumber(
-  value: string | number | null | undefined
-): number {
+interface WalletHistoryApiSummary {
+  currentWalletBalance?: string | number;
+  totalTopupAmount?: string | number;
+  totalTopupCount?: string | number;
+}
+
+function parseWalletHistoryNumber(value: unknown): number {
   if (value === null || value === undefined || value === "") return 0;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -214,16 +248,20 @@ function parseWalletHistoryNumber(
 function mapWalletHistoryRecord(item: WalletHistoryApiItem): WalletHistoryRecord {
   const opening = item.openingBalance ?? item.previousBalance;
   const closing =
-    item.closingBalance ?? item.currentBalance ?? item.updatedBalance;
+    item.closingBalance ?? item.updatedBalance ?? item.currentBalance;
+  const topup =
+    item.topupAmount ?? item.addedAmount ?? item.amount;
 
   return {
     id: item.id,
     transactionId: item.id,
     adminId: item.adminId ?? undefined,
-    transactionType: item.transactionType,
-    amount: parseWalletHistoryNumber(item.amount),
+    transactionType: item.transactionType || "ADD_BALANCE",
+    amount: parseWalletHistoryNumber(topup),
+    topupAmount: parseWalletHistoryNumber(topup),
     previousBalance: parseWalletHistoryNumber(opening),
     currentBalance: parseWalletHistoryNumber(closing),
+    updatedBalance: parseWalletHistoryNumber(closing),
     balanceBefore: parseWalletHistoryNumber(opening),
     balanceAfter: parseWalletHistoryNumber(closing),
     remarks: item.remarks ?? undefined,
@@ -232,20 +270,108 @@ function mapWalletHistoryRecord(item: WalletHistoryApiItem): WalletHistoryRecord
     receiverRole: item.receiverRole,
     receiverEmail: item.receiverEmail,
     status: item.status,
+    date: item.date,
+    time: item.time,
     createdAt: item.createdAt,
+  };
+}
+
+/** Map `/wallet/transfers` rows into the shared wallet history table shape */
+function mapTransferHistoryRecord(raw: unknown): WalletHistoryRecord {
+  if (!raw || typeof raw !== "object") {
+    return {
+      id: "",
+      transactionType: "TRANSFER",
+      amount: 0,
+      previousBalance: 0,
+      currentBalance: 0,
+    };
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const receiver =
+    obj.receiver && typeof obj.receiver === "object"
+      ? (obj.receiver as Record<string, unknown>)
+      : undefined;
+  const receiverName =
+    (obj.receiverName as string | undefined) ||
+    (obj.adminName as string | undefined) ||
+    (obj.recipientName as string | undefined) ||
+    [receiver?.firstName, receiver?.lastName].filter(Boolean).join(" ") ||
+    undefined;
+  const opening = obj.previousBalance ?? obj.balanceBefore ?? obj.openingBalance;
+  const closing =
+    obj.updatedBalance ??
+    obj.balanceAfter ??
+    obj.currentBalance ??
+    obj.closingBalance;
+  const amount = parseWalletHistoryNumber(obj.amount);
+  const id = String(obj.id ?? obj.transferId ?? obj.transactionId ?? "");
+
+  return {
+    id,
+    transactionId: String(obj.transferId ?? obj.transactionId ?? obj.id ?? id),
+    transactionType:
+      (obj.transactionType as string | undefined) ||
+      (obj.type as string | undefined) ||
+      "TRANSFER",
+    amount,
+    previousBalance: parseWalletHistoryNumber(opening),
+    currentBalance: parseWalletHistoryNumber(closing),
+    updatedBalance: parseWalletHistoryNumber(closing),
+    balanceBefore: parseWalletHistoryNumber(opening),
+    balanceAfter: parseWalletHistoryNumber(closing),
+    remarks:
+      (obj.remarks as string | undefined) ||
+      (obj.description as string | undefined) ||
+      undefined,
+    adminName: obj.adminName as string | undefined,
+    adminId: (obj.adminId as string | undefined) || undefined,
+    receiverName,
+    receiverRole:
+      (obj.receiverRole as string | undefined) ||
+      (obj.userType as string | undefined) ||
+      (receiver?.userType as string | undefined),
+    receiverEmail:
+      (obj.receiverEmail as string | undefined) ||
+      (receiver?.email as string | undefined),
+    recipientName: (obj.recipientName as string | undefined) || receiverName,
+    status: obj.status as string | undefined,
+    date: obj.date as string | undefined,
+    createdAt:
+      (obj.createdAt as string | undefined) ||
+      (obj.date as string | undefined),
+  };
+}
+
+function extractWalletHistorySummary(
+  payload: unknown
+): WalletHistorySummary | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const summary = (payload as { summary?: WalletHistoryApiSummary }).summary;
+  if (!summary || typeof summary !== "object") return undefined;
+  return {
+    currentWalletBalance: parseWalletHistoryNumber(summary.currentWalletBalance),
+    totalTopupAmount: parseWalletHistoryNumber(summary.totalTopupAmount),
+    totalTopupCount: parseWalletHistoryNumber(summary.totalTopupCount),
   };
 }
 
 export async function getWalletHistory(
   params: WalletHistoryParams = {}
 ): Promise<PaginatedApiData<WalletHistoryRecord>> {
-  const { pageSize, page, ...rest } = params;
+  const { pageSize, page, transactionType, ...rest } = params;
+  const normalizedType = transactionType?.trim() || undefined;
   const { data } = await superAdminModuleClient.get<
     ApiResponse<
       | WalletHistoryApiItem[]
       | PaginatedApiData<WalletHistoryApiItem>
       | { history: WalletHistoryApiItem[] }
-      | { items: WalletHistoryApiItem[]; meta?: Record<string, unknown> }
+      | {
+          items: WalletHistoryApiItem[];
+          meta?: Record<string, unknown>;
+          summary?: WalletHistoryApiSummary;
+        }
     >
   >("/wallet-history", {
     params: {
@@ -253,6 +379,7 @@ export async function getWalletHistory(
       page,
       limit: pageSize,
       pageSize,
+      ...(normalizedType ? { transactionType: normalizedType } : {}),
     },
   });
 
@@ -264,6 +391,32 @@ export async function getWalletHistory(
   return {
     ...normalized,
     data: normalized.data.map(mapWalletHistoryRecord),
+    summary: extractWalletHistorySummary(data.data),
+  };
+}
+
+/**
+ * Transfer / deduct movement history.
+ * Uses GET `/wallet/transfers` — do NOT filter `/super-admin/wallet-history`
+ * with `transactionType=TRANSFER` (that enum only allows ADD_BALANCE).
+ */
+export async function getTransferHistory(
+  params: ListQueryParams = {}
+): Promise<PaginatedApiData<WalletHistoryRecord>> {
+  const { data } = await superAdminClient.get<ApiResponse<unknown>>(
+    WALLET_API.transfers,
+    { params: withListParams(params) }
+  );
+
+  const normalized = normalizePaginated<unknown>(data.data, [
+    "transfers",
+    "history",
+    "items",
+  ]);
+
+  return {
+    ...normalized,
+    data: normalized.data.map(mapTransferHistoryRecord),
   };
 }
 
@@ -313,7 +466,7 @@ export async function getRetailers(
 ): Promise<PaginatedApiData<NetworkUserRecord>> {
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
-  >("/retailers", { params });
+  >("/retailers", { params: withListParams(params) });
   const normalized = normalizePaginated<NetworkUserRecord>(data.data, ["retailers"]);
   return {
     ...normalized,
@@ -326,7 +479,7 @@ export async function getMasterDistributors(
 ): Promise<PaginatedApiData<NetworkUserRecord>> {
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
-  >("/master-distributors", { params });
+  >("/master-distributors", { params: withListParams(params) });
   const normalized = normalizePaginated<NetworkUserRecord>(data.data, [
     "masterDistributors",
   ]);
@@ -341,7 +494,7 @@ export async function getDistributors(
 ): Promise<PaginatedApiData<NetworkUserRecord>> {
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<NetworkUserRecord> | NetworkUserRecord[]>
-  >("/distributors", { params });
+  >("/distributors", { params: withListParams(params) });
   const normalized = normalizePaginated<NetworkUserRecord>(data.data, ["distributors"]);
   return {
     ...normalized,
@@ -354,7 +507,7 @@ export async function getAdmins(
 ): Promise<PaginatedApiData<AdminRecord>> {
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<AdminRecord> | AdminRecord[]>
-  >("/admins", { params });
+  >("/admins", { params: withListParams(params) });
   const normalized = normalizePaginated<AdminRecord>(data.data, ["admins"]);
   return {
     ...normalized,

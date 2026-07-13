@@ -1,27 +1,28 @@
 "use client";
 
-import { Card, CardHeader } from "@/components/common/Card";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { HierarchyNetworkView } from "@/components/hierarchy/HierarchyNetworkView";
+import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
+import { ROUTES } from "@/constants";
+import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
 
 export default function HierarchyPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">User Hierarchy</h1>
-        <p className="text-sm text-muted">
-          Organizational tree showing who created whom
-        </p>
-      </div>
+  const router = useRouter();
+  const { hasSuperAdminWalletAccess, isAuthLoading } = useSuperAdminAuth();
 
-      <Card>
-        <CardHeader
-          title="Organization Tree"
-          subtitle="Live hierarchy API is not yet connected"
-        />
-        <p className="text-sm text-muted">
-          Admin hierarchy will load from the backend when the live endpoint is available.
-          Use Admin Management to view registered admins from the live API.
-        </p>
-      </Card>
-    </div>
+  useEffect(() => {
+    if (isAuthLoading) return;
+    if (!hasSuperAdminWalletAccess) {
+      router.replace(ROUTES.superAdminLogin);
+    }
+  }, [hasSuperAdminWalletAccess, isAuthLoading, router]);
+
+  if (isAuthLoading || !hasSuperAdminWalletAccess) {
+    return <AuthRestoreLoader />;
+  }
+
+  return (
+    <HierarchyNetworkView scope="super_admin" breadcrumb="Super Admin" />
   );
 }

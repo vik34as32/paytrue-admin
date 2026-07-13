@@ -23,6 +23,7 @@ import {
   Store,
   Building2,
   ShoppingBag,
+  Layers,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { logoutUser } from "@/store/api/authApi";
@@ -47,6 +48,7 @@ const iconMap: Record<string, React.ReactNode> = {
   profile: <User className="h-5 w-5" />,
   settings: <Settings className="h-5 w-5" />,
   commission: <Percent className="h-5 w-5" />,
+  services: <Layers className="h-5 w-5" />,
 };
 
 interface SidebarProps {

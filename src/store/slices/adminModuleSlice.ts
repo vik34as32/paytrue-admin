@@ -15,6 +15,7 @@ import {
   fetchAdminWalletHistory,
   fetchAdminTransferHistory,
   adminTransferBalance,
+  adminDeductBalance,
   fetchAdminProfile,
   updateAdminProfile,
   updateAdminPassword,
@@ -88,6 +89,7 @@ interface AdminModuleState {
   profileUpdateLoading: boolean;
   changePasswordLoading: boolean;
   transferLoading: boolean;
+  deductLoading: boolean;
   fundRequestLoading: boolean;
   fundRequestActionLoading: boolean;
   createUserLoading: boolean;
@@ -114,6 +116,7 @@ const initialState: AdminModuleState = {
   profileUpdateLoading: false,
   changePasswordLoading: false,
   transferLoading: false,
+  deductLoading: false,
   fundRequestLoading: false,
   fundRequestActionLoading: false,
   createUserLoading: false,
@@ -206,6 +209,17 @@ const adminModuleSlice = createSlice({
       })
       .addCase(adminTransferBalance.rejected, (state, action) => {
         state.transferLoading = false;
+        state.error = action.payload as string;
+      })
+      .addCase(adminDeductBalance.pending, (state) => {
+        state.deductLoading = true;
+        state.error = null;
+      })
+      .addCase(adminDeductBalance.fulfilled, (state) => {
+        state.deductLoading = false;
+      })
+      .addCase(adminDeductBalance.rejected, (state, action) => {
+        state.deductLoading = false;
         state.error = action.payload as string;
       })
       .addCase(fetchAdminProfile.pending, (state) => {

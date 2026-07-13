@@ -1,12 +1,12 @@
 "use client";
 
 import { AdminPageShell } from "@/components/admin/AdminPageShell";
-import { AdminHierarchyView } from "@/components/admin/AdminHierarchyView";
+import { HierarchyNetworkView } from "@/components/hierarchy/HierarchyNetworkView";
 
 export default function AdminHierarchyPage() {
   return (
     <AdminPageShell>
-      <AdminHierarchyView />
+      <HierarchyNetworkView scope="admin" breadcrumb="Admin" />
     </AdminPageShell>
   );
 }

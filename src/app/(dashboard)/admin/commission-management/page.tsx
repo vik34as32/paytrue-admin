@@ -1,12 +1,12 @@
 "use client";
 
-import { AdminPageShell } from "@/components/admin/AdminPageShell";
+import { CommissionPageShell } from "@/components/commission/CommissionPageShell";
 import { CommissionPage } from "@/components/commission/CommissionPage";
 
 export default function AdminCommissionManagementPage() {
   return (
-    <AdminPageShell>
+    <CommissionPageShell>
       <CommissionPage />
-    </AdminPageShell>
+    </CommissionPageShell>
   );
 }

@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Check, X } from "lucide-react";
+import { toastBackendSuccess } from "@/lib/toast";
+import { getThrownErrorMessage } from "@/lib/api/messages";
+import { Check, X, RefreshCw, RotateCcw } from "lucide-react";
 import { Card, CardHeader } from "@/components/common/Card";
 import { PageHeader } from "@/components/common/PageHeader";
 import { DataTable } from "@/components/tables/DataTable";
@@ -30,23 +32,44 @@ function isPendingStatus(status?: string): boolean {
   return status?.toUpperCase() === "PENDING";
 }
 
-function getRequesterName(request: AdminFundRequestRecord): string {
-  return (
-    request.requesterName ||
-    request.userName ||
-    request.requesterMobile ||
-    "—"
-  );
-}
-
 function formatUserType(type?: string): string {
   if (!type) return "—";
   return type.replace(/_/g, " ");
 }
 
+function statusVariant(
+  status?: string
+): "success" | "pending" | "rejected" | "default" {
+  const value = status?.toLowerCase();
+  if (value === "approved" || value === "success") return "success";
+  if (value === "pending") return "pending";
+  if (value === "rejected") return "rejected";
+  return "default";
+}
+
+function formatOnlyDate(value?: string): string {
+  if (!value) return "—";
+  try {
+    return formatDate(value, "dd MMM yyyy");
+  } catch {
+    return "—";
+  }
+}
+
+function formatOnlyTime(value?: string): string {
+  if (!value) return "—";
+  try {
+    return formatDate(value, "hh:mm a");
+  } catch {
+    return "—";
+  }
+}
+
 export function AdminFundRequestsView() {
   const dispatch = useAppDispatch();
-  const { data, total, isLoading, error } = useAppSelector(selectAdminFundRequests);
+  const { data, total, isLoading, error } = useAppSelector(
+    selectAdminFundRequests
+  );
   const { fundRequestActionLoading } = useAppSelector(
     (state) => state.adminModule
   );
@@ -67,6 +90,8 @@ export function AdminFundRequestsView() {
         userType: filters.userType,
         startDate: filters.startDate,
         endDate: filters.endDate,
+        sortBy: filters.sortBy || "createdAt",
+        sortOrder: filters.sortOrder || "desc",
       })
     );
   }, [dispatch, pageIndex, search, filters]);
@@ -87,21 +112,32 @@ export function AdminFundRequestsView() {
     setActionRequest(null);
   };
 
+  const handleResetFilters = () => {
+    setFilters({});
+    setSearch("");
+    setPageIndex(0);
+  };
+
   const handleActionSubmit = async (remarks: string) => {
     if (!actionRequest) return;
+
+    if (!remarks.trim()) {
+      toast.error("Remarks are required");
+      return;
+    }
 
     const result =
       actionType === "approve"
         ? await dispatch(
             approveAdminFundRequest({
               id: actionRequest.id,
-              remarks: remarks || undefined,
+              remarks: remarks.trim(),
             })
           )
         : await dispatch(
             rejectAdminFundRequest({
               id: actionRequest.id,
-              remarks,
+              remarks: remarks.trim(),
             })
           );
 
@@ -111,7 +147,8 @@ export function AdminFundRequestsView() {
         : rejectAdminFundRequest.fulfilled.match(result);
 
     if (fulfilled) {
-      toast.success(
+      toastBackendSuccess(
+        result.payload,
         actionType === "approve"
           ? "Fund request approved successfully"
           : "Fund request rejected"
@@ -121,21 +158,29 @@ export function AdminFundRequestsView() {
       return;
     }
 
-    toast.error((result.payload as string) || "Action failed");
+    toast.error(
+      getThrownErrorMessage(result.payload, "Action failed")
+    );
   };
 
   const columns: ColumnDef<AdminFundRequestRecord, unknown>[] = [
     {
-      accessorKey: "createdAt",
+      id: "date",
       header: "Date",
-      cell: ({ row }) => formatDate(row.original.createdAt || ""),
+      cell: ({ row }) => formatOnlyDate(row.original.createdAt),
     },
     {
-      id: "requester",
-      header: "Requester",
-      cell: ({ row }) => (
-        <span className="font-medium">{getRequesterName(row.original)}</span>
-      ),
+      id: "time",
+      header: "Time",
+      cell: ({ row }) => formatOnlyTime(row.original.createdAt),
+    },
+    {
+      id: "firstName",
+      header: "First Name",
+      cell: ({ row }) =>
+        row.original.requesterFirstName ||
+        row.original.requesterName?.split(" ")[0] ||
+        "—",
     },
     {
       id: "userType",
@@ -147,30 +192,99 @@ export function AdminFundRequestsView() {
       ),
     },
     {
+      id: "userCode",
+      header: "User Code",
+      cell: ({ row }) => row.original.requesterUserCode || "—",
+    },
+    {
+      id: "email",
+      header: "Email",
+      cell: ({ row }) => (
+        <span className="max-w-[180px] truncate block">
+          {row.original.requesterEmail || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "mobile",
+      header: "Mobile",
+      cell: ({ row }) => row.original.requesterMobile || "—",
+    },
+    {
       accessorKey: "amount",
       header: "Amount",
       cell: ({ row }) => (
-        <span className="font-semibold">{formatCurrency(row.original.amount)}</span>
+        <span className="font-semibold text-primary">
+          {formatCurrency(row.original.amount)}
+        </span>
       ),
+    },
+    {
+      accessorKey: "paymentMode",
+      header: "Payment Mode",
+      cell: ({ row }) => row.original.paymentMode || "—",
+    },
+    {
+      accessorKey: "bankName",
+      header: "Bank Name",
+      cell: ({ row }) => row.original.bankName || "—",
+    },
+    {
+      accessorKey: "accountHolderName",
+      header: "Account Holder",
+      cell: ({ row }) => row.original.accountHolderName || "—",
+    },
+    {
+      accessorKey: "accountNumber",
+      header: "Account Number",
+      cell: ({ row }) => (
+        <span className="font-mono text-xs">
+          {row.original.accountNumber || "—"}
+        </span>
+      ),
+    },
+    {
+      id: "imageUrl",
+      header: "Image",
+      cell: ({ row }) =>
+        row.original.imageUrl ? (
+          <a
+            href={row.original.imageUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex"
+            title="View receipt image"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={row.original.imageUrl}
+              alt="Receipt"
+              className="h-10 w-10 rounded-lg border border-border object-cover"
+            />
+          </a>
+        ) : (
+          <span className="text-sm text-muted">—</span>
+        ),
     },
     {
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <Badge
-          variant={
-            (row.original.status?.toLowerCase() as
-              | "success"
-              | "pending"
-              | "rejected") || "default"
-          }
-        >
+        <Badge variant={statusVariant(row.original.status)}>
           {row.original.status}
         </Badge>
       ),
     },
-    { accessorKey: "remarks", header: "User Remarks" },
-    { accessorKey: "adminRemarks", header: "Admin Remarks" },
+    {
+      accessorKey: "remarks",
+      header: "User Remarks",
+      cell: ({ row }) => row.original.remarks || "—",
+    },
+    {
+      accessorKey: "adminRemarks",
+      header: "Admin Remarks",
+      cell: ({ row }) => row.original.adminRemarks || "—",
+    },
     {
       id: "actions",
       header: "Actions",
@@ -183,6 +297,7 @@ export function AdminFundRequestsView() {
               aria-label="Approve fund request"
               disabled={fundRequestActionLoading}
               onClick={() => openAction(row.original, "approve")}
+              title="Approve"
             >
               <Check className="h-4 w-4 text-emerald-600" />
             </Button>
@@ -192,6 +307,7 @@ export function AdminFundRequestsView() {
               aria-label="Reject fund request"
               disabled={fundRequestActionLoading}
               onClick={() => openAction(row.original, "reject")}
+              title="Reject"
             >
               <X className="h-4 w-4 text-accent-red" />
             </Button>
@@ -208,18 +324,36 @@ export function AdminFundRequestsView() {
         breadcrumb="Admin"
         title="Fund Requests"
         subtitle="Review and approve fund requests from your network users"
+        action={
+          <Button
+            variant="outline"
+            onClick={() => loadData()}
+            disabled={isLoading}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+        }
       />
 
-      {error && (
+      {error ? (
         <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
           {error}
         </div>
-      )}
+      ) : null}
 
       <Card>
         <CardHeader
-          title="Incoming Fund Requests"
-          subtitle="Master distributors, distributors, and retailers fund requests"
+          title="All Fund Requests"
+          subtitle="Pending, approved and rejected requests with filters"
+          action={
+            <Button variant="outline" size="sm" onClick={handleResetFilters}>
+              <RotateCcw className="h-4 w-4" />
+              Reset Filters
+            </Button>
+          }
         />
         <AdminListFilters
           value={filters}
@@ -227,21 +361,23 @@ export function AdminFundRequestsView() {
             setFilters(next);
             setPageIndex(0);
           }}
+          showStatus={false}
           showFundRequestStatus
           showUserType
           showDateRange
+          showSort
         />
         <DataTable
           data={data}
           columns={columns}
           isLoading={isLoading}
-          searchPlaceholder="Search fund requests..."
+          searchPlaceholder="Search by requester, remarks..."
           onSearch={(value) => {
             setSearch(value);
             setPageIndex(0);
           }}
           manualPagination
-          pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          pageCount={Math.max(1, Math.ceil((total || 0) / PAGE_SIZE))}
           pageIndex={pageIndex}
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}

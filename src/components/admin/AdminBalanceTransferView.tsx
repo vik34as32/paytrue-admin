@@ -28,7 +28,7 @@ export function AdminBalanceTransferView() {
       <PageHeader
         breadcrumb="Admin"
         title="Balance Transfer"
-        subtitle="Transfer balance to your master distributors only"
+        subtitle="Transfer wallet balance to master distributors, distributors and retailers"
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -48,8 +48,8 @@ export function AdminBalanceTransferView() {
         </Card>
         <Card>
           <CardHeader
-            title="Transfer to Master Distributor"
-            subtitle="Funds will be deducted from your wallet"
+            title="Transfer Balance"
+            subtitle="Select a downline user and transfer funds"
           />
           <AdminTransferBalanceForm
             onSuccess={() => setHistoryRefreshKey((key) => key + 1)}

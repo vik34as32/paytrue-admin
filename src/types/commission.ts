@@ -34,6 +34,7 @@ export interface CommissionRangeRow {
   priority: number;
   status: CommissionStatus;
   updatedAt?: string;
+  isNew?: boolean;
 }
 
 export interface CommissionFiltersValue {

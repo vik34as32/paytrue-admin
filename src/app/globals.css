@@ -100,6 +100,25 @@ html.modal-open body {
   animation: pulse-glow 4s ease-in-out infinite;
 }
 
+.commission-table-shell {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted) transparent;
+}
+
+.commission-table-shell::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.commission-table-shell::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  border-radius: 999px;
+}
+
+.commission-table-shell .ant-table-sticky-scroll {
+  opacity: 1 !important;
+}
+
 .glass-card {
   background: var(--glass);
   backdrop-filter: blur(20px);
@@ -124,4 +143,246 @@ html.modal-open body {
 
 .page-subtitle {
   @apply mt-1 text-sm text-muted;
+}
+
+/* Classic top-down hierarchy org chart (MD → DD → RT) */
+.hierarchy-orgchart {
+  width: 100%;
+  overflow: auto;
+  padding: 1.5rem 1rem 2rem;
+  min-height: 360px;
+}
+
+.hierarchy-orgchart ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Vertical line from parent node down into children row */
+.hierarchy-orgchart li > ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 28px;
+  border-left: 2px solid #c5cce0;
+  transform: translateX(-50%);
+}
+
+.hierarchy-orgchart li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 28px 18px 0;
+  text-align: center;
+  list-style: none;
+}
+
+/* Vertical line from parent to children row */
+.hierarchy-orgchart li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: 2px solid #c5cce0;
+  width: 0;
+  height: 28px;
+  transform: translateX(-50%);
+}
+
+/* Horizontal connector across siblings */
+.hierarchy-orgchart li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 28px;
+  border-top: 2px solid #c5cce0;
+}
+
+.hierarchy-orgchart li:first-child::after {
+  left: 50%;
+  width: 50%;
+}
+
+.hierarchy-orgchart li:last-child::after {
+  width: 50%;
+}
+
+.hierarchy-orgchart li:only-child::after {
+  display: none;
+}
+
+/* Root has no upward connector */
+.hierarchy-orgchart__root > li::before,
+.hierarchy-orgchart__root > li::after {
+  display: none;
+}
+
+.hierarchy-orgchart__root {
+  padding-top: 0;
+}
+
+.hierarchy-node {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 112px;
+  max-width: 140px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hierarchy-node__ring {
+  display: flex;
+  height: 64px;
+  width: 64px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 3px solid #d7deef;
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6ff 100%);
+  box-shadow:
+    0 8px 20px rgba(67, 24, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.hierarchy-node:hover .hierarchy-node__ring {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 28px rgba(67, 24, 255, 0.14);
+}
+
+.hierarchy-node__avatar {
+  display: flex;
+  height: 46px;
+  width: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef1fb;
+  color: #1b2559;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.hierarchy-node__role {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: #edf0f8;
+  color: #5b6b95;
+}
+
+.hierarchy-node__name {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.hierarchy-node__code {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hierarchy-node--md .hierarchy-node__ring {
+  border-color: #b9a8ff;
+  background: linear-gradient(180deg, #ffffff 0%, #f3efff 100%);
+}
+
+.hierarchy-node--md .hierarchy-node__avatar {
+  background: #4318ff;
+  color: #fff;
+}
+
+.hierarchy-node--md .hierarchy-node__role {
+  background: rgba(67, 24, 255, 0.12);
+  color: #4318ff;
+}
+
+.hierarchy-node--dd .hierarchy-node__ring {
+  border-color: #9ec5ff;
+  background: linear-gradient(180deg, #ffffff 0%, #eef5ff 100%);
+}
+
+.hierarchy-node--dd .hierarchy-node__avatar {
+  background: #2b7fff;
+  color: #fff;
+}
+
+.hierarchy-node--dd .hierarchy-node__role {
+  background: rgba(43, 127, 255, 0.12);
+  color: #1d4ed8;
+}
+
+.hierarchy-node--rt .hierarchy-node__ring {
+  border-color: #9be8d2;
+  background: linear-gradient(180deg, #ffffff 0%, #eefbf6 100%);
+}
+
+.hierarchy-node--rt .hierarchy-node__avatar {
+  background: #05cd99;
+  color: #fff;
+}
+
+.hierarchy-node--rt .hierarchy-node__role {
+  background: rgba(5, 205, 153, 0.14);
+  color: #047857;
+}
+
+.hierarchy-node--selected .hierarchy-node__ring {
+  border-color: #4318ff;
+  box-shadow:
+    0 0 0 4px rgba(67, 24, 255, 0.15),
+    0 12px 28px rgba(67, 24, 255, 0.18);
+}
+
+.dark .hierarchy-orgchart li::before,
+.dark .hierarchy-orgchart li::after,
+.dark .hierarchy-orgchart li > ul::before {
+  border-color: #334155;
+}
+
+.dark .hierarchy-node__ring {
+  background: linear-gradient(180deg, #1e293b 0%, #111827 100%);
+  border-color: #475569;
+}
+
+.dark .hierarchy-node__avatar {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.dark .hierarchy-node__role {
+  background: #1e293b;
+  color: #94a3b8;
 }

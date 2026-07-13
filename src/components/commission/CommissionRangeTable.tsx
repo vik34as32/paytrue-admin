@@ -5,73 +5,41 @@ import {
   Table,
   Select,
   InputNumber,
-  Tag,
   Badge,
-  Dropdown,
   Button,
   Tooltip,
   Space,
   Typography,
-  AutoComplete,
+  Popconfirm,
 } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import {
-  MoreOutlined,
-  EditOutlined,
-  CopyOutlined,
   DeleteOutlined,
-  HistoryOutlined,
+  CopyOutlined,
   PercentageOutlined,
   DollarOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import {
   CommissionRangeRow,
   CommissionStatus,
   CommissionValueType,
+  FintechService,
 } from "@/types/commission";
-import {
-  COMMISSION_TYPE_OPTIONS,
-  FINTECH_SERVICES,
-} from "@/constants/commissionServices";
-import { formatCommissionValue } from "@/lib/commission/utils";
+import { COMMISSION_TYPE_OPTIONS } from "@/constants/commissionServices";
 
 const { Text } = Typography;
 
-const serviceOptions = FINTECH_SERVICES.map((s) => ({
-  value: s.name,
-  label: s.name,
-}));
-
-function resolveServiceFromName(name: string): {
-  serviceId: string;
-  serviceName: string;
-} {
-  const trimmed = name.trim();
-  const matched = FINTECH_SERVICES.find(
-    (s) => s.name.toLowerCase() === trimmed.toLowerCase() || s.id === trimmed
-  );
-  if (matched) {
-    return { serviceId: matched.id, serviceName: matched.name };
-  }
-  const customId = trimmed
-    .toLowerCase()
-    .replace(/\s+/g, "_")
-    .replace(/[^\w]/g, "");
-  return {
-    serviceId: customId ? `custom_${customId}` : "custom_service",
-    serviceName: trimmed,
-  };
-}
-
 export interface CommissionRangeTableProps {
   rows: CommissionRangeRow[];
+  services: FintechService[];
+  servicesLoading?: boolean;
   selectedRowKeys: string[];
   onSelectionChange: (keys: string[]) => void;
   onRowChange: (row: CommissionRangeRow) => void;
-  onEdit: (row: CommissionRangeRow) => void;
+  onAddSlab: (row: CommissionRangeRow) => void;
   onDuplicate: (row: CommissionRangeRow) => void;
   onDelete: (row: CommissionRangeRow) => void;
-  onHistory: (row: CommissionRangeRow) => void;
   loading?: boolean;
 }
 
@@ -87,7 +55,7 @@ function ValueTypeSelect({
       size="small"
       value={value}
       onChange={onChange}
-      style={{ width: 110 }}
+      style={{ width: 112 }}
       options={COMMISSION_TYPE_OPTIONS.map((o) => ({
         value: o.value,
         label: (
@@ -122,22 +90,32 @@ function CommissionValueInput({
       value={value}
       onChange={onChange}
       addonAfter={type === "percentage" ? "%" : "₹"}
-      style={{ width: 100 }}
+      style={{ width: 108 }}
     />
   );
 }
 
 export function CommissionRangeTable({
   rows,
+  services,
+  servicesLoading,
   selectedRowKeys,
   onSelectionChange,
   onRowChange,
-  onEdit,
+  onAddSlab,
   onDuplicate,
   onDelete,
-  onHistory,
   loading,
 }: CommissionRangeTableProps) {
+  const serviceOptions = useMemo(
+    () =>
+      services.map((service) => ({
+        value: service.id,
+        label: service.name,
+      })),
+    [services]
+  );
+
   const columns: ColumnsType<CommissionRangeRow> = useMemo(
     () => [
       {
@@ -146,201 +124,201 @@ export function CommissionRangeTable({
         fixed: "left",
         width: 200,
         render: (_, record) => (
-          <Space direction="vertical" size={4} style={{ width: "100%" }}>
-            <AutoComplete
-              size="small"
-              value={record.serviceName}
-              options={serviceOptions}
-              onChange={(value) => {
-                const resolved = resolveServiceFromName(value);
-                onRowChange({ ...record, ...resolved });
-              }}
-              style={{ width: "100%", minWidth: 150 }}
-              placeholder="Service name"
-              allowClear={false}
-            />
-            {record.retailerName && (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {record.retailerName}
-              </Text>
-            )}
-            {record.distributorName && (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {record.distributorName}
-              </Text>
-            )}
-          </Space>
-        ),
-      },
-      {
-        title: "Range From",
-        dataIndex: "rangeFrom",
-        width: 120,
-        render: (_, record) => (
-          <InputNumber
+          <Select
+            showSearch
             size="small"
-            min={0}
-            value={record.rangeFrom}
-            onChange={(v) =>
-              onRowChange({ ...record, rangeFrom: v ?? 0 })
-            }
-            style={{ width: 100 }}
-          />
-        ),
-      },
-      {
-        title: "Range To",
-        dataIndex: "rangeTo",
-        width: 120,
-        render: (_, record) => (
-          <InputNumber
-            size="small"
-            min={0}
-            value={record.rangeTo}
-            onChange={(v) => onRowChange({ ...record, rangeTo: v ?? 0 })}
-            style={{ width: 100 }}
-          />
-        ),
-      },
-      {
-        title: "Deduction Type",
-        width: 140,
-        render: (_, record) => (
-          <ValueTypeSelect
-            value={record.deductionType}
-            onChange={(deductionType) =>
-              onRowChange({ ...record, deductionType })
-            }
-          />
-        ),
-      },
-      {
-        title: "Deduction Value",
-        width: 130,
-        render: (_, record) => (
-          <CommissionValueInput
-            type={record.deductionType}
-            value={record.deductionValue}
-            onChange={(v) =>
-              onRowChange({ ...record, deductionValue: v ?? 0 })
-            }
-          />
-        ),
-      },
-      {
-        title: "Retailer Type",
-        width: 140,
-        render: (_, record) => (
-          <ValueTypeSelect
-            value={record.retailerCommissionType}
-            onChange={(retailerCommissionType) =>
-              onRowChange({ ...record, retailerCommissionType })
-            }
-          />
-        ),
-      },
-      {
-        title: "Retailer Comm.",
-        width: 130,
-        render: (_, record) => (
-          <CommissionValueInput
-            type={record.retailerCommissionType}
-            value={record.retailerCommission}
-            onChange={(v) =>
-              onRowChange({ ...record, retailerCommission: v ?? 0 })
-            }
-          />
-        ),
-      },
-      {
-        title: "Distributor Type",
-        width: 150,
-        render: (_, record) => (
-          <ValueTypeSelect
-            value={record.distributorCommissionType}
-            onChange={(distributorCommissionType) =>
-              onRowChange({ ...record, distributorCommissionType })
-            }
-          />
-        ),
-      },
-      {
-        title: "Distributor Comm.",
-        width: 140,
-        render: (_, record) => (
-          <CommissionValueInput
-            type={record.distributorCommissionType}
-            value={record.distributorCommission}
-            onChange={(v) =>
-              onRowChange({ ...record, distributorCommission: v ?? 0 })
-            }
-          />
-        ),
-      },
-      {
-        title: "MD Type",
-        width: 130,
-        render: (_, record) => (
-          <ValueTypeSelect
-            value={record.masterDistributorCommissionType}
-            onChange={(masterDistributorCommissionType) =>
-              onRowChange({ ...record, masterDistributorCommissionType })
-            }
-          />
-        ),
-      },
-      {
-        title: "MD Comm.",
-        width: 120,
-        render: (_, record) => (
-          <CommissionValueInput
-            type={record.masterDistributorCommissionType}
-            value={record.masterDistributorCommission}
-            onChange={(v) =>
+            loading={servicesLoading}
+            placeholder="Select service"
+            optionFilterProp="label"
+            value={record.serviceId || undefined}
+            options={serviceOptions}
+            onChange={(serviceId) => {
+              const service = services.find((item) => item.id === serviceId);
+              if (!service) return;
               onRowChange({
                 ...record,
-                masterDistributorCommission: v ?? 0,
-              })
-            }
+                serviceId: service.id,
+                serviceName: service.name,
+              });
+            }}
+            style={{ width: "100%", minWidth: 160 }}
           />
         ),
       },
       {
-        title: "Company Type",
-        width: 130,
-        render: (_, record) => (
-          <ValueTypeSelect
-            value={record.companyMarginType}
-            onChange={(companyMarginType) =>
-              onRowChange({ ...record, companyMarginType })
-            }
-          />
-        ),
+        title: "Slab Range",
+        children: [
+          {
+            title: "From",
+            dataIndex: "rangeFrom",
+            width: 110,
+            align: "right",
+            render: (_, record) => (
+              <InputNumber
+                size="small"
+                min={0}
+                value={record.rangeFrom}
+                onChange={(v) => onRowChange({ ...record, rangeFrom: v ?? 0 })}
+                style={{ width: 96 }}
+              />
+            ),
+          },
+          {
+            title: "To",
+            dataIndex: "rangeTo",
+            width: 110,
+            align: "right",
+            render: (_, record) => (
+              <InputNumber
+                size="small"
+                min={0}
+                value={record.rangeTo}
+                onChange={(v) => onRowChange({ ...record, rangeTo: v ?? 0 })}
+                style={{ width: 96 }}
+              />
+            ),
+          },
+        ],
       },
       {
-        title: "Company Margin",
-        width: 130,
-        render: (_, record) => (
-          <CommissionValueInput
-            type={record.companyMarginType}
-            value={record.companyMargin}
-            onChange={(v) =>
-              onRowChange({ ...record, companyMargin: v ?? 0 })
-            }
-          />
-        ),
+        title: "Deduction",
+        children: [
+          {
+            title: "Type",
+            width: 128,
+            render: (_, record) => (
+              <ValueTypeSelect
+                value={record.deductionType}
+                onChange={(deductionType) =>
+                  onRowChange({ ...record, deductionType })
+                }
+              />
+            ),
+          },
+          {
+            title: "Value",
+            width: 120,
+            align: "right",
+            render: (_, record) => (
+              <CommissionValueInput
+                type={record.deductionType}
+                value={record.deductionValue}
+                onChange={(v) =>
+                  onRowChange({ ...record, deductionValue: v ?? 0 })
+                }
+              />
+            ),
+          },
+        ],
+      },
+      {
+        title: "Retailer (RT)",
+        children: [
+          {
+            title: "Type",
+            width: 128,
+            render: (_, record) => (
+              <ValueTypeSelect
+                value={record.retailerCommissionType}
+                onChange={(retailerCommissionType) =>
+                  onRowChange({ ...record, retailerCommissionType })
+                }
+              />
+            ),
+          },
+          {
+            title: "Commission",
+            width: 120,
+            align: "right",
+            render: (_, record) => (
+              <CommissionValueInput
+                type={record.retailerCommissionType}
+                value={record.retailerCommission}
+                onChange={(v) =>
+                  onRowChange({ ...record, retailerCommission: v ?? 0 })
+                }
+              />
+            ),
+          },
+        ],
+      },
+      {
+        title: "Distributor (DD)",
+        children: [
+          {
+            title: "Type",
+            width: 128,
+            render: (_, record) => (
+              <ValueTypeSelect
+                value={record.distributorCommissionType}
+                onChange={(distributorCommissionType) =>
+                  onRowChange({ ...record, distributorCommissionType })
+                }
+              />
+            ),
+          },
+          {
+            title: "Commission",
+            width: 120,
+            align: "right",
+            render: (_, record) => (
+              <CommissionValueInput
+                type={record.distributorCommissionType}
+                value={record.distributorCommission}
+                onChange={(v) =>
+                  onRowChange({ ...record, distributorCommission: v ?? 0 })
+                }
+              />
+            ),
+          },
+        ],
+      },
+      {
+        title: "Master Distributor (MD)",
+        children: [
+          {
+            title: "Type",
+            width: 128,
+            render: (_, record) => (
+              <ValueTypeSelect
+                value={record.masterDistributorCommissionType}
+                onChange={(masterDistributorCommissionType) =>
+                  onRowChange({ ...record, masterDistributorCommissionType })
+                }
+              />
+            ),
+          },
+          {
+            title: "Commission",
+            width: 120,
+            align: "right",
+            render: (_, record) => (
+              <CommissionValueInput
+                type={record.masterDistributorCommissionType}
+                value={record.masterDistributorCommission}
+                onChange={(v) =>
+                  onRowChange({
+                    ...record,
+                    masterDistributorCommission: v ?? 0,
+                  })
+                }
+              />
+            ),
+          },
+        ],
       },
       {
         title: "Priority",
         dataIndex: "priority",
-        width: 90,
+        width: 88,
+        align: "center",
         render: (_, record) => (
           <InputNumber
             size="small"
             min={0}
             value={record.priority}
             onChange={(v) => onRowChange({ ...record, priority: v ?? 0 })}
-            style={{ width: 70 }}
+            style={{ width: 68 }}
           />
         ),
       },
@@ -348,6 +326,7 @@ export function CommissionRangeTable({
         title: "Status",
         dataIndex: "status",
         width: 110,
+        align: "center",
         render: (status: CommissionStatus, record) => (
           <Select
             size="small"
@@ -359,64 +338,68 @@ export function CommissionRangeTable({
             options={[
               {
                 value: "active",
-                label: (
-                  <Badge status="success" text="Active" />
-                ),
+                label: <Badge status="success" text="Active" />,
               },
               {
                 value: "inactive",
-                label: (
-                  <Badge status="default" text="Inactive" />
-                ),
+                label: <Badge status="default" text="Inactive" />,
               },
             ]}
           />
         ),
       },
       {
-        title: "Action",
+        title: "Actions",
         fixed: "right",
-        width: 80,
+        width: 128,
+        align: "center",
         render: (_, record) => (
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "edit",
-                  icon: <EditOutlined />,
-                  label: "Edit",
-                  onClick: () => onEdit(record),
-                },
-                {
-                  key: "duplicate",
-                  icon: <CopyOutlined />,
-                  label: "Duplicate",
-                  onClick: () => onDuplicate(record),
-                },
-                {
-                  key: "history",
-                  icon: <HistoryOutlined />,
-                  label: "History",
-                  onClick: () => onHistory(record),
-                },
-                { type: "divider" },
-                {
-                  key: "delete",
-                  icon: <DeleteOutlined />,
-                  label: "Delete",
-                  danger: true,
-                  onClick: () => onDelete(record),
-                },
-              ],
-            }}
-            trigger={["click"]}
-          >
-            <Button type="text" icon={<MoreOutlined />} />
-          </Dropdown>
+          <Space size={4}>
+            <Tooltip title="Add slab for this service">
+              <Button
+                type="text"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() => onAddSlab(record)}
+              />
+            </Tooltip>
+            <Tooltip title="Duplicate slab">
+              <Button
+                type="text"
+                size="small"
+                icon={<CopyOutlined />}
+                onClick={() => onDuplicate(record)}
+              />
+            </Tooltip>
+            <Popconfirm
+              title="Remove this slab?"
+              description={`${record.serviceName} (${record.rangeFrom}–${record.rangeTo})`}
+              okText="Remove"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onDelete(record)}
+            >
+              <Tooltip title="Remove slab">
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                />
+              </Tooltip>
+            </Popconfirm>
+          </Space>
         ),
       },
     ],
-    [onRowChange, onEdit, onDuplicate, onDelete, onHistory]
+    [
+      onRowChange,
+      onAddSlab,
+      onDuplicate,
+      onDelete,
+      serviceOptions,
+      services,
+      servicesLoading,
+    ]
   );
 
   const rowSelection: TableProps<CommissionRangeRow>["rowSelection"] = {
@@ -425,49 +408,41 @@ export function CommissionRangeTable({
   };
 
   return (
-    <Table<CommissionRangeRow>
-      rowKey="id"
-      columns={columns}
-      dataSource={rows}
-      loading={loading}
-      rowSelection={rowSelection}
-      pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `${t} slabs` }}
-      scroll={{ x: 2400, y: "calc(100vh - 340px)" }}
-      size="small"
-      sticky
-      bordered
-      summary={() =>
-        rows.length > 0 ? (
-          <Table.Summary fixed>
-            <Table.Summary.Row>
-              <Table.Summary.Cell index={0} colSpan={columns.length + 1}>
-                <Space wrap>
-                  {FINTECH_SERVICES.slice(0, 4).map((s) => {
-                    const count = rows.filter((r) => r.serviceId === s.id).length;
-                    if (!count) return null;
-                    return (
-                      <Tooltip
-                        key={s.id}
-                        title={`${count} slab(s) configured`}
-                      >
-                        <Tag color="blue">{s.name}: {count}</Tag>
-                      </Tooltip>
-                    );
-                  })}
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    Preview: DMT retailer{" "}
-                    {formatCommissionValue("flat", 5)} · AEPS{" "}
-                    {formatCommissionValue("percentage", 0.5)}
-                  </Text>
-                </Space>
-              </Table.Summary.Cell>
-            </Table.Summary.Row>
-          </Table.Summary>
-        ) : null
-      }
-    />
+    <div
+      className="commission-table-shell"
+      style={{
+        width: "100%",
+        overflow: "auto",
+        maxHeight: "calc(100vh - 320px)",
+        borderRadius: 14,
+        border: "1px solid var(--border)",
+        background: "var(--card)",
+      }}
+    >
+      <Table<CommissionRangeRow>
+        rowKey="id"
+        size="middle"
+        columns={columns}
+        dataSource={rows}
+        loading={loading}
+        rowSelection={rowSelection}
+        pagination={false}
+        sticky
+        scroll={{ x: 1680 }}
+        locale={{
+          emptyText: (
+            <div style={{ padding: "28px 12px" }}>
+              <Text strong style={{ display: "block", marginBottom: 4 }}>
+                No commission slabs yet
+              </Text>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                Click “Add Service” to create the first slab, then add more
+                slabs as needed.
+              </Text>
+            </div>
+          ),
+        }}
+      />
+    </div>
   );
 }
-
-/** Alias for the editable commission grid */
-export const CommissionTable = CommissionRangeTable;

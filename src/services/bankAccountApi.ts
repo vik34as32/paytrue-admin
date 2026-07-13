@@ -3,8 +3,11 @@ import { normalizeBankAccountRecord } from "@/lib/normalizeBankAccount";
 import {
   BankAccountListParams,
   BankAccountRecord,
+  BankAccountAssignmentRecord,
+  BankAccountAssignmentsParams,
   CreateBankAccountPayload,
   PaginatedBankAccounts,
+  PaginatedBankAccountAssignments,
   UpdateBankAccountPayload,
 } from "@/types/bankAccount";
 import { ApiResponse } from "@/types";
@@ -180,4 +183,161 @@ export async function updateBankAccountById(
 
 export async function deleteBankAccountById(id: string): Promise<void> {
   await superAdminClient.delete(`/bank-accounts/${id}`);
+}
+
+function formatUserTypeLabel(userType?: string): string {
+  if (!userType) return "—";
+  return userType
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function readNestedUser(raw: Record<string, unknown>) {
+  return raw.user && typeof raw.user === "object"
+    ? (raw.user as Record<string, unknown>)
+    : raw;
+}
+
+function readNestedBank(raw: Record<string, unknown>) {
+  if (raw.bankAccount && typeof raw.bankAccount === "object") {
+    return raw.bankAccount as Record<string, unknown>;
+  }
+  if (raw.bank && typeof raw.bank === "object") {
+    return raw.bank as Record<string, unknown>;
+  }
+  return raw;
+}
+
+export function normalizeBankAccountAssignment(
+  raw: unknown
+): BankAccountAssignmentRecord {
+  const obj =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const user = readNestedUser(obj);
+  const bank = readNestedBank(obj);
+
+  const firstName = (user.firstName as string | undefined) ?? undefined;
+  const lastName = (user.lastName as string | undefined) ?? undefined;
+  const name =
+    (user.fullName as string | undefined) ||
+    (user.name as string | undefined) ||
+    [firstName, lastName].filter(Boolean).join(" ") ||
+    (user.email as string | undefined) ||
+    (user.mobile as string | undefined) ||
+    "—";
+
+  const userType =
+    (obj.userType as string | undefined) ||
+    (user.userType as string | undefined) ||
+    undefined;
+
+  const userId = String(
+    obj.userId || user.id || obj.assignedUserId || ""
+  );
+  const bankAccountId = String(
+    obj.bankAccountId || bank.id || bank.bankAccountId || ""
+  );
+
+  return {
+    id: String(obj.id || obj.assignmentId || `${userId}-${bankAccountId}`),
+    userId,
+    bankAccountId,
+    userType,
+    userTypeLabel: formatUserTypeLabel(userType),
+    name,
+    mobile: (user.mobile as string | undefined) ?? (obj.mobile as string | undefined),
+    email: (user.email as string | undefined) ?? (obj.email as string | undefined),
+    userCode:
+      (user.userCode as string | undefined) ??
+      (obj.userCode as string | undefined),
+    bankName:
+      (bank.bankName as string | undefined) ??
+      (obj.bankName as string | undefined),
+    accountNumber:
+      (bank.accountNumber as string | undefined) ??
+      (obj.accountNumber as string | undefined),
+    ifscCode:
+      (bank.ifscCode as string | undefined) ??
+      (obj.ifscCode as string | undefined),
+    accountHolderName:
+      (bank.accountHolderName as string | undefined) ??
+      (obj.accountHolderName as string | undefined),
+    status: (obj.status as string | undefined) ?? undefined,
+    assignedAt:
+      (obj.assignedAt as string | undefined) ??
+      (obj.createdAt as string | undefined),
+  };
+}
+
+function normalizeAssignmentsPaginated(
+  result: unknown,
+  params: BankAccountAssignmentsParams
+): PaginatedBankAccountAssignments {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+
+  if (Array.isArray(result)) {
+    return {
+      data: result.map(normalizeBankAccountAssignment),
+      total: result.length,
+      page,
+      pageSize,
+    };
+  }
+
+  if (result && typeof result === "object") {
+    const obj = result as Record<string, unknown>;
+    const nestedKeys = ["assignments", "data", "items", "results"];
+    let items: unknown[] = [];
+
+    for (const key of nestedKeys) {
+      if (Array.isArray(obj[key])) {
+        items = obj[key] as unknown[];
+        break;
+      }
+    }
+
+    const meta =
+      obj.meta && typeof obj.meta === "object"
+        ? (obj.meta as Record<string, unknown>)
+        : obj;
+
+    return {
+      data: items.map(normalizeBankAccountAssignment),
+      total: Number(meta.total ?? obj.total ?? items.length) || items.length,
+      page: Number(meta.page ?? obj.page ?? page) || page,
+      pageSize: Number(
+        meta.pageSize ?? meta.limit ?? obj.pageSize ?? obj.limit ?? pageSize
+      ) || pageSize,
+      totalPages: Number(meta.totalPages ?? obj.totalPages) || undefined,
+    };
+  }
+
+  return { data: [], total: 0, page, pageSize };
+}
+
+/** ADMIN — GET /bank-accounts/assignments */
+export async function getBankAccountAssignments(
+  params: BankAccountAssignmentsParams = {}
+): Promise<PaginatedBankAccountAssignments> {
+  const page = params.page ?? 1;
+  const pageSize = params.pageSize ?? 10;
+
+  const { data } = await adminClient.get<ApiResponse<unknown>>(
+    "/bank-accounts/assignments",
+    {
+      params: {
+        page,
+        pageSize,
+        limit: pageSize,
+        search: params.search || undefined,
+        userType: params.userType || undefined,
+        status: params.status || undefined,
+      },
+    }
+  );
+
+  return normalizeAssignmentsPaginated(data.data, { page, pageSize });
 }

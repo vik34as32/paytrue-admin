@@ -1,29 +1,32 @@
 "use client";
 
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Input } from "@/components/common/Input";
-import { Textarea } from "@/components/common/Textarea";
-import { Select } from "@/components/common/Select";
-import { Button } from "@/components/common/Button";
-import { adminTransferSchema, AdminTransferFormData } from "@/validations";
+import { WalletTransferForm } from "@/components/wallet/WalletTransferForm";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import {
   adminTransferBalance,
+  fetchAdminDistributors,
   fetchAdminMasterDistributors,
+  fetchAdminRetailers,
 } from "@/store/api/adminModuleApi";
 import {
   resolveAdminPrimaryBalance,
   selectAdminBalance,
 } from "@/store/selectors/adminSelectors";
 import {
-  getNetworkUserBalance,
-  getNetworkUserId,
-} from "@/services/adminApi";
-import { formatCurrency } from "@/lib/utils";
-import { IndianRupee } from "lucide-react";
+  adminNetworkUserToReceiver,
+  normalizeTransferRole,
+} from "@/lib/walletTransferOptions";
+import type { WalletTransferFormData } from "@/validations";
+
+const ADMIN_ROLE_OPTIONS = [
+  { value: "MASTER_DISTRIBUTOR", label: "Master Distributor" },
+  { value: "DISTRIBUTOR", label: "Distributor" },
+  { value: "RETAILER", label: "Retailer" },
+];
+
+const LIST_PARAMS = { page: 1, pageSize: 100 };
 
 interface AdminTransferBalanceFormProps {
   onSuccess?: () => void;
@@ -33,42 +36,73 @@ export function AdminTransferBalanceForm({
   onSuccess,
 }: AdminTransferBalanceFormProps) {
   const dispatch = useAppDispatch();
+  const [activeRole, setActiveRole] = useState("");
   const balance = useAppSelector(selectAdminBalance);
-  const { masterDistributors, transferLoading, error } = useAppSelector(
-    (state) => state.adminModule
-  );
-
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<AdminTransferFormData>({
-    resolver: zodResolver(adminTransferSchema),
-  });
+  const { masterDistributors, distributors, retailers, transferLoading, error } =
+    useAppSelector((state) => state.adminModule);
 
   useEffect(() => {
-    dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 200 }));
-  }, [dispatch]);
+    if (!activeRole) return;
 
-  const currentBalance = resolveAdminPrimaryBalance(balance);
-  const enteredAmount = watch("amount") || 0;
+    switch (normalizeTransferRole(activeRole)) {
+      case "MASTER_DISTRIBUTOR":
+        dispatch(fetchAdminMasterDistributors(LIST_PARAMS));
+        break;
+      case "DISTRIBUTOR":
+        dispatch(fetchAdminDistributors(LIST_PARAMS));
+        break;
+      case "RETAILER":
+        dispatch(fetchAdminRetailers(LIST_PARAMS));
+        break;
+      default:
+        break;
+    }
+  }, [activeRole, dispatch]);
 
-  const options =
-    masterDistributors.data.length > 0
-      ? masterDistributors.data.map((md) => {
-          const firstName = md.firstName || "—";
-          const lastName = md.lastName || "—";
-          const currentUserBalance = formatCurrency(getNetworkUserBalance(md));
-          return {
-            value: getNetworkUserId(md),
-            label: `${firstName} ${lastName} — ${currentUserBalance}`,
-          };
-        })
-      : [{ value: "", label: "No master distributors found" }];
+  const receivers = useMemo(() => {
+    switch (normalizeTransferRole(activeRole)) {
+      case "MASTER_DISTRIBUTOR":
+        return masterDistributors.data
+          .map((user) => adminNetworkUserToReceiver(user, "MASTER_DISTRIBUTOR"))
+          .filter((receiver): receiver is NonNullable<typeof receiver> =>
+            Boolean(receiver)
+          );
+      case "DISTRIBUTOR":
+        return distributors.data
+          .map((user) => adminNetworkUserToReceiver(user, "DISTRIBUTOR"))
+          .filter((receiver): receiver is NonNullable<typeof receiver> =>
+            Boolean(receiver)
+          );
+      case "RETAILER":
+        return retailers.data
+          .map((user) => adminNetworkUserToReceiver(user, "RETAILER"))
+          .filter((receiver): receiver is NonNullable<typeof receiver> =>
+            Boolean(receiver)
+          );
+      default:
+        return [];
+    }
+  }, [activeRole, masterDistributors.data, distributors.data, retailers.data]);
 
-  const onSubmit = async (data: AdminTransferFormData) => {
+  const isLoadingReceivers = useMemo(() => {
+    switch (normalizeTransferRole(activeRole)) {
+      case "MASTER_DISTRIBUTOR":
+        return masterDistributors.isLoading;
+      case "DISTRIBUTOR":
+        return distributors.isLoading;
+      case "RETAILER":
+        return retailers.isLoading;
+      default:
+        return false;
+    }
+  }, [
+    activeRole,
+    masterDistributors.isLoading,
+    distributors.isLoading,
+    retailers.isLoading,
+  ]);
+
+  const handleSubmit = async (data: WalletTransferFormData) => {
     const result = await dispatch(
       adminTransferBalance({
         receiverId: data.receiverId,
@@ -76,9 +110,22 @@ export function AdminTransferBalanceForm({
         description: data.description,
       })
     );
+
     if (adminTransferBalance.fulfilled.match(result)) {
       toast.success("Balance transferred successfully");
-      reset();
+      if (activeRole) {
+        switch (normalizeTransferRole(activeRole)) {
+          case "MASTER_DISTRIBUTOR":
+            dispatch(fetchAdminMasterDistributors(LIST_PARAMS));
+            break;
+          case "DISTRIBUTOR":
+            dispatch(fetchAdminDistributors(LIST_PARAMS));
+            break;
+          case "RETAILER":
+            dispatch(fetchAdminRetailers(LIST_PARAMS));
+            break;
+        }
+      }
       onSuccess?.();
     } else {
       toast.error((result.payload as string) || "Transfer failed");
@@ -86,53 +133,15 @@ export function AdminTransferBalanceForm({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-xl bg-primary/5 px-4 py-3">
-        <p className="text-xs text-muted">Available Balance</p>
-        <p className="text-xl font-bold text-primary">
-          {formatCurrency(currentBalance)}
-        </p>
-        {enteredAmount > 0 && (
-          <p className="mt-2 text-sm text-muted">
-            Remaining:{" "}
-            <span className="font-semibold text-foreground">
-              {formatCurrency(currentBalance - Number(enteredAmount))}
-            </span>
-          </p>
-        )}
-      </div>
-
-      {error && (
-        <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <Select
-          label="Receiver"
-          options={[{ value: "", label: "Select master distributor" }, ...options]}
-          error={errors.receiverId?.message}
-          {...register("receiverId")}
-        />
-        <Input
-          label="Amount (₹)"
-          type="number"
-          placeholder="Enter amount"
-          icon={<IndianRupee className="h-4 w-4" />}
-          error={errors.amount?.message}
-          {...register("amount", { valueAsNumber: true })}
-        />
-        <Textarea
-          label="Description"
-          placeholder="Purpose of transfer..."
-          error={errors.description?.message}
-          {...register("description")}
-        />
-        <Button type="submit" isLoading={transferLoading} disabled={transferLoading}>
-          Transfer Balance
-        </Button>
-      </form>
-    </div>
+    <WalletTransferForm
+      receivers={receivers}
+      currentBalance={resolveAdminPrimaryBalance(balance)}
+      isLoadingReceivers={isLoadingReceivers}
+      isSubmitting={transferLoading}
+      error={error}
+      roleOptions={ADMIN_ROLE_OPTIONS}
+      onRoleChange={setActiveRole}
+      onSubmit={handleSubmit}
+    />
   );
 }

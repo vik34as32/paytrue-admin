@@ -12,13 +12,16 @@ import { isAdminRole } from "@/lib/normalizeAuthRole";
 
 const PUBLIC_ROUTES = [ROUTES.login, ROUTES.superAdminLogin];
 
+/** Routes that require Super Admin session only */
 const SUPER_ADMIN_API_ROUTES = [
   ROUTES.superAdmin,
   ROUTES.superAdminDashboard,
   ROUTES.superAdminAdmins,
   ROUTES.superAdminAddBalance,
   ROUTES.superAdminTransferBalance,
+  ROUTES.superAdminDeductBalance,
   ROUTES.superAdminWalletHistory,
+  ROUTES.superAdminWalletSummary,
   ROUTES.superAdminStatistics,
   ROUTES.superAdminRetailers,
   ROUTES.superAdminMasterDistributors,
@@ -29,9 +32,16 @@ const SUPER_ADMIN_API_ROUTES = [
   ROUTES.superAdminCreateAdmin,
 ];
 
+/** Shared Admin + Super Admin pages under `/admin/...` */
+const SHARED_ADMIN_SUPER_ADMIN_ROUTES = [
+  ROUTES.adminCommissionManagement,
+  ROUTES.adminServiceMaster,
+];
+
 const ROLE_ROUTES: Record<UserRole, string[]> = {
   super_admin: [
     ...SUPER_ADMIN_API_ROUTES,
+    ...SHARED_ADMIN_SUPER_ADMIN_ROUTES,
     ROUTES.hierarchy,
     ROUTES.profile,
     ROUTES.settings,
@@ -42,6 +52,7 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.adminMasterDistributor,
     ROUTES.adminCreateMasterDistributor,
     ROUTES.adminBalanceTransfer,
+    ROUTES.adminBalanceDeduct,
     ROUTES.adminHistory,
     ROUTES.adminProfile,
     ROUTES.adminChangePassword,
@@ -51,6 +62,8 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.adminFundRequests,
     ROUTES.adminAssignBankAccount,
     ROUTES.adminCommissionManagement,
+    ROUTES.adminServiceMaster,
+    ROUTES.adminWalletSummary,
   ],
   master_distributor: [
     ROUTES.dashboard,
@@ -103,9 +116,27 @@ export function useAuthGuard(allowedRoles?: UserRole[]) {
     if (isRestoring) return;
 
     const isPublic = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+    const isSharedAdminRoute = SHARED_ADMIN_SUPER_ADMIN_ROUTES.some((r) =>
+      pathname.startsWith(r)
+    );
     const isSuperAdminApiRoute = SUPER_ADMIN_API_ROUTES.some((r) =>
       pathname.startsWith(r)
     );
+
+    if (isSharedAdminRoute) {
+      const hasAdminSession =
+        isAuthenticated && isAdminRole(user);
+      const hasSuperAdminSession = superAdminAuth.isAuthenticated;
+      if (
+        !hasAdminSession &&
+        !hasSuperAdminSession &&
+        !hasPersistedAdminSession() &&
+        !hasPersistedSuperAdminSession()
+      ) {
+        router.replace(ROUTES.login);
+      }
+      return;
+    }
 
     if (isSuperAdminApiRoute) {
       if (!superAdminAuth.isAuthenticated && pathname !== ROUTES.superAdminLogin) {

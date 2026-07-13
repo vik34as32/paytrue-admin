@@ -60,9 +60,6 @@ const SORT_ORDER_OPTIONS = [
 
 const TRANSACTION_TYPE_OPTIONS = [
   { value: "", label: "All Types" },
-  { value: "CREDIT", label: "Credit" },
-  { value: "DEBIT", label: "Debit" },
-  { value: "TRANSFER", label: "Transfer" },
   { value: "ADD_BALANCE", label: "Add Balance" },
 ];
 

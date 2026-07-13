@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, Plus, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardHeader } from "@/components/common/Card";
 import { Button } from "@/components/common/Button";
@@ -11,44 +11,37 @@ import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/common/Badge";
 import { Modal } from "@/components/modals/Modal";
 import { AdminAssignBankAccountModal } from "@/components/admin/AdminAssignBankAccountModal";
-import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
+import { removeBankAccountAssignment } from "@/services/adminApi";
 import {
-  fetchAdminDistributors,
-  fetchAdminMasterDistributors,
-  fetchAdminRetailers,
-} from "@/store/api/adminModuleApi";
-import { getNetworkUserName } from "@/services/adminApi";
-import {
-  assignBankAccountToUser,
-  removeBankAccountAssignment,
-} from "@/services/adminApi";
-import { getAdminBankAccounts } from "@/services/bankAccountApi";
+  getAdminBankAccounts,
+  getBankAccountAssignments,
+} from "@/services/bankAccountApi";
 import { createBankAccountListColumns } from "@/lib/bankAccountColumns";
-import { BankAccountRecord } from "@/types/bankAccount";
-import { AdminNetworkUser } from "@/types/admin";
-
-interface AssignmentRow {
-  id: string;
-  userTypeLabel: string;
-  name: string;
-  mobile?: string;
-  bankName?: string;
-  accountNumber?: string;
-  ifscCode?: string;
-  user: AdminNetworkUser;
-}
+import { formatDate } from "@/lib/utils";
+import {
+  BankAccountAssignmentRecord,
+  BankAccountRecord,
+} from "@/types/bankAccount";
 
 export function AdminAssignBankAccountView() {
-  const dispatch = useAppDispatch();
-  const { masterDistributors, distributors, retailers } = useAppSelector(
-    (state) => state.adminModule
-  );
-  const [removeUser, setRemoveUser] = useState<AdminNetworkUser | null>(null);
+  const [removeTarget, setRemoveTarget] =
+    useState<BankAccountAssignmentRecord | null>(null);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+
   const [bankAccounts, setBankAccounts] = useState<BankAccountRecord[]>([]);
   const [isLoadingBanks, setIsLoadingBanks] = useState(false);
   const [banksError, setBanksError] = useState<string | null>(null);
+
+  const [assignments, setAssignments] = useState<BankAccountAssignmentRecord[]>(
+    []
+  );
+  const [assignmentsTotal, setAssignmentsTotal] = useState(0);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
+  const [assignmentsError, setAssignmentsError] = useState<string | null>(null);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [search, setSearch] = useState("");
 
   const bankColumns = useMemo(() => createBankAccountListColumns(), []);
 
@@ -67,71 +60,53 @@ export function AdminAssignBankAccountView() {
     }
   }, []);
 
-  const loadUsers = useCallback(() => {
-    dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 200 }));
-    dispatch(fetchAdminDistributors({ page: 1, pageSize: 200 }));
-    dispatch(fetchAdminRetailers({ page: 1, pageSize: 200 }));
-  }, [dispatch]);
+  const loadAssignments = useCallback(async () => {
+    setIsLoadingAssignments(true);
+    setAssignmentsError(null);
+    try {
+      const result = await getBankAccountAssignments({
+        page: pageIndex + 1,
+        pageSize,
+        search: search || undefined,
+      });
+      setAssignments(result.data);
+      setAssignmentsTotal(result.total);
+    } catch (error) {
+      setAssignments([]);
+      setAssignmentsTotal(0);
+      setAssignmentsError(
+        error instanceof Error
+          ? error.message
+          : "Failed to load bank account assignments"
+      );
+    } finally {
+      setIsLoadingAssignments(false);
+    }
+  }, [pageIndex, pageSize, search]);
 
   useEffect(() => {
-    loadUsers();
     void loadBankAccounts();
-  }, [loadUsers, loadBankAccounts]);
+  }, [loadBankAccounts]);
 
-  const assignedRows = useMemo<AssignmentRow[]>(() => {
-    const rows: AssignmentRow[] = [];
-
-    const pushUser = (
-      user: AdminNetworkUser,
-      userTypeLabel: string,
-      userType: string
-    ) => {
-      if (!user.assignedBankAccount?.bankName) return;
-      rows.push({
-        id: user.id,
-        userTypeLabel,
-        name: getNetworkUserName(user),
-        mobile: user.mobile,
-        bankName: user.assignedBankAccount.bankName,
-        accountNumber: user.assignedBankAccount.accountNumber,
-        ifscCode: user.assignedBankAccount.ifscCode,
-        user: { ...user, userType },
-      });
-    };
-
-    masterDistributors.data.forEach((user) =>
-      pushUser(user, "Master Distributor", "MASTER_DISTRIBUTOR")
-    );
-    distributors.data.forEach((user) =>
-      pushUser(user, "Distributor", "DISTRIBUTOR")
-    );
-    retailers.data.forEach((user) =>
-      pushUser(user, "Retailer", "RETAILER")
-    );
-
-    return rows;
-  }, [masterDistributors.data, distributors.data, retailers.data]);
-
-  const isLoading =
-    masterDistributors.isLoading ||
-    distributors.isLoading ||
-    retailers.isLoading;
+  useEffect(() => {
+    void loadAssignments();
+  }, [loadAssignments]);
 
   const handleRemove = async () => {
-    const bankAccountId =
-      removeUser?.assignedBankAccount?.bankAccountId ||
-      removeUser?.assignedBankAccount?.id;
-    if (!removeUser?.id || !bankAccountId) return;
+    if (!removeTarget?.userId || !removeTarget.bankAccountId) {
+      toast.error("Missing assignment details");
+      return;
+    }
 
     setIsRemoving(true);
     try {
-      await removeBankAccountAssignment({
-        userId: removeUser.id,
-        bankAccountId,
+      const result = await removeBankAccountAssignment({
+        userId: removeTarget.userId,
+        bankAccountId: removeTarget.bankAccountId,
       });
-      toast.success("Bank assignment removed");
-      setRemoveUser(null);
-      loadUsers();
+      toast.success(result.message);
+      setRemoveTarget(null);
+      await loadAssignments();
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -143,22 +118,43 @@ export function AdminAssignBankAccountView() {
     }
   };
 
-  const columns: ColumnDef<AssignmentRow, unknown>[] = [
+  const columns: ColumnDef<BankAccountAssignmentRecord, unknown>[] = [
     {
       accessorKey: "userTypeLabel",
       header: "User Type",
       cell: ({ row }) => (
-        <Badge variant="default">{row.original.userTypeLabel}</Badge>
+        <Badge variant="default">{row.original.userTypeLabel || "—"}</Badge>
       ),
     },
-    { accessorKey: "name", header: "Name" },
-    { accessorKey: "mobile", header: "Mobile", cell: ({ row }) => row.original.mobile || "—" },
-    { accessorKey: "bankName", header: "Assigned Bank" },
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <div>
+          <p className="font-medium text-foreground">{row.original.name}</p>
+          {row.original.userCode ? (
+            <p className="text-xs text-muted">{row.original.userCode}</p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "mobile",
+      header: "Mobile",
+      cell: ({ row }) => row.original.mobile || "—",
+    },
+    {
+      accessorKey: "bankName",
+      header: "Assigned Bank",
+      cell: ({ row }) => row.original.bankName || "—",
+    },
     {
       accessorKey: "accountNumber",
       header: "Account Number",
       cell: ({ row }) => (
-        <span className="font-mono text-xs">{row.original.accountNumber || "—"}</span>
+        <span className="font-mono text-xs">
+          {row.original.accountNumber || "—"}
+        </span>
       ),
     },
     {
@@ -169,6 +165,12 @@ export function AdminAssignBankAccountView() {
       ),
     },
     {
+      accessorKey: "assignedAt",
+      header: "Assigned On",
+      cell: ({ row }) =>
+        row.original.assignedAt ? formatDate(row.original.assignedAt) : "—",
+    },
+    {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
@@ -176,13 +178,15 @@ export function AdminAssignBankAccountView() {
           variant="ghost"
           size="sm"
           aria-label="Remove assignment"
-          onClick={() => setRemoveUser(row.original.user)}
+          onClick={() => setRemoveTarget(row.original)}
         >
           <Trash2 className="h-4 w-4 text-accent-red" />
         </Button>
       ),
     },
   ];
+
+  const pageCount = Math.max(1, Math.ceil(assignmentsTotal / pageSize));
 
   return (
     <div className="page-container space-y-6">
@@ -202,7 +206,7 @@ export function AdminAssignBankAccountView() {
         isOpen={assignModalOpen}
         onClose={() => setAssignModalOpen(false)}
         onSuccess={() => {
-          loadUsers();
+          void loadAssignments();
           void loadBankAccounts();
         }}
         bankAccounts={bankAccounts}
@@ -232,26 +236,52 @@ export function AdminAssignBankAccountView() {
         <CardHeader
           title="Assigned Bank Accounts"
           subtitle="Users who already have a system bank account assigned"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadAssignments()}
+              disabled={isLoadingAssignments}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${isLoadingAssignments ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+          }
         />
+        {assignmentsError ? (
+          <div className="mb-4 rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+            {assignmentsError}
+          </div>
+        ) : null}
         <DataTable
-          data={assignedRows}
+          data={assignments}
           columns={columns}
-          isLoading={isLoading}
-          hideSearch
-          pageSize={10}
+          isLoading={isLoadingAssignments}
+          searchPlaceholder="Search assignments..."
+          onSearch={(value) => {
+            setSearch(value);
+            setPageIndex(0);
+          }}
+          manualPagination
+          pageCount={pageCount}
+          pageIndex={pageIndex}
+          onPageChange={setPageIndex}
+          pageSize={pageSize}
         />
       </Card>
 
       <Modal
-        isOpen={!!removeUser}
-        onClose={() => setRemoveUser(null)}
+        isOpen={!!removeTarget}
+        onClose={() => setRemoveTarget(null)}
         title="Remove Bank Assignment"
         size="sm"
         footer={
           <div className="flex justify-end gap-3">
             <Button
               variant="outline"
-              onClick={() => setRemoveUser(null)}
+              onClick={() => setRemoveTarget(null)}
               disabled={isRemoving}
             >
               Cancel
@@ -269,8 +299,14 @@ export function AdminAssignBankAccountView() {
         <p className="text-sm text-foreground">
           Remove bank assignment for{" "}
           <span className="font-semibold">
-            {removeUser ? getNetworkUserName(removeUser) : "this user"}
+            {removeTarget?.name || "this user"}
           </span>
+          {removeTarget?.bankName ? (
+            <>
+              {" "}
+              from <span className="font-semibold">{removeTarget.bankName}</span>
+            </>
+          ) : null}
           ?
         </p>
       </Modal>

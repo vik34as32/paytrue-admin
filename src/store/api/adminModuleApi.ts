@@ -1,10 +1,12 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
+import { WALLET_DEDUCT_HISTORY_TYPE } from "@/constants/walletTransactions";
 import {
   getDashboard,
   getWalletBalance,
   getWalletHistory,
   getTransferHistory,
   transferBalance,
+  deductBalance,
   getProfile,
   updateProfile,
   changePassword,
@@ -131,6 +133,31 @@ export const adminTransferBalance = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : "Transfer failed"
+      );
+    }
+  }
+);
+
+export const adminDeductBalance = createAsyncThunk(
+  "adminModule/deductBalance",
+  async (payload: AdminTransferPayload, { dispatch, rejectWithValue }) => {
+    try {
+      await deductBalance(payload);
+      await Promise.all([
+        dispatch(fetchAdminWalletBalance({ force: true })),
+        dispatch(fetchAdminDashboard({ force: true })),
+        dispatch(
+          fetchAdminWalletHistory({
+            page: 1,
+            pageSize: 10,
+            transactionType: WALLET_DEDUCT_HISTORY_TYPE,
+          })
+        ),
+      ]);
+      return payload;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Deduction failed"
       );
     }
   }
@@ -277,7 +304,10 @@ export const approveAdminFundRequest = createAsyncThunk(
   async (payload: AdminApproveFundRequestPayload, { dispatch, rejectWithValue }) => {
     try {
       const result = await approveFundRequest(payload);
-      await dispatch(fetchAdminWalletBalance({ force: true }));
+      await Promise.all([
+        dispatch(fetchAdminWalletBalance({ force: true })),
+        dispatch(fetchAdminFundRequests({ page: 1, pageSize: 10 })),
+      ]);
       return result;
     } catch (error) {
       return rejectWithValue(
@@ -292,6 +322,7 @@ export const rejectAdminFundRequest = createAsyncThunk(
   async (payload: AdminRejectFundRequestPayload, { dispatch, rejectWithValue }) => {
     try {
       const result = await rejectFundRequest(payload);
+      await dispatch(fetchAdminFundRequests({ page: 1, pageSize: 10 }));
       return result;
     } catch (error) {
       return rejectWithValue(

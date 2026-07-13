@@ -7,7 +7,7 @@ import { Card, CardHeader } from "@/components/common/Card";
 import { Button } from "@/components/common/Button";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/cards/StatCard";
-import { WalletBalanceCards } from "@/components/super-admin/WalletBalanceCard";
+import { WalletBalanceCard } from "@/components/super-admin/WalletBalanceCard";
 import { TransferBalanceModal } from "@/components/super-admin/TransferBalanceModal";
 import { AddBalanceModal } from "@/components/super-admin/AddBalanceModal";
 import { DataTable } from "@/components/tables/DataTable";
@@ -106,44 +106,34 @@ export function SuperAdminWalletDashboardView() {
 
   const statCards = [
     {
-      title: "Wallet Balance",
-      value: isLoadingDashboard || isLoadingBalance
-        ? "..."
-        : formatCurrency(
-            (dashboard?.walletBalance as number | undefined) ?? primaryBalance
-          ),
-      icon: <IndianRupee className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[0],
-    },
-    {
       title: "Total Admin",
       value: dashboardValue(dashboard, primaryBalance, "totalAdmin"),
       icon: <Users className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[1],
+      gradient: GRADIENT_CARDS[0],
     },
     {
       title: "Master Distributors",
       value: dashboardValue(dashboard, primaryBalance, "totalMasterDistributor"),
       icon: <Building2 className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[2],
+      gradient: GRADIENT_CARDS[1],
     },
     {
       title: "Distributors",
       value: dashboardValue(dashboard, primaryBalance, "totalDistributor"),
       icon: <Store className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[3],
+      gradient: GRADIENT_CARDS[2],
     },
     {
       title: "Retailers",
       value: dashboardValue(dashboard, primaryBalance, "totalRetailer"),
       icon: <Users className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[4],
+      gradient: GRADIENT_CARDS[3],
     },
     {
       title: "Total Transfers",
       value: dashboardValue(dashboard, primaryBalance, "totalTransfers"),
       icon: <ArrowRightLeft className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[5],
+      gradient: GRADIENT_CARDS[4],
     },
     {
       title: "Total Business",
@@ -153,7 +143,7 @@ export function SuperAdminWalletDashboardView() {
           ? formatCurrency(dashboard.totalBusiness)
           : dashboardValue(dashboard, primaryBalance, "totalBusiness"),
       icon: <TrendingUp className="h-5 w-5" />,
-      gradient: GRADIENT_CARDS[6],
+      gradient: GRADIENT_CARDS[5],
     },
   ];
 
@@ -189,7 +179,7 @@ export function SuperAdminWalletDashboardView() {
         </div>
       )}
 
-      <WalletBalanceCards autoFetch={false} />
+      <WalletBalanceCard />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {statCards.map((card) => (

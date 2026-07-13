@@ -93,18 +93,41 @@ export interface AdminFundRequestRecord {
   adminRemarks?: string;
   createdAt?: string;
   updatedAt?: string;
+  reference?: string;
+  utr?: string;
+  referenceNumber?: string;
+  imageUrl?: string | null;
+  paymentMode?: string;
+  fundingMode?: string;
+  depositDate?: string;
+  bankName?: string;
+  accountHolderName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  branchName?: string;
   requesterId?: string;
   requesterName?: string;
+  requesterFirstName?: string;
+  requesterLastName?: string;
   requesterType?: string;
   requesterMobile?: string;
+  requesterEmail?: string;
+  requesterUserCode?: string;
   userId?: string;
   userName?: string;
   userType?: string;
+  actionById?: string;
+  actionByName?: string;
+  actionByType?: string;
+  approverName?: string;
+  approverType?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
 }
 
 export interface AdminApproveFundRequestPayload {
   id: string;
-  remarks?: string;
+  remarks: string;
 }
 
 export interface AdminRejectFundRequestPayload {
@@ -167,7 +190,7 @@ export interface AdminAssignedBankAccount {
 }
 
 export interface AdminAssignBankAccountPayload {
-  userId: string;
+  userIds: string[];
   bankAccountId: string;
 }
 

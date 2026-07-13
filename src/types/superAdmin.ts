@@ -37,6 +37,9 @@ export interface SuperAdminProfile {
   name?: string;
   role?: string;
   mobile?: string;
+  state?: string;
+  city?: string;
+  address?: string;
 }
 
 export interface AdminRecord {
@@ -92,14 +95,22 @@ export interface WalletBalanceData {
   [key: string]: string | number | undefined;
 }
 
+export interface WalletHistorySummary {
+  currentWalletBalance?: number;
+  totalTopupAmount?: number;
+  totalTopupCount?: number;
+}
+
 export interface WalletHistoryRecord {
   id: string;
   transactionId?: string;
   date?: string;
+  time?: string;
   createdAt?: string;
   updatedAt?: string;
   transactionType: string;
   amount: number;
+  topupAmount?: number;
   previousBalance: number;
   currentBalance: number;
   updatedBalance?: number;
@@ -138,6 +149,7 @@ export interface PaginatedApiData<T> {
   page?: number;
   pageSize?: number;
   totalPages?: number;
+  summary?: WalletHistorySummary;
 }
 
 export interface SuperAdminDashboardData {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   Flex,
@@ -9,21 +9,23 @@ import {
   Tag,
   Typography,
   Statistic,
-  Tooltip,
   Select,
   App,
+  Alert,
+  Modal,
+  Divider,
 } from "antd";
 import {
   PlusOutlined,
-  ImportOutlined,
   ExportOutlined,
-  CopyOutlined,
-  UserSwitchOutlined,
   EditOutlined,
   AppstoreAddOutlined,
   EyeOutlined,
   ArrowLeftOutlined,
   ShopOutlined,
+  SaveOutlined,
+  ReloadOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CommissionAntdProvider } from "@/components/commission/CommissionAntdProvider";
@@ -33,18 +35,27 @@ import { CommissionHistoryModal } from "@/components/commission/CommissionHistor
 import { BulkUpdateModal } from "@/components/commission/BulkUpdateModal";
 import { CopyCommissionModal } from "@/components/commission/CopyCommissionModal";
 import { useCommissionManagement } from "@/hooks/useCommissionManagement";
-import { MOCK_RETAILERS } from "@/lib/commission/mockData";
+import { useCommissionServices } from "@/hooks/useCommissionServices";
+import { useCommissionRetailers } from "@/hooks/useCommissionRetailers";
+import {
+  getPublicNetworkUserLabel,
+  getPublicNetworkUserNameIdLabel,
+} from "@/services/publicNetworkUsersApi";
+import type { FintechService } from "@/types/commission";
 
 const { Text, Title } = Typography;
 
-const retailerOptions = MOCK_RETAILERS.map((r) => ({
-  value: r.id,
-  label: `${r.name} (${r.code})`,
-}));
-
 function CommissionRetailerGate({
+  retailers,
+  loading,
+  error,
+  onRetry,
   onView,
 }: {
+  retailers: { value: string; label: string }[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   onView: (retailerId: string) => void;
 }) {
   const { message } = App.useApp();
@@ -60,33 +71,73 @@ function CommissionRetailerGate({
 
   return (
     <Card
-      style={{ borderRadius: 16, maxWidth: 640 }}
-      styles={{ body: { padding: "28px 24px" } }}
+      style={{
+        borderRadius: 18,
+        maxWidth: 720,
+        border: "1px solid var(--border)",
+        boxShadow: "0 8px 30px rgba(67, 24, 255, 0.06)",
+      }}
+      styles={{ body: { padding: "32px 28px" } }}
     >
-      <Space direction="vertical" size={20} style={{ width: "100%" }}>
-        <Space align="start">
+      <Space direction="vertical" size={22} style={{ width: "100%" }}>
+        <Space align="start" size={14}>
           <div
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
+              width: 48,
+              height: 48,
+              borderRadius: 14,
               background: "linear-gradient(135deg, #4318FF 0%, #868CFF 100%)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              flexShrink: 0,
             }}
           >
-            <ShopOutlined style={{ color: "#fff", fontSize: 20 }} />
+            <ShopOutlined style={{ color: "#fff", fontSize: 22 }} />
           </div>
           <div>
-            <Title level={5} style={{ margin: 0 }}>
-              Select Retailer
+            <Title level={4} style={{ margin: 0 }}>
+              Commission Setup
             </Title>
             <Text type="secondary" style={{ fontSize: 13 }}>
-              Choose a retailer and click View to manage commission slabs
+              Select any retailer to configure RT / DD / MD commission slabs by
+              service. All retailers from the network are listed below.
             </Text>
           </div>
         </Space>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 12,
+          }}
+        >
+          <Card size="small" styles={{ body: { padding: "12px 14px" } }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              RETAILERS LOADED
+            </Text>
+            <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>
+              {loading ? "…" : retailers.length}
+            </div>
+          </Card>
+          <Card size="small" styles={{ body: { padding: "12px 14px" } }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              COMMISSION ROLES
+            </Text>
+            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>
+              RT · DD · MD
+            </div>
+          </Card>
+          <Card size="small" styles={{ body: { padding: "12px 14px" } }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              SLABS
+            </Text>
+            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 8 }}>
+              Add & remove freely
+            </div>
+          </Card>
+        </div>
 
         <div>
           <Text strong style={{ display: "block", marginBottom: 8 }}>
@@ -95,14 +146,39 @@ function CommissionRetailerGate({
           <Select
             showSearch
             allowClear
-            placeholder="Select retailer"
+            loading={loading}
+            placeholder={
+              loading
+                ? "Loading all retailers..."
+                : retailers.length
+                  ? "Search and select retailer"
+                  : "No retailers found"
+            }
             optionFilterProp="label"
-            options={retailerOptions}
+            options={retailers}
             value={retailerId}
             onChange={setRetailerId}
             style={{ width: "100%" }}
             size="large"
+            listHeight={320}
+            notFoundContent={loading ? "Loading..." : "No retailers found"}
           />
+          {!loading && !error ? (
+            <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+              {retailers.length} retailer{retailers.length === 1 ? "" : "s"}{" "}
+              available
+            </Text>
+          ) : null}
+          {error ? (
+            <Space direction="vertical" size={8} style={{ marginTop: 12 }}>
+              <Alert type="error" showIcon message={error} />
+              {onRetry ? (
+                <Button size="small" onClick={onRetry}>
+                  Retry
+                </Button>
+              ) : null}
+            </Space>
+          ) : null}
         </div>
 
         <Button
@@ -110,12 +186,68 @@ function CommissionRetailerGate({
           size="large"
           icon={<EyeOutlined />}
           onClick={handleView}
-          style={{ minWidth: 120 }}
+          style={{ minWidth: 140, height: 44 }}
         >
-          View
+          View Commissions
         </Button>
       </Space>
     </Card>
+  );
+}
+
+function AddServiceModal({
+  open,
+  services,
+  loading,
+  onClose,
+  onAdd,
+}: {
+  open: boolean;
+  services: FintechService[];
+  loading?: boolean;
+  onClose: () => void;
+  onAdd: (service: FintechService) => void;
+}) {
+  const [serviceId, setServiceId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (open) setServiceId(undefined);
+  }, [open]);
+
+  return (
+    <Modal
+      title="Add Service Commission"
+      open={open}
+      onCancel={onClose}
+      onOk={() => {
+        const service = services.find((item) => item.id === serviceId);
+        if (!service) return;
+        onAdd(service);
+        onClose();
+      }}
+      okText="Add Service"
+      okButtonProps={{ disabled: !serviceId }}
+      destroyOnClose
+    >
+      <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+        Choose a service to create the first slab. You can add more slabs for
+        the same service afterwards.
+      </Text>
+      <Select
+        showSearch
+        loading={loading}
+        placeholder="Select service"
+        optionFilterProp="label"
+        style={{ width: "100%" }}
+        size="large"
+        value={serviceId}
+        onChange={setServiceId}
+        options={services.map((service) => ({
+          value: service.id,
+          label: service.name,
+        }))}
+      />
+    </Modal>
   );
 }
 
@@ -123,12 +255,51 @@ function CommissionPageContent() {
   const [selectedRetailerId, setSelectedRetailerId] = useState<string | null>(
     null
   );
-  const cm = useCommissionManagement(selectedRetailerId);
+  const [addServiceOpen, setAddServiceOpen] = useState(false);
 
-  const selectedRetailer = MOCK_RETAILERS.find(
-    (r) => r.id === selectedRetailerId
+  const {
+    retailers,
+    loading: retailersLoading,
+    error: retailersError,
+    reload: reloadRetailers,
+  } = useCommissionRetailers();
+
+  const { services, loading: servicesLoading, error: servicesError } =
+    useCommissionServices();
+
+  const selectedRetailer = useMemo(
+    () => retailers.find((retailer) => retailer.id === selectedRetailerId),
+    [retailers, selectedRetailerId]
   );
+
+  const retailerOption = useMemo(
+    () =>
+      selectedRetailer
+        ? {
+            id: selectedRetailer.id,
+            name: getPublicNetworkUserLabel(selectedRetailer),
+            code: selectedRetailer.userCode ?? selectedRetailer.mobile,
+          }
+        : undefined,
+    [selectedRetailer]
+  );
+
+  const cm = useCommissionManagement(
+    selectedRetailerId,
+    retailerOption,
+    services
+  );
+
   const showCommissionUI = selectedRetailerId !== null;
+
+  const retailerOptions = useMemo(
+    () =>
+      retailers.map((retailer) => ({
+        value: retailer.id,
+        label: getPublicNetworkUserNameIdLabel(retailer),
+      })),
+    [retailers]
+  );
 
   const handleViewRetailer = (retailerId: string) => {
     setSelectedRetailerId(retailerId);
@@ -139,6 +310,15 @@ function CommissionPageContent() {
     cm.setSelectedRowKeys([]);
   };
 
+  const handleRemoveSelected = async () => {
+    const selected = cm.filteredRows.filter((row) =>
+      cm.selectedRowKeys.includes(row.id)
+    );
+    for (const row of selected) {
+      await cm.handleDelete(row);
+    }
+  };
+
   return (
     <div className="page-container">
       <PageHeader
@@ -146,84 +326,107 @@ function CommissionPageContent() {
         title="Commission Management"
         subtitle={
           showCommissionUI && selectedRetailer
-            ? `Commission configuration for ${selectedRetailer.name}`
-            : "Select a retailer to configure commission slabs"
+            ? `RT / DD / MD slabs for ${getPublicNetworkUserLabel(selectedRetailer)}`
+            : "Configure retailer commission slabs with RT, DD and MD shares"
         }
       />
 
       {!showCommissionUI ? (
-        <CommissionRetailerGate onView={handleViewRetailer} />
+        <CommissionRetailerGate
+          retailers={retailerOptions}
+          loading={retailersLoading}
+          error={retailersError}
+          onRetry={() => void reloadRetailers()}
+          onView={handleViewRetailer}
+        />
       ) : (
         <Flex vertical gap={16}>
           <Card
             style={{ borderRadius: 16 }}
-            styles={{ body: { padding: "12px 20px" } }}
+            styles={{ body: { padding: "14px 20px" } }}
           >
             <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-              <Space>
-                <Button
-                  icon={<ArrowLeftOutlined />}
-                  onClick={handleBackToSelect}
-                >
-                  Change Retailer
+              <Space wrap>
+                <Button icon={<ArrowLeftOutlined />} onClick={handleBackToSelect}>
+                  All Retailers
                 </Button>
-                <Tag color="purple" style={{ margin: 0, padding: "4px 10px" }}>
-                  {selectedRetailer?.name} ({selectedRetailer?.code})
+                <Tag color="purple" style={{ margin: 0, padding: "5px 12px" }}>
+                  {getPublicNetworkUserLabel(selectedRetailer!)}
                 </Tag>
+                {selectedRetailer?.id ? (
+                  <Tag style={{ margin: 0 }}>{selectedRetailer.id}</Tag>
+                ) : null}
+                {cm.hasUnsavedChanges ? (
+                  <Tag color="orange">Unsaved changes</Tag>
+                ) : (
+                  <Tag color="green">Saved</Tag>
+                )}
+              </Space>
+              <Space wrap>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={() => void cm.reload()}
+                  loading={cm.loading}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<SaveOutlined />}
+                  onClick={() => void cm.handleSaveAll()}
+                  loading={cm.saving}
+                >
+                  Save Changes
+                </Button>
               </Space>
             </Flex>
           </Card>
+
+          {servicesError ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="Could not load services from Service Master"
+              description={servicesError}
+            />
+          ) : null}
 
           <Card
             style={{ borderRadius: 16 }}
             styles={{ body: { padding: "16px 20px" } }}
           >
-            <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-              <Space size={24} wrap>
+            <Flex justify="space-between" align="center" wrap="wrap" gap={16}>
+              <Space size={28} wrap>
                 <Statistic
                   title="Total Slabs"
                   value={cm.totalSlabs}
-                  valueStyle={{ fontSize: 20, color: "#4318FF" }}
+                  valueStyle={{ fontSize: 22, color: "#4318FF" }}
                 />
                 <Statistic
                   title="Active"
                   value={cm.activeSlabs}
-                  valueStyle={{ fontSize: 20, color: "#05CD99" }}
+                  valueStyle={{ fontSize: 22, color: "#05CD99" }}
                 />
                 <Statistic
-                  title="Slabs"
-                  value={cm.filteredRows.length}
-                  valueStyle={{ fontSize: 20 }}
+                  title="Services Available"
+                  value={services.length}
+                  valueStyle={{ fontSize: 22 }}
                 />
               </Space>
 
               <Space wrap>
-                <Tooltip title="Add new service commission">
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={cm.handleAddCommission}
-                  >
-                    Add Commission
-                  </Button>
-                </Tooltip>
-                <Button icon={<ImportOutlined />} onClick={cm.handleImport}>
-                  Import
-                </Button>
-                <Button icon={<ExportOutlined />} onClick={cm.handleExport}>
-                  Export
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={() => setAddServiceOpen(true)}
+                >
+                  Add Service
                 </Button>
                 <Button
-                  icon={<CopyOutlined />}
-                  onClick={() => cm.setCopyOpen(true)}
+                  icon={<AppstoreAddOutlined />}
+                  onClick={() => cm.handleAddRange()}
                 >
-                  Copy Commission
-                </Button>
-                <Button
-                  icon={<UserSwitchOutlined />}
-                  onClick={() => cm.setCopyOpen(true)}
-                >
-                  Clone From Retailer
+                  Add Slab
                 </Button>
                 <Button
                   icon={<EditOutlined />}
@@ -231,49 +434,64 @@ function CommissionPageContent() {
                   onClick={() => cm.setBulkOpen(true)}
                 >
                   Bulk Update
-                  {cm.selectedRowKeys.length > 0 && (
+                  {cm.selectedRowKeys.length > 0 ? (
                     <Tag color="blue" style={{ marginLeft: 6 }}>
                       {cm.selectedRowKeys.length}
                     </Tag>
-                  )}
+                  ) : null}
                 </Button>
                 <Button
-                  icon={<AppstoreAddOutlined />}
-                  onClick={cm.handleAddRange}
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={!cm.selectedRowKeys.length}
+                  onClick={() => void handleRemoveSelected()}
                 >
-                  Add Range
+                  Remove Selected
+                </Button>
+                <Button icon={<ExportOutlined />} onClick={cm.handleExport}>
+                  Export
                 </Button>
               </Space>
             </Flex>
-          </Card>
 
-          <Card
-            style={{ borderRadius: 16 }}
-            styles={{ body: { padding: "12px 16px 16px" } }}
-          >
-            <Space style={{ marginBottom: 12 }}>
+            <Divider style={{ margin: "16px 0 12px" }} />
+
+            <Space style={{ marginBottom: 12 }} wrap size={8}>
               <Title level={5} style={{ margin: 0 }}>
                 Commission Slabs
               </Title>
+              <Tag>RT</Tag>
+              <Tag>DD</Tag>
+              <Tag>MD</Tag>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Inline edit supported · ranges validated for overlap
+                Add unlimited slabs per service · remove anytime · save to
+                persist
               </Text>
             </Space>
 
             <CommissionRangeTable
               rows={cm.filteredRows}
+              services={services}
+              servicesLoading={servicesLoading}
               selectedRowKeys={cm.selectedRowKeys}
               onSelectionChange={cm.setSelectedRowKeys}
               onRowChange={cm.updateRow}
-              onEdit={cm.setDrawerRow}
+              onAddSlab={(row) => cm.handleAddRange(row)}
               onDuplicate={cm.handleDuplicate}
               onDelete={cm.handleDelete}
-              onHistory={cm.setHistoryRow}
               loading={cm.loading}
             />
           </Card>
         </Flex>
       )}
+
+      <AddServiceModal
+        open={addServiceOpen}
+        services={services}
+        loading={servicesLoading}
+        onClose={() => setAddServiceOpen(false)}
+        onAdd={(service) => cm.handleAddCommission(service)}
+      />
 
       {showCommissionUI && (
         <>

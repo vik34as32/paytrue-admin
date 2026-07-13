@@ -11,15 +11,16 @@ import {
 import { ROUTES } from "@/constants";
 import { isAdminRole } from "@/lib/normalizeAuthRole";
 
-const SUPER_ADMIN_PUBLIC = [ROUTES.superAdminLogin];
-
+/** Super-admin-only protected prefixes (not shared admin pages) */
 const SUPER_ADMIN_PROTECTED_PREFIXES = [
   ROUTES.superAdmin,
   ROUTES.superAdminDashboard,
   ROUTES.superAdminAdmins,
   ROUTES.superAdminAddBalance,
   ROUTES.superAdminTransferBalance,
+  ROUTES.superAdminDeductBalance,
   ROUTES.superAdminWalletHistory,
+  ROUTES.superAdminWalletSummary,
   ROUTES.superAdminCreateAdmin,
   ROUTES.superAdminStatistics,
   ROUTES.superAdminRetailers,
@@ -28,6 +29,11 @@ const SUPER_ADMIN_PROTECTED_PREFIXES = [
   ROUTES.superAdminFundRequests,
   ROUTES.superAdminChangePassword,
   ROUTES.superAdminBankAccounts,
+];
+
+const SHARED_ADMIN_SUPER_ADMIN_PREFIXES = [
+  ROUTES.adminServiceMaster,
+  ROUTES.adminCommissionManagement,
 ];
 
 function hasPersistedSuperAdminSession(): boolean {
@@ -39,15 +45,28 @@ export function useSuperAdminAuthGuard() {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useAppSelector((state) => state.superAdminAuth);
+  const { isAuthenticated: isAdminAuthenticated, user } = useAppSelector(
+    (state) => state.auth
+  );
   const isRestoring = useAppSelector(selectIsAuthRestoring);
 
   useEffect(() => {
     if (isRestoring) return;
 
-    const isPublic = SUPER_ADMIN_PUBLIC.some((r) => pathname.startsWith(r));
+    const isShared = SHARED_ADMIN_SUPER_ADMIN_PREFIXES.some((r) =>
+      pathname.startsWith(r)
+    );
     const isProtected = SUPER_ADMIN_PROTECTED_PREFIXES.some((r) =>
       pathname.startsWith(r)
     );
+
+    if (isShared) {
+      const hasAdminAccess = isAdminAuthenticated && isAdminRole(user);
+      if (!isAuthenticated && !hasAdminAccess) {
+        router.replace(ROUTES.login);
+      }
+      return;
+    }
 
     if (!isAuthenticated && isProtected && pathname !== ROUTES.superAdminLogin) {
       router.replace(ROUTES.superAdminLogin);
@@ -57,7 +76,14 @@ export function useSuperAdminAuthGuard() {
     if (isAuthenticated && pathname === ROUTES.superAdminLogin) {
       router.replace(ROUTES.superAdminDashboard);
     }
-  }, [isAuthenticated, isRestoring, pathname, router]);
+  }, [
+    isAuthenticated,
+    isAdminAuthenticated,
+    user,
+    isRestoring,
+    pathname,
+    router,
+  ]);
 }
 
 export function useSuperAdminAuth() {

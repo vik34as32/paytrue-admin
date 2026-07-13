@@ -1,6 +1,9 @@
-export {
-  getWalletBalance,
-  addBalance as addVirtualBalance,
-  transferBalance as transferBalanceToAdmin,
-  getWalletHistory,
-} from "@/services/superAdminApi";
+export {
+  getWalletBalance,
+  addBalance as addVirtualBalance,
+  transferBalance as transferBalanceToAdmin,
+  deductBalance as deductBalanceFromUser,
+  getWalletHistory,
+  getTransferHistory,
+} from "@/services/superAdminApi";
+
