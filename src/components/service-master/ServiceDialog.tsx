@@ -188,7 +188,9 @@ export function ServiceDialog({
                     ? "Auto-generated from previous services"
                     : undefined)
                 }
-                InputProps={{ readOnly: mode === "create" }}
+                slotProps={{
+                  htmlInput: { readOnly: mode === "create" },
+                }}
                 {...register("code")}
               />
             </Box>
@@ -219,7 +221,9 @@ export function ServiceDialog({
                     ? "Auto-generated from previous services"
                     : undefined)
                 }
-                InputProps={{ readOnly: mode === "create" }}
+                slotProps={{
+                  htmlInput: { readOnly: mode === "create" },
+                }}
                 {...register("displayOrder", { valueAsNumber: true })}
               />
               <Controller
