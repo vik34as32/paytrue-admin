@@ -11,6 +11,7 @@ import {
   Space,
   Typography,
   Popconfirm,
+  Tag,
 } from "antd";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import {
@@ -19,6 +20,9 @@ import {
   PercentageOutlined,
   DollarOutlined,
   PlusOutlined,
+  CloudUploadOutlined,
+  CheckCircleOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import {
   CommissionRangeRow,
@@ -27,12 +31,22 @@ import {
   FintechService,
 } from "@/types/commission";
 import { COMMISSION_TYPE_OPTIONS } from "@/constants/commissionServices";
+import {
+  resolveCommissionServiceLabel,
+  toCommissionServiceSelectOptions,
+} from "@/lib/commission/serviceOptions";
+import {
+  getCommissionPersistState,
+  type CommissionPersistState,
+} from "@/lib/commission/utils";
 
 const { Text } = Typography;
 
 export interface CommissionRangeTableProps {
   rows: CommissionRangeRow[];
   services: FintechService[];
+  /** Full catalog for resolving Saved row labels (DMT · IMPS, etc.) */
+  catalog?: FintechService[];
   servicesLoading?: boolean;
   selectedRowKeys: string[];
   onSelectionChange: (keys: string[]) => void;
@@ -41,6 +55,34 @@ export interface CommissionRangeTableProps {
   onDuplicate: (row: CommissionRangeRow) => void;
   onDelete: (row: CommissionRangeRow) => void;
   loading?: boolean;
+}
+
+function PersistStateTag({ state }: { state: CommissionPersistState }) {
+  if (state === "new") {
+    return (
+      <Tooltip title="Not in database yet — click Save Changes to store">
+        <Tag color="orange" icon={<CloudUploadOutlined />}>
+          New
+        </Tag>
+      </Tooltip>
+    );
+  }
+  if (state === "edited") {
+    return (
+      <Tooltip title="Changed locally — click Save Changes to update database">
+        <Tag color="blue" icon={<EditOutlined />}>
+          Edited
+        </Tag>
+      </Tooltip>
+    );
+  }
+  return (
+    <Tooltip title="Already saved in database">
+      <Tag color="green" icon={<CheckCircleOutlined />}>
+        Saved
+      </Tag>
+    </Tooltip>
+  );
 }
 
 function ValueTypeSelect({
@@ -98,52 +140,78 @@ function CommissionValueInput({
 export function CommissionRangeTable({
   rows,
   services,
+  catalog,
   servicesLoading,
   selectedRowKeys,
   onSelectionChange,
-  onRowChange,
   onAddSlab,
   onDuplicate,
   onDelete,
+  onRowChange,
   loading,
 }: CommissionRangeTableProps) {
+  const lookup = catalog?.length ? catalog : services;
   const serviceOptions = useMemo(
-    () =>
-      services.map((service) => ({
-        value: service.id,
-        label: service.name,
-      })),
+    () => toCommissionServiceSelectOptions(services),
     [services]
   );
 
   const columns: ColumnsType<CommissionRangeRow> = useMemo(
     () => [
       {
+        title: "DB Status",
+        key: "persistState",
+        fixed: "left",
+        width: 110,
+        render: (_, record) => (
+          <PersistStateTag state={getCommissionPersistState(record)} />
+        ),
+      },
+      {
         title: "Service",
         dataIndex: "serviceName",
         fixed: "left",
-        width: 200,
-        render: (_, record) => (
-          <Select
-            showSearch
-            size="small"
-            loading={servicesLoading}
-            placeholder="Select service"
-            optionFilterProp="label"
-            value={record.serviceId || undefined}
-            options={serviceOptions}
-            onChange={(serviceId) => {
-              const service = services.find((item) => item.id === serviceId);
-              if (!service) return;
-              onRowChange({
-                ...record,
-                serviceId: service.id,
-                serviceName: service.name,
-              });
-            }}
-            style={{ width: "100%", minWidth: 160 }}
-          />
-        ),
+        width: 220,
+        render: (_, record) => {
+          const state = getCommissionPersistState(record);
+          const label = resolveCommissionServiceLabel(
+            record.serviceId,
+            record.serviceName,
+            lookup
+          );
+
+          if (state === "saved" || state === "edited") {
+            return (
+              <Tooltip title={label}>
+                <Text strong style={{ fontSize: 13, display: "block" }}>
+                  {label}
+                </Text>
+              </Tooltip>
+            );
+          }
+
+          return (
+            <Select
+              showSearch
+              size="small"
+              loading={servicesLoading}
+              placeholder="Select service"
+              optionFilterProp="label"
+              value={record.serviceId || undefined}
+              options={serviceOptions}
+              onChange={(serviceId) => {
+                const service = services.find((item) => item.id === serviceId);
+                if (!service) return;
+                onRowChange({
+                  ...record,
+                  serviceId: service.id,
+                  serviceName: service.label ?? service.name,
+                });
+              }}
+              style={{ width: "100%", minWidth: 180 }}
+            />
+          );
+        },
       },
       {
         title: "Slab Range",
@@ -227,7 +295,7 @@ export function CommissionRangeTable({
             ),
           },
           {
-            title: "Commission",
+            title: "Value",
             width: 120,
             align: "right",
             render: (_, record) => (
@@ -258,7 +326,7 @@ export function CommissionRangeTable({
             ),
           },
           {
-            title: "Commission",
+            title: "Value",
             width: 120,
             align: "right",
             render: (_, record) => (
@@ -274,7 +342,7 @@ export function CommissionRangeTable({
         ],
       },
       {
-        title: "Master Distributor (MD)",
+        title: "Master Dist (MD)",
         children: [
           {
             title: "Type",
@@ -289,7 +357,7 @@ export function CommissionRangeTable({
             ),
           },
           {
-            title: "Commission",
+            title: "Value",
             width: 120,
             align: "right",
             render: (_, record) => (
@@ -398,6 +466,7 @@ export function CommissionRangeTable({
       onDelete,
       serviceOptions,
       services,
+      lookup,
       servicesLoading,
     ]
   );
@@ -428,7 +497,13 @@ export function CommissionRangeTable({
         rowSelection={rowSelection}
         pagination={false}
         sticky
-        scroll={{ x: 1680 }}
+        scroll={{ x: 1780 }}
+        rowClassName={(record) => {
+          const state = getCommissionPersistState(record);
+          if (state === "new") return "commission-row-new";
+          if (state === "edited") return "commission-row-edited";
+          return "commission-row-saved";
+        }}
         locale={{
           emptyText: (
             <div style={{ padding: "28px 12px" }}>
@@ -436,8 +511,8 @@ export function CommissionRangeTable({
                 No commission slabs yet
               </Text>
               <Text type="secondary" style={{ fontSize: 13 }}>
-                Click “Add Service” to create the first slab, then add more
-                slabs as needed.
+                Click “Add Service” to create the first slab, then Save Changes
+                to store it in the database.
               </Text>
             </div>
           ),

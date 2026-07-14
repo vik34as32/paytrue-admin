@@ -12,6 +12,7 @@ import {
   toCommissionPayload,
   toCreateBatchBody,
 } from "@/lib/commission/apiMappers";
+import { isLocalCommissionId } from "@/lib/commission/utils";
 import { MOCK_COMMISSION_HISTORY } from "@/lib/commission/mockData";
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -159,9 +160,12 @@ export async function saveRetailerCommissions(
   retailerId: string,
   rows: CommissionRangeRow[]
 ): Promise<CommissionRangeRow[]> {
-  const newRows = rows.filter((row) => row.isNew || row.id.startsWith("comm_"));
+  const newRows = rows.filter((row) => row.isNew || isLocalCommissionId(row.id));
   const existingRows = rows.filter(
-    (row) => !row.isNew && !row.id.startsWith("comm_")
+    (row) =>
+      !row.isNew &&
+      !isLocalCommissionId(row.id) &&
+      Boolean(row.isDirty)
   );
 
   let createdRows: CommissionRangeRow[] = [];
@@ -174,5 +178,11 @@ export async function saveRetailerCommissions(
     updatedRows.push(await updateCommissionRow(row));
   }
 
-  return [...createdRows, ...updatedRows];
+  const untouched = rows.filter(
+    (row) =>
+      !newRows.some((n) => n.id === row.id) &&
+      !existingRows.some((e) => e.id === row.id)
+  );
+
+  return [...createdRows, ...updatedRows, ...untouched];
 }

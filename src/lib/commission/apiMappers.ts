@@ -1,5 +1,6 @@
 import {
   CommissionRangeRow,
+  CommissionScope,
   CommissionStatus,
   CommissionValueType,
 } from "@/types/commission";
@@ -28,6 +29,35 @@ export function toApiStatus(status: CommissionStatus): string {
   return status === "active" ? "ACTIVE" : "INACTIVE";
 }
 
+export function fromApiScope(value: unknown): CommissionScope {
+  const normalized = String(value ?? "RETAILER")
+    .toUpperCase()
+    .replace(/-/g, "_");
+  if (normalized === "GLOBAL") return "global";
+  if (normalized === "DISTRIBUTOR") return "distributor";
+  if (
+    normalized === "MASTER_DISTRIBUTOR" ||
+    normalized === "MASTERDISTRIBUTOR"
+  ) {
+    return "master_distributor";
+  }
+  return "retailer";
+}
+
+export function toApiScope(scope: CommissionScope): string {
+  switch (scope) {
+    case "global":
+      return "GLOBAL";
+    case "distributor":
+      return "DISTRIBUTOR";
+    case "master_distributor":
+      return "MASTER_DISTRIBUTOR";
+    case "retailer":
+    default:
+      return "RETAILER";
+  }
+}
+
 export function normalizeCommissionRow(
   raw: unknown,
   retailerId?: string,
@@ -36,13 +66,23 @@ export function normalizeCommissionRow(
   const obj = asRecord(raw);
   const service = asRecord(obj.service);
 
+  const serviceId = String(
+    obj.serviceId ?? service.id ?? service.serviceId ?? ""
+  );
+  const serviceName = String(
+    obj.serviceName ??
+      service.name ??
+      service.serviceName ??
+      service.code ??
+      service.serviceCode ??
+      ""
+  );
+
   return {
     id: String(obj.id ?? obj._id ?? ""),
-    serviceId: String(obj.serviceId ?? service.id ?? ""),
-    serviceName: String(
-      obj.serviceName ?? service.name ?? service.serviceName ?? ""
-    ),
-    scope: "retailer",
+    serviceId,
+    serviceName,
+    scope: fromApiScope(obj.scope),
     retailerId: String(obj.retailerId ?? retailerId ?? ""),
     retailerName: String(obj.retailerName ?? retailerName ?? "") || undefined,
     rangeFrom: Number(obj.rangeFrom ?? 0),
@@ -83,6 +123,7 @@ export function normalizeCommissionRow(
 export function toCommissionPayload(row: CommissionRangeRow) {
   return {
     serviceId: row.serviceId,
+    scope: toApiScope(row.scope || "retailer"),
     rangeFrom: row.rangeFrom,
     rangeTo: row.rangeTo,
     deductionType: toApiValueType(row.deductionType),
@@ -106,11 +147,9 @@ export function toCreateBatchBody(
   retailerId: string,
   rows: CommissionRangeRow[]
 ) {
-  const commissions = rows.map(toCommissionPayload);
   return {
     retailerId,
-    commissions,
-    items: commissions,
+    commissions: rows.map(toCommissionPayload),
   };
 }
 

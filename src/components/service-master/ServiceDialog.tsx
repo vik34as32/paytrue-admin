@@ -15,14 +15,16 @@ import {
   CircularProgress,
   Box,
   Stack,
+  FormHelperText,
 } from "@mui/material";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   serviceMasterFormSchema,
   ServiceMasterFormValues,
 } from "@/validations/serviceMaster";
 import type { ServiceMaster } from "@/types/serviceMaster";
+import { suggestCreateDefaults } from "@/lib/serviceMasterSuggestions";
 
 const NONE_PARENT = "";
 
@@ -32,6 +34,8 @@ interface ServiceDialogProps {
   serviceId?: string | null;
   initialData?: ServiceMaster | null;
   parentOptions: ServiceMaster[];
+  /** All known services used to auto-generate code / display order */
+  existingServices?: ServiceMaster[];
   isLoadingDetail?: boolean;
   isSubmitting?: boolean;
   onClose: () => void;
@@ -43,6 +47,7 @@ export function ServiceDialog({
   mode,
   initialData,
   parentOptions,
+  existingServices = [],
   isLoadingDetail,
   isSubmitting,
   onClose,
@@ -53,6 +58,7 @@ export function ServiceDialog({
     control,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<ServiceMasterFormValues>({
     resolver: zodResolver(serviceMasterFormSchema),
@@ -65,6 +71,8 @@ export function ServiceDialog({
       status: "ACTIVE",
     },
   });
+
+  const selectedParentId = useWatch({ control, name: "parentId" });
 
   useEffect(() => {
     if (!open) return;
@@ -82,23 +90,43 @@ export function ServiceDialog({
     }
 
     if (mode === "create") {
+      const defaults = suggestCreateDefaults(existingServices, null);
       reset({
         parentId: NONE_PARENT,
         name: "",
-        code: "",
+        code: defaults.code,
         description: "",
-        displayOrder: 0,
+        displayOrder: defaults.displayOrder,
         status: "ACTIVE",
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- avoid wiping typed name on services refetch
   }, [open, mode, initialData, reset]);
+
+  useEffect(() => {
+    if (!open || mode !== "create") return;
+    const parentId = selectedParentId || null;
+    const defaults = suggestCreateDefaults(existingServices, parentId);
+    setValue("code", defaults.code, { shouldValidate: true });
+    setValue("displayOrder", defaults.displayOrder, { shouldValidate: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- regenerate only when parent changes
+  }, [selectedParentId, open, mode, setValue]);
 
   const handleFormSubmit = handleSubmit(async (values) => {
     await onSubmit(values);
   });
 
+  const parentsForSelect = parentOptions.filter(
+    (service) => !service.parentId && service.id !== initialData?.id
+  );
+
   return (
-    <Dialog open={open} onClose={isSubmitting ? undefined : onClose} maxWidth="sm" fullWidth>
+    <Dialog
+      open={open}
+      onClose={isSubmitting ? undefined : onClose}
+      maxWidth="sm"
+      fullWidth
+    >
       <DialogTitle sx={{ fontWeight: 700 }}>
         {mode === "create" ? "Add Service" : "Edit Service"}
       </DialogTitle>
@@ -121,14 +149,16 @@ export function ServiceDialog({
                     onChange={(e) => field.onChange(e.target.value)}
                   >
                     <MenuItem value={NONE_PARENT}>None (Main Service)</MenuItem>
-                    {parentOptions
-                      .filter((p) => p.id !== initialData?.id)
-                      .map((service) => (
-                        <MenuItem key={service.id} value={service.id}>
-                          {service.name}
-                        </MenuItem>
-                      ))}
+                    {parentsForSelect.map((service) => (
+                      <MenuItem key={service.id} value={service.id}>
+                        {service.name}
+                        {service.code ? ` (${service.code})` : ""}
+                      </MenuItem>
+                    ))}
                   </Select>
+                  <FormHelperText>
+                    Only root services (parent = null) are listed
+                  </FormHelperText>
                 </FormControl>
               )}
             />
@@ -152,7 +182,13 @@ export function ServiceDialog({
                 label="Service Code"
                 required
                 error={!!errors.code}
-                helperText={errors.code?.message}
+                helperText={
+                  errors.code?.message ||
+                  (mode === "create"
+                    ? "Auto-generated from previous services"
+                    : undefined)
+                }
+                InputProps={{ readOnly: mode === "create" }}
                 {...register("code")}
               />
             </Box>
@@ -177,7 +213,13 @@ export function ServiceDialog({
                 label="Display Order"
                 type="number"
                 error={!!errors.displayOrder}
-                helperText={errors.displayOrder?.message}
+                helperText={
+                  errors.displayOrder?.message ||
+                  (mode === "create"
+                    ? "Auto-generated from previous services"
+                    : undefined)
+                }
+                InputProps={{ readOnly: mode === "create" }}
                 {...register("displayOrder", { valueAsNumber: true })}
               />
               <Controller
@@ -186,7 +228,11 @@ export function ServiceDialog({
                 render={({ field }) => (
                   <FormControl fullWidth>
                     <InputLabel>Status</InputLabel>
-                    <Select label="Status" value={field.value} onChange={field.onChange}>
+                    <Select
+                      label="Status"
+                      value={field.value}
+                      onChange={field.onChange}
+                    >
                       <MenuItem value="ACTIVE">ACTIVE</MenuItem>
                       <MenuItem value="INACTIVE">INACTIVE</MenuItem>
                     </Select>
@@ -206,7 +252,9 @@ export function ServiceDialog({
           onClick={handleFormSubmit}
           disabled={isSubmitting || isLoadingDetail}
           startIcon={
-            isSubmitting ? <CircularProgress size={16} color="inherit" /> : undefined
+            isSubmitting ? (
+              <CircularProgress size={16} color="inherit" />
+            ) : undefined
           }
         >
           Save

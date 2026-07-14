@@ -9,7 +9,14 @@ import {
   FintechService,
 } from "@/types/commission";
 import { validateCommissionRow } from "@/lib/commission/validation";
-import { createRowId, downloadJson } from "@/lib/commission/utils";
+import {
+  createRowId,
+  downloadJson,
+  getCommissionPersistState,
+  isLocalCommissionId,
+  nextRangeFromForService,
+} from "@/lib/commission/utils";
+import { resolveCommissionServiceLabel } from "@/lib/commission/serviceOptions";
 import {
   bulkUpdateCommissions,
   copyCommissions,
@@ -28,17 +35,19 @@ export interface CommissionRetailerOption {
 function defaultRow(
   service: FintechService | undefined,
   retailerId: string,
-  retailerName?: string
+  retailerName?: string,
+  rangeFrom = 1,
+  rangeTo = 1000
 ): CommissionRangeRow {
   return {
     id: createRowId(),
     serviceId: service?.id ?? "",
-    serviceName: service?.name ?? "",
+    serviceName: service?.label ?? service?.name ?? "",
     scope: "retailer",
     retailerId,
     retailerName,
-    rangeFrom: 1,
-    rangeTo: 1000,
+    rangeFrom,
+    rangeTo: Math.max(rangeTo, rangeFrom),
     deductionType: "flat",
     deductionValue: 0,
     retailerCommissionType: "flat",
@@ -52,13 +61,15 @@ function defaultRow(
     priority: 1,
     status: "active",
     isNew: true,
+    isDirty: false,
   };
 }
 
 export function useCommissionManagement(
   selectedRetailerId: string | null,
   selectedRetailer: CommissionRetailerOption | undefined,
-  services: FintechService[]
+  services: FintechService[],
+  serviceCatalog: FintechService[] = services
 ) {
   const { message } = App.useApp();
   const [rows, setRows] = useState<CommissionRangeRow[]>([]);
@@ -82,7 +93,21 @@ export function useCommissionManagement(
         selectedRetailerId,
         selectedRetailer?.name
       );
-      setRows(data);
+      const catalog = serviceCatalog.length ? serviceCatalog : services;
+      const enriched = data.map((row) => {
+        const label = resolveCommissionServiceLabel(
+          row.serviceId,
+          row.serviceName,
+          catalog
+        );
+        return {
+          ...row,
+          serviceName: label,
+          isNew: false,
+          isDirty: false,
+        };
+      });
+      setRows(enriched);
       setHasUnsavedChanges(false);
       setSelectedRowKeys([]);
     } catch (error) {
@@ -93,7 +118,13 @@ export function useCommissionManagement(
     } finally {
       setLoading(false);
     }
-  }, [message, selectedRetailer?.name, selectedRetailerId]);
+  }, [
+    message,
+    selectedRetailer?.name,
+    selectedRetailerId,
+    serviceCatalog,
+    services,
+  ]);
 
   useEffect(() => {
     void loadCommissions();
@@ -104,23 +135,43 @@ export function useCommissionManagement(
     return rows.filter((row) => row.retailerId === selectedRetailerId);
   }, [rows, selectedRetailerId]);
 
+  const savedCount = useMemo(
+    () =>
+      filteredRows.filter((row) => getCommissionPersistState(row) === "saved")
+        .length,
+    [filteredRows]
+  );
+  const newCount = useMemo(
+    () =>
+      filteredRows.filter((row) => getCommissionPersistState(row) === "new")
+        .length,
+    [filteredRows]
+  );
+  const editedCount = useMemo(
+    () =>
+      filteredRows.filter((row) => getCommissionPersistState(row) === "edited")
+        .length,
+    [filteredRows]
+  );
+
   const updateRow = useCallback(
     (updated: CommissionRangeRow) => {
+      const next: CommissionRangeRow = {
+        ...updated,
+        updatedAt: new Date().toISOString(),
+        isDirty:
+          !updated.isNew && !isLocalCommissionId(updated.id)
+            ? true
+            : updated.isDirty,
+      };
       const error = validateCommissionRow(
-        updated,
-        rows.map((r) => (r.id === updated.id ? updated : r))
+        next,
+        rows.map((r) => (r.id === next.id ? next : r))
       );
       if (error) {
         message.warning(error);
-        return;
       }
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === updated.id
-            ? { ...updated, updatedAt: new Date().toISOString() }
-            : r
-        )
-      );
+      setRows((prev) => prev.map((r) => (r.id === next.id ? next : r)));
       setHasUnsavedChanges(true);
     },
     [rows, message]
@@ -133,14 +184,31 @@ export function useCommissionManagement(
       message.warning("No active services found. Add services in Service Master.");
       return;
     }
+
+    const rangeFrom = nextRangeFromForService(
+      filteredRows,
+      selectedService.id,
+      selectedRetailerId
+    );
+    const rangeTo = rangeFrom + 999;
+    const existingForService = filteredRows.some(
+      (row) => row.serviceId === selectedService.id
+    );
+
     const row = defaultRow(
       selectedService,
       selectedRetailerId,
-      selectedRetailer?.name
+      selectedRetailer?.name,
+      rangeFrom,
+      rangeTo
     );
     setRows((prev) => [row, ...prev]);
     setHasUnsavedChanges(true);
-    message.success(`Commission slab added for ${selectedService.name}`);
+    message.success(
+      existingForService
+        ? `New slab for ${selectedService.name} (${rangeFrom}–${rangeTo}) — not saved yet`
+        : `${selectedService.name} added — click Save Changes to store in database`
+    );
   };
 
   const handleAddRange = (forRow?: CommissionRangeRow) => {
@@ -195,6 +263,7 @@ export function useCommissionManagement(
       rangeTo: row.rangeTo + 5000,
       priority: row.priority + 1,
       isNew: true,
+      isDirty: false,
     };
     setRows((prev) => [...prev, copy]);
     setHasUnsavedChanges(true);
@@ -225,24 +294,49 @@ export function useCommissionManagement(
     for (const row of filteredRows) {
       const error = validateCommissionRow(row, filteredRows);
       if (error) {
-        message.error(`${row.serviceName}: ${error}`);
+        message.error(`${row.serviceName || "Slab"}: ${error}`);
         return;
       }
     }
 
+    const pendingNew = filteredRows.filter(
+      (row) => getCommissionPersistState(row) === "new"
+    );
+    const pendingEdited = filteredRows.filter(
+      (row) => getCommissionPersistState(row) === "edited"
+    );
+
+    if (!pendingNew.length && !pendingEdited.length) {
+      message.info("Nothing to save — all slabs are already in the database");
+      return;
+    }
+
     setSaving(true);
     try {
-      const saved = await saveRetailerCommissions(
-        selectedRetailerId,
-        filteredRows
-      );
-      setRows(saved);
+      await saveRetailerCommissions(selectedRetailerId, filteredRows);
       setHasUnsavedChanges(false);
-      message.success("Commission slabs saved successfully");
+      message.success(
+        [
+          pendingNew.length
+            ? `${pendingNew.length} new slab(s) saved to database`
+            : null,
+          pendingEdited.length
+            ? `${pendingEdited.length} edited slab(s) updated`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      );
       await loadCommissions();
     } catch (error) {
+      const raw =
+        error instanceof Error ? error.message : "Failed to save commissions";
+      const isConflict =
+        /overlap|conflict/i.test(raw) || raw.includes("CONFLICT");
       message.error(
-        error instanceof Error ? error.message : "Failed to save commissions"
+        isConflict
+          ? `${raw}. Same service slabs cannot share or overlap amounts (e.g. 1–1000 and 1000–3000 conflict at 1000). Use the next From after the saved To.`
+          : raw
       );
     } finally {
       setSaving(false);
@@ -373,5 +467,8 @@ export function useCommissionManagement(
     reload: loadCommissions,
     totalSlabs: filteredRows.length,
     activeSlabs: filteredRows.filter((r) => r.status === "active").length,
+    savedCount,
+    newCount,
+    editedCount,
   };
 }

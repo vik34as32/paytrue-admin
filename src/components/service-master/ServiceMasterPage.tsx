@@ -25,6 +25,10 @@ import {
   useServiceTree,
 } from "@/hooks/service-master/useServiceMaster";
 import { computeServiceSummary } from "@/services/serviceMasterApi";
+import {
+  flattenServices,
+  getParentServices,
+} from "@/lib/serviceMasterSuggestions";
 import type { ServiceMaster, ServiceStatus } from "@/types/serviceMaster";
 import type { ServiceMasterFormValues } from "@/validations/serviceMaster";
 
@@ -33,13 +37,6 @@ const EMPTY_FILTERS: ServiceFiltersValue = {
   status: "ALL",
   parentId: "",
 };
-
-function flattenTree(nodes: ServiceMaster[]): ServiceMaster[] {
-  return nodes.flatMap((node) => [
-    node,
-    ...flattenTree(node.children || []),
-  ]);
-}
 
 function toPayload(values: ServiceMasterFormValues) {
   return {
@@ -90,13 +87,24 @@ export function ServiceMasterPage() {
   const { data: activeServices = [], isLoading: isLoadingParents } =
     useActiveServices();
 
+  const existingServices = useMemo(() => {
+    const fromTree = flattenServices(treeData);
+    if (fromTree.length) return fromTree;
+    const merged = [
+      ...(listData?.data || []),
+      ...activeServices,
+    ];
+    const byId = new Map(merged.map((service) => [service.id, service]));
+    return Array.from(byId.values());
+  }, [treeData, listData?.data, activeServices]);
+
   const parentFilterOptions = useMemo(
-    () => activeServices.filter((service) => service.type === "MAIN"),
+    () => getParentServices(activeServices),
     [activeServices]
   );
 
   const parentFormOptions = useMemo(
-    () => activeServices.filter((service) => service.type === "MAIN"),
+    () => getParentServices(activeServices),
     [activeServices]
   );
 
@@ -118,7 +126,7 @@ export function ServiceMasterPage() {
   } = useServiceMasterMutations();
 
   const summaryStats = useMemo(() => {
-    const flat = flattenTree(treeData);
+    const flat = flattenServices(treeData);
     if (flat.length) return computeServiceSummary(flat);
     return computeServiceSummary(listData?.data || []);
   }, [treeData, listData?.data]);
@@ -275,6 +283,7 @@ export function ServiceMasterPage() {
         serviceId={editingService?.id}
         initialData={dialogMode === "edit" ? editDetail ?? editingService : null}
         parentOptions={parentFormOptions}
+        existingServices={existingServices}
         isLoadingDetail={dialogMode === "edit" && isEditLoading}
         isSubmitting={createMutation.isPending || updateMutation.isPending}
         onClose={() => setDialogOpen(false)}

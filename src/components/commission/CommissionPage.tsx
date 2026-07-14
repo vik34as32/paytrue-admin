@@ -36,6 +36,7 @@ import { BulkUpdateModal } from "@/components/commission/BulkUpdateModal";
 import { CopyCommissionModal } from "@/components/commission/CopyCommissionModal";
 import { useCommissionManagement } from "@/hooks/useCommissionManagement";
 import { useCommissionServices } from "@/hooks/useCommissionServices";
+import { toCommissionServiceSelectOptions } from "@/lib/commission/serviceOptions";
 import { useCommissionRetailers } from "@/hooks/useCommissionRetailers";
 import {
   getPublicNetworkUserLabel,
@@ -230,8 +231,8 @@ function AddServiceModal({
       destroyOnClose
     >
       <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
-        Choose a service to create the first slab. You can add more slabs for
-        the same service afterwards.
+        DMT / AEPS: choose a sub-service (e.g. DMT · IMPS). Parent-only DMT/AEPS
+        is hidden when sub-services exist. UPI ATM shows as a single service.
       </Text>
       <Select
         showSearch
@@ -242,10 +243,7 @@ function AddServiceModal({
         size="large"
         value={serviceId}
         onChange={setServiceId}
-        options={services.map((service) => ({
-          value: service.id,
-          label: service.name,
-        }))}
+        options={toCommissionServiceSelectOptions(services)}
       />
     </Modal>
   );
@@ -264,7 +262,7 @@ function CommissionPageContent() {
     reload: reloadRetailers,
   } = useCommissionRetailers();
 
-  const { services, loading: servicesLoading, error: servicesError } =
+  const { services, catalog, loading: servicesLoading, error: servicesError } =
     useCommissionServices();
 
   const selectedRetailer = useMemo(
@@ -287,7 +285,8 @@ function CommissionPageContent() {
   const cm = useCommissionManagement(
     selectedRetailerId,
     retailerOption,
-    services
+    services,
+    catalog
   );
 
   const showCommissionUI = selectedRetailerId !== null;
@@ -357,9 +356,11 @@ function CommissionPageContent() {
                   <Tag style={{ margin: 0 }}>{selectedRetailer.id}</Tag>
                 ) : null}
                 {cm.hasUnsavedChanges ? (
-                  <Tag color="orange">Unsaved changes</Tag>
+                  <Tag color="orange">
+                    {cm.newCount + cm.editedCount} pending save
+                  </Tag>
                 ) : (
-                  <Tag color="green">Saved</Tag>
+                  <Tag color="green">All synced with DB</Tag>
                 )}
               </Space>
               <Space wrap>
@@ -375,8 +376,11 @@ function CommissionPageContent() {
                   icon={<SaveOutlined />}
                   onClick={() => void cm.handleSaveAll()}
                   loading={cm.saving}
+                  disabled={!cm.hasUnsavedChanges}
                 >
-                  Save Changes
+                  {cm.newCount > 0
+                    ? `Save New (${cm.newCount})`
+                    : "Save Changes"}
                 </Button>
               </Space>
             </Flex>
@@ -391,6 +395,36 @@ function CommissionPageContent() {
             />
           ) : null}
 
+          {cm.newCount > 0 || cm.editedCount > 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              message="How to read this sheet"
+              description={
+                <Space direction="vertical" size={4}>
+                  <Text>
+                    <Tag color="green">Saved</Tag> already in database — no
+                    need to save again.
+                  </Text>
+                  <Text>
+                    <Tag color="orange">New</Tag> only on this screen — click{" "}
+                    <strong>Save New</strong> to write to database.
+                  </Text>
+                  {cm.editedCount > 0 ? (
+                    <Text>
+                      <Tag color="blue">Edited</Tag> saved slab changed locally
+                      — Save will update database.
+                    </Text>
+                  ) : null}
+                  <Text type="secondary">
+                    Same service ranges cannot overlap (1–1000 and 1000–3000
+                    conflict at 1000). Use the next From after the previous To.
+                  </Text>
+                </Space>
+              }
+            />
+          ) : null}
+
           <Card
             style={{ borderRadius: 16 }}
             styles={{ body: { padding: "16px 20px" } }}
@@ -398,14 +432,19 @@ function CommissionPageContent() {
             <Flex justify="space-between" align="center" wrap="wrap" gap={16}>
               <Space size={28} wrap>
                 <Statistic
-                  title="Total Slabs"
-                  value={cm.totalSlabs}
-                  valueStyle={{ fontSize: 22, color: "#4318FF" }}
+                  title="In Database"
+                  value={cm.savedCount}
+                  valueStyle={{ fontSize: 22, color: "#05CD99" }}
                 />
                 <Statistic
-                  title="Active"
-                  value={cm.activeSlabs}
-                  valueStyle={{ fontSize: 22, color: "#05CD99" }}
+                  title="New (unsaved)"
+                  value={cm.newCount}
+                  valueStyle={{ fontSize: 22, color: "#FA8C16" }}
+                />
+                <Statistic
+                  title="Edited"
+                  value={cm.editedCount}
+                  valueStyle={{ fontSize: 22, color: "#1677FF" }}
                 />
                 <Statistic
                   title="Services Available"
@@ -460,18 +499,18 @@ function CommissionPageContent() {
               <Title level={5} style={{ margin: 0 }}>
                 Commission Slabs
               </Title>
-              <Tag>RT</Tag>
-              <Tag>DD</Tag>
-              <Tag>MD</Tag>
+              <Tag color="green">Saved = DB</Tag>
+              <Tag color="orange">New = need Save</Tag>
+              <Tag color="blue">Edited = need Save</Tag>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                Add unlimited slabs per service · remove anytime · save to
-                persist
+                Orange rows are not in database until you click Save
               </Text>
             </Space>
 
             <CommissionRangeTable
               rows={cm.filteredRows}
               services={services}
+              catalog={catalog}
               servicesLoading={servicesLoading}
               selectedRowKeys={cm.selectedRowKeys}
               onSelectionChange={cm.setSelectedRowKeys}
@@ -499,6 +538,8 @@ function CommissionPageContent() {
             open={!!cm.drawerRow}
             row={cm.drawerRow}
             scope="retailer"
+            services={services}
+            catalog={catalog}
             onClose={() => cm.setDrawerRow(null)}
             onSave={cm.handleSaveDrawer}
           />

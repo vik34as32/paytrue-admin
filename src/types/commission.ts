@@ -35,6 +35,8 @@ export interface CommissionRangeRow {
   status: CommissionStatus;
   updatedAt?: string;
   isNew?: boolean;
+  /** Local edits on an already-persisted slab (needs Save). */
+  isDirty?: boolean;
 }
 
 export interface CommissionFiltersValue {
@@ -77,4 +79,10 @@ export interface FintechService {
   name: string;
   code: string;
   category?: string;
+  parentId?: string | null;
+  parentName?: string | null;
+  /** OptGroup label in select dropdowns */
+  group?: string;
+  /** Display label (e.g. "DMT · IMPS") */
+  label?: string;
 }

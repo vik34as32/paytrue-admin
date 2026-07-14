@@ -17,16 +17,13 @@ import {
   CommissionScope,
   CommissionStatus,
   CommissionValueType,
+  FintechService,
 } from "@/types/commission";
+import { COMMISSION_TYPE_OPTIONS } from "@/constants/commissionServices";
 import {
-  COMMISSION_TYPE_OPTIONS,
-  FINTECH_SERVICES,
-} from "@/constants/commissionServices";
-import {
-  MOCK_DISTRIBUTORS,
-  MOCK_MASTER_DISTRIBUTORS,
-  MOCK_RETAILERS,
-} from "@/lib/commission/mockData";
+  resolveCommissionServiceLabel,
+  toCommissionServiceSelectOptions,
+} from "@/lib/commission/serviceOptions";
 
 const { Title, Text } = Typography;
 
@@ -34,6 +31,8 @@ export interface CommissionDrawerProps {
   open: boolean;
   row: CommissionRangeRow | null;
   scope: CommissionScope;
+  services?: FintechService[];
+  catalog?: FintechService[];
   onClose: () => void;
   onSave: (row: CommissionRangeRow) => void;
 }
@@ -42,10 +41,13 @@ export function CommissionDrawer({
   open,
   row,
   scope,
+  services = [],
+  catalog,
   onClose,
   onSave,
 }: CommissionDrawerProps) {
   const [form] = Form.useForm<CommissionRangeRow>();
+  const lookup = catalog?.length ? catalog : services;
 
   useEffect(() => {
     if (row && open) {
@@ -57,11 +59,19 @@ export function CommissionDrawer({
 
   const handleFinish = (values: CommissionRangeRow) => {
     if (!row) return;
-    const service = FINTECH_SERVICES.find((s) => s.id === values.serviceId);
+    const service = services.find((s) => s.id === values.serviceId);
+    const serviceName =
+      service?.label ??
+      service?.name ??
+      resolveCommissionServiceLabel(
+        values.serviceId,
+        row.serviceName,
+        lookup
+      );
     onSave({
       ...row,
       ...values,
-      serviceName: service?.name ?? row.serviceName,
+      serviceName,
       scope,
     });
     onClose();
@@ -96,10 +106,7 @@ export function CommissionDrawer({
             <Select
               showSearch
               optionFilterProp="label"
-              options={FINTECH_SERVICES.map((s) => ({
-                value: s.id,
-                label: s.name,
-              }))}
+              options={toCommissionServiceSelectOptions(services)}
             />
           </Form.Item>
           <Space style={{ width: "100%" }} size={12}>
@@ -121,36 +128,11 @@ export function CommissionDrawer({
             </Form.Item>
           </Space>
 
-          {scope === "retailer" && (
-            <Form.Item name="retailerId" label="Retailer">
-              <Select
-                options={MOCK_RETAILERS.map((r) => ({
-                  value: r.id,
-                  label: r.name,
-                }))}
-              />
+          {scope === "retailer" && row.retailerName ? (
+            <Form.Item label="Retailer">
+              <Text>{row.retailerName}</Text>
             </Form.Item>
-          )}
-          {scope === "distributor" && (
-            <Form.Item name="distributorId" label="Distributor">
-              <Select
-                options={MOCK_DISTRIBUTORS.map((d) => ({
-                  value: d.id,
-                  label: d.name,
-                }))}
-              />
-            </Form.Item>
-          )}
-          {scope === "master_distributor" && (
-            <Form.Item name="masterDistributorId" label="Master Distributor">
-              <Select
-                options={MOCK_MASTER_DISTRIBUTORS.map((m) => ({
-                  value: m.id,
-                  label: m.name,
-                }))}
-              />
-            </Form.Item>
-          )}
+          ) : null}
 
           <Divider />
           <Title level={5}>Deduction</Title>

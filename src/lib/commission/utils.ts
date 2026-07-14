@@ -1,5 +1,7 @@
-import { CommissionValueType } from "@/types/commission";
+import { CommissionRangeRow, CommissionValueType } from "@/types/commission";
 import { FINTECH_SERVICES } from "@/constants/commissionServices";
+
+export type CommissionPersistState = "saved" | "new" | "edited";
 
 export function formatCommissionValue(
   type: CommissionValueType,
@@ -18,7 +20,30 @@ export function createRowId(): string {
 }
 
 export function isLocalCommissionId(id: string): boolean {
-  return id.startsWith("comm_");
+  return !id || id.startsWith("comm_");
+}
+
+export function getCommissionPersistState(
+  row: CommissionRangeRow
+): CommissionPersistState {
+  if (row.isNew || isLocalCommissionId(row.id)) return "new";
+  if (row.isDirty) return "edited";
+  return "saved";
+}
+
+/** Next non-overlapping range start (inclusive ranges cannot share endpoints). */
+export function nextRangeFromForService(
+  rows: CommissionRangeRow[],
+  serviceId: string,
+  retailerId?: string
+): number {
+  const peers = rows.filter(
+    (row) =>
+      row.serviceId === serviceId &&
+      (!retailerId || row.retailerId === retailerId)
+  );
+  if (!peers.length) return 1;
+  return Math.max(...peers.map((row) => row.rangeTo), 0) + 1;
 }
 
 export function downloadJson(filename: string, data: unknown): void {

@@ -49,7 +49,10 @@ export function findRangeOverlap(
     if (
       rangesOverlap(row.rangeFrom, row.rangeTo, peer.rangeFrom, peer.rangeTo)
     ) {
-      return `Range overlaps with existing slab (${peer.rangeFrom}–${peer.rangeTo})`;
+      const peerLabel = peer.isNew
+        ? "another new slab"
+        : "a saved slab in database";
+      return `Range ${row.rangeFrom}–${row.rangeTo} overlaps ${peerLabel} (${peer.rangeFrom}–${peer.rangeTo}). Use non-overlapping ranges (e.g. next From = ${peer.rangeTo + 1}).`;
     }
   }
 
