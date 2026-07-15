@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Card } from "@/components/common/Card";
 import { Button } from "@/components/common/Button";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -11,80 +12,194 @@ import {
   AdminListFiltersValue,
 } from "@/components/admin/AdminListFilters";
 import {
-  NetworkUserCrudModals,
-  useNetworkUserTableColumns,
-} from "@/components/super-admin/NetworkUserCrudModals";
-import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
+  AdminUserCrudModals,
+  useAdminUserTableColumns,
+} from "@/components/admin/AdminUserCrudModals";
 import { clearUserFormDraft } from "@/lib/userFormDraftStorage";
-import { AdminListQueryParams } from "@/types/admin";
+import {
+  ADMIN_NETWORK_USER_KIND_LABEL,
+  exportNetworkUsersToCsv,
+  exportNetworkUsersToExcel,
+  openNetworkUsersStatement,
+} from "@/lib/networkUserExport";
+import {
+  AdminManagedUserRole,
+  listAdminUsers,
+  listAllAdminUsers,
+  mapAdminListFiltersToUsersParams,
+} from "@/services/adminUsersApi";
 import { NetworkUserRecord } from "@/types/superAdmin";
-import { RootState } from "@/store";
-import { UserPlus } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Printer,
+  UserPlus,
+} from "lucide-react";
 
 const PAGE_SIZE = 10;
-
-type ListState = {
-  data: NetworkUserRecord[];
-  total: number;
-  isLoading: boolean;
-  error: string | null;
-};
 
 interface AdminNetworkUsersViewProps {
   title: string;
   subtitle: string;
   searchPlaceholder: string;
+  userKind: AdminManagedUserRole;
   createHref?: string;
   createLabel?: string;
-  draftUserType?: "MASTER_DISTRIBUTOR" | "DISTRIBUTOR" | "RETAILER";
-  selectList: (state: RootState) => ListState;
-  fetchList: (
-    params: AdminListQueryParams
-  ) => // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any;
 }
 
 export function AdminNetworkUsersView({
   title,
   subtitle,
   searchPlaceholder,
+  userKind,
   createHref,
   createLabel,
-  draftUserType,
-  selectList,
-  fetchList,
 }: AdminNetworkUsersViewProps) {
-  const dispatch = useAppDispatch();
-  const { data, total, isLoading, error } = useAppSelector(selectList);
+  const [data, setData] = useState<NetworkUserRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [search, setSearch] = useState("");
+  const [exportLoading, setExportLoading] = useState(false);
   const [filters, setFilters] = useState<AdminListFiltersValue>({
     sortBy: "createdAt",
     sortOrder: "desc",
   });
 
-  const loadData = useCallback(() => {
-    void dispatch(
-      fetchList({
+  const queryParams = useMemo(
+    () =>
+      mapAdminListFiltersToUsersParams(
+        {
+          search: search || undefined,
+          status: filters.status,
+          sortBy: filters.sortBy,
+          sortOrder: filters.sortOrder,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        },
+        userKind
+      ),
+    [search, filters, userKind]
+  );
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await listAdminUsers({
+        ...queryParams,
         page: pageIndex + 1,
         pageSize: PAGE_SIZE,
-        search: search || undefined,
-        status: filters.status,
-        sortBy: filters.sortBy,
-        sortOrder: filters.sortOrder,
-        startDate: filters.startDate,
-        endDate: filters.endDate,
-      })
-    );
-  }, [dispatch, fetchList, pageIndex, search, filters]);
+      });
+      setData(result.data);
+      setTotal(result.total ?? result.data.length);
+    } catch (err) {
+      setData([]);
+      setTotal(0);
+      setError(err instanceof Error ? err.message : "Failed to load users");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [queryParams, pageIndex]);
 
-  const { columns, crud } = useNetworkUserTableColumns(loadData);
+  const { columns, crud } = useAdminUserTableColumns(userKind, () => {
+    void loadData();
+  });
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
-  const tableData = useMemo(() => data, [data]);
+  const buildFilename = () => {
+    const slug = ADMIN_NETWORK_USER_KIND_LABEL[userKind]
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+    return `paytrue-${slug}-${new Date().toISOString().slice(0, 10)}`;
+  };
+
+  const loadExportUsers = async () => {
+    const users = await listAllAdminUsers(queryParams);
+    if (!users.length) {
+      toast.error("No records available to export");
+      return null;
+    }
+    return users;
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      setExportLoading(true);
+      const users = await loadExportUsers();
+      if (!users) return;
+      exportNetworkUsersToCsv(users, buildFilename());
+      toast.success(`CSV downloaded (${users.length} records)`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "CSV export failed");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportLoading(true);
+      const users = await loadExportUsers();
+      if (!users) return;
+      await exportNetworkUsersToExcel({
+        users,
+        kind: userKind,
+        filename: buildFilename(),
+        filters: {
+          search: queryParams.search,
+          status: queryParams.status,
+          startDate: queryParams.fromDate,
+          endDate: queryParams.toDate,
+        },
+      });
+      toast.success(
+        `Excel downloaded with PayTrue branding (${users.length} records)`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Excel export failed");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handlePrintOrPdf = async (mode: "print" | "pdf") => {
+    try {
+      setExportLoading(true);
+      const users = await loadExportUsers();
+      if (!users) return;
+      const result = openNetworkUsersStatement({
+        users,
+        kind: userKind,
+        search: queryParams.search,
+        status: queryParams.status,
+        startDate: queryParams.fromDate,
+        endDate: queryParams.toDate,
+      });
+      if (result.mode === "download") {
+        toast.success(
+          "Pop-up blocked — statement HTML downloaded. Open it and use Print → Save as PDF."
+        );
+        return;
+      }
+      toast.success(
+        mode === "pdf"
+          ? `PDF view opened (${users.length} records) — Print → Save as PDF`
+          : `Print dialog opened (${users.length} records)`
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to open print/PDF view"
+      );
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   return (
     <div className="page-container">
@@ -93,19 +208,56 @@ export function AdminNetworkUsersView({
         title={title}
         subtitle={subtitle}
         action={
-          createHref && createLabel ? (
-            <Link
-              href={createHref}
-              onClick={() => {
-                if (draftUserType) clearUserFormDraft(draftUserType);
-              }}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exportLoading || isLoading}
+              onClick={() => void handleExportCsv()}
             >
-              <Button>
-                <UserPlus className="h-4 w-4" />
-                {createLabel}
-              </Button>
-            </Link>
-          ) : undefined
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exportLoading || isLoading}
+              onClick={() => void handleExportExcel()}
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exportLoading || isLoading}
+              onClick={() => void handlePrintOrPdf("pdf")}
+            >
+              <FileText className="h-4 w-4" />
+              PDF
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={exportLoading || isLoading}
+              isLoading={exportLoading}
+              onClick={() => void handlePrintOrPdf("print")}
+            >
+              <Printer className="h-4 w-4" />
+              Print
+            </Button>
+            {createHref && createLabel ? (
+              <Link
+                href={createHref}
+                onClick={() => clearUserFormDraft(userKind)}
+              >
+                <Button>
+                  <UserPlus className="h-4 w-4" />
+                  {createLabel}
+                </Button>
+              </Link>
+            ) : null}
+          </div>
         }
       />
 
@@ -126,12 +278,12 @@ export function AdminNetworkUsersView({
           showDateRange
         />
         <p className="mb-3 text-xs text-muted">
-          Search works across name, phone and email. Use start/end date and
-          sort to refine results. View / Edit / Delete are available on each
-          row.
+          Powered by <code>/api/v1/admin/users</code> — search name / email /
+          phone, sort, date range, View / Edit / Delete. Export pulls every
+          matching record (e.g. 1000+), not only the current page.
         </p>
         <DataTable
-          data={tableData}
+          data={data}
           columns={columns}
           isLoading={isLoading}
           searchPlaceholder={searchPlaceholder}
@@ -144,10 +296,11 @@ export function AdminNetworkUsersView({
           pageIndex={pageIndex}
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}
+          tone="network"
         />
       </Card>
 
-      <NetworkUserCrudModals crud={crud} />
+      <AdminUserCrudModals crud={crud} />
     </div>
   );
 }

@@ -22,6 +22,18 @@ function readNestedCode(value: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
+function pickStr(
+  source: Record<string, unknown> | undefined,
+  ...keys: string[]
+): string | undefined {
+  if (!source) return undefined;
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
 export function normalizeUserDetail(raw: unknown): UserDetailRecord {
   if (!raw || typeof raw !== "object") {
     return { id: "" };
@@ -38,11 +50,111 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     obj.outlet && typeof obj.outlet === "object"
       ? (obj.outlet as ApiUserRecord["outlet"])
       : undefined;
-  const kyc =
+  const kycRaw =
     obj.kyc && typeof obj.kyc === "object"
-      ? (obj.kyc as ApiUserRecord["kyc"] & {
+      ? (obj.kyc as Record<string, unknown>)
+      : undefined;
+
+  const aadhaarNumber =
+    pickStr(kycRaw, "aadhaarNumber", "aadhaar", "aadhaar_number") ||
+    pickStr(obj, "aadhaarNumber", "aadhaar", "aadhaar_number");
+  const panNumber =
+    pickStr(kycRaw, "panNumber", "pan", "pan_number") ||
+    pickStr(obj, "panNumber", "pan", "pan_number");
+
+  const aadhaarFrontImage =
+    pickStr(
+      kycRaw,
+      "aadhaarFrontUrl",
+      "aadhaarFrontImage",
+      "aadhaarFront",
+      "aadhaar_front",
+      "aadhaar_front_image",
+      "aadhaar_front_url"
+    ) ||
+    pickStr(
+      obj,
+      "aadhaarFrontUrl",
+      "aadhaarFrontImage",
+      "aadhaarFront",
+      "aadhaar_front_url"
+    );
+  const aadhaarBackImage =
+    pickStr(
+      kycRaw,
+      "aadhaarBackUrl",
+      "aadhaarBackImage",
+      "aadhaarBack",
+      "aadhaar_back",
+      "aadhaar_back_image",
+      "aadhaar_back_url"
+    ) ||
+    pickStr(
+      obj,
+      "aadhaarBackUrl",
+      "aadhaarBackImage",
+      "aadhaarBack",
+      "aadhaar_back_url"
+    );
+  const panCardImage =
+    pickStr(
+      kycRaw,
+      "panCardUrl",
+      "panCardImage",
+      "panCard",
+      "pan_card",
+      "pan_card_image",
+      "pan_card_url"
+    ) ||
+    pickStr(obj, "panCardUrl", "panCardImage", "panCard", "pan_card_url");
+  const ownerPhoto =
+    pickStr(
+      kycRaw,
+      "ownerPhotoUrl",
+      "ownerPhoto",
+      "owner_photo",
+      "owner_photo_url"
+    ) || pickStr(obj, "ownerPhotoUrl", "ownerPhoto", "owner_photo_url");
+  const videoVerification =
+    pickStr(
+      kycRaw,
+      "videoVerificationUrl",
+      "videoVerification",
+      "video_verification",
+      "video_verification_url"
+    ) ||
+    pickStr(obj, "videoVerificationUrl", "videoVerification");
+
+  const kyc =
+    kycRaw || aadhaarNumber || panNumber || aadhaarFrontImage || panCardImage
+      ? ({
+          ...(kycRaw || {}),
+          aadhaarNumber,
+          panNumber,
+          aadhaarFrontImage,
+          aadhaarBackImage,
+          panCardImage,
+          ownerPhoto,
+          videoVerification,
+          aadhaarFrontUrl: aadhaarFrontImage,
+          aadhaarBackUrl: aadhaarBackImage,
+          panCardUrl: panCardImage,
+          ownerPhotoUrl: ownerPhoto,
+          kycStatus:
+            pickStr(kycRaw, "kycStatus", "status") ||
+            pickStr(obj, "kycStatus"),
+        } as ApiUserRecord["kyc"] & {
           kycStatus?: string;
           status?: string;
+          aadhaarFrontImage?: string;
+          aadhaarBackImage?: string;
+          panCardImage?: string;
+          ownerPhoto?: string;
+          aadhaarFrontUrl?: string;
+          aadhaarBackUrl?: string;
+          panCardUrl?: string;
+          ownerPhotoUrl?: string;
+          videoVerification?: string;
         })
       : undefined;
   const bankAccount =
@@ -70,6 +182,22 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     (profileRecord?.alternateMobileNumber as string | undefined) ??
     (obj.alternateMobileNumber as string | undefined);
 
+  const mobile =
+    (obj.mobile as string | undefined) ||
+    (obj.phone as string | undefined) ||
+    undefined;
+
+  const outletNormalized = outlet
+    ? {
+        ...outlet,
+        outletImage:
+          (outlet as Record<string, unknown>).outletImage ??
+          (outlet as Record<string, unknown>).outletPhoto ??
+          (outlet as Record<string, unknown>).shopImage ??
+          (outlet as Record<string, unknown>).image,
+      }
+    : undefined;
+
   return {
     id: String(obj.id ?? obj._id ?? ""),
     firstName: obj.firstName as string | undefined,
@@ -79,11 +207,15 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
       [obj.firstName, obj.lastName].filter(Boolean).join(" ") ||
       undefined,
     email: obj.email as string | undefined,
-    mobile: obj.mobile as string | undefined,
+    mobile,
+    phone: (obj.phone as string | undefined) || mobile,
     alternateMobileNumber,
     profileImage,
     status: obj.status as string | undefined,
-    userType: obj.userType as string | undefined,
+    userType:
+      (obj.userType as string | undefined) ||
+      (obj.role as string | undefined) ||
+      undefined,
     role: obj.role as string | undefined,
     userCode: obj.userCode as string | undefined,
     businessName:
@@ -104,7 +236,7 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     walletBalance,
     profile: profileRecord as UserDetailRecord["profile"],
     wallet: walletRecord as UserDetailRecord["wallet"],
-    outlet,
+    outlet: outletNormalized as UserDetailRecord["outlet"],
     kyc,
     bankAccount,
     parentUser: obj.parentUser as UserDetailRecord["parentUser"],
@@ -117,6 +249,8 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
         | string
         | undefined) ??
       (obj.kycStatus as string | undefined),
+    aadhaarNumber,
+    panNumber,
   };
 }
 

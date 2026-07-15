@@ -135,6 +135,10 @@ export interface ListQueryParams {
   sortOrder?: "asc" | "desc";
   city?: string;
   state?: string;
+  /** Preferred date filter params */
+  fromDate?: string;
+  toDate?: string;
+  /** Legacy aliases (also sent to API for compatibility) */
   startDate?: string;
   endDate?: string;
 }
@@ -197,8 +201,12 @@ export interface UserProfileRecord {
   userId?: string;
   alternateMobileNumber?: string;
   profileImage?: string;
+  dateOfBirth?: string;
+  dob?: string;
+  gender?: string;
   createdAt?: string;
   updatedAt?: string;
+  [key: string]: string | undefined;
 }
 
 export interface UserWalletRecord {
@@ -244,6 +252,7 @@ export interface NetworkUserRecord {
   name?: string;
   email?: string;
   mobile?: string;
+  phone?: string;
   status?: string;
   city?: string;
   state?: string;
@@ -267,10 +276,15 @@ export interface NetworkUserRecord {
     kycStatus?: string;
     status?: string;
     aadhaarFrontImage?: string;
+    aadhaarFrontUrl?: string;
     aadhaarBackImage?: string;
+    aadhaarBackUrl?: string;
     panCardImage?: string;
+    panCardUrl?: string;
     ownerPhoto?: string;
+    ownerPhotoUrl?: string;
     videoVerification?: string;
+    videoVerificationUrl?: string;
     [key: string]: string | undefined;
   };
   [key: string]: unknown;

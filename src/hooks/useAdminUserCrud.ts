@@ -3,25 +3,26 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
-  deleteUserById,
-  getUserById,
-  resetUserPassword,
-  updateUserById,
-  updateUserStatus,
-} from "@/services/userApi";
-import { generateSecurePassword } from "@/lib/generatePassword";
+  deleteAdminUser,
+  getAdminUserById,
+  patchAdminUser,
+  AdminManagedUserRole,
+  AdminUserUpdatePayload,
+} from "@/services/adminUsersApi";
+import { clearUserFormDraft } from "@/lib/userFormDraftStorage";
 import { NetworkUserRecord, UserDetailRecord } from "@/types/superAdmin";
-import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
 
-export function useNetworkUserCrud(onSuccess?: () => void) {
+export function useAdminUserCrud(
+  role: AdminManagedUserRole,
+  onSuccess?: () => void
+) {
   const [viewUser, setViewUser] = useState<UserDetailRecord | null>(null);
   const [editUserId, setEditUserId] = useState<string | null>(null);
-  const [editUserType, setEditUserType] = useState<string>("");
   const [deleteTarget, setDeleteTarget] = useState<NetworkUserRecord | null>(
     null
   );
@@ -41,7 +42,7 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     setIsFetchingDetail(true);
     setViewUser(null);
     try {
-      const detail = await getUserById(user.id);
+      const detail = await getAdminUserById(user.id);
       setViewUser(detail);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to load user details"));
@@ -61,8 +62,7 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     setEditUserId(user.id);
     setIsFetchingDetail(true);
     try {
-      const detail = await getUserById(user.id);
-      setEditUserType(detail.userType || detail.role || "");
+      const detail = await getAdminUserById(user.id);
       setViewUser(detail);
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to load user for editing"));
@@ -76,16 +76,15 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
   const closeEdit = useCallback(() => {
     setEditOpen(false);
     setEditUserId(null);
-    setEditUserType("");
     setViewUser(null);
   }, []);
 
   const submitEdit = useCallback(
-    async (values: NetworkUserEditValues) => {
-      if (!editUserId || !editUserType) return false;
+    async (payload: AdminUserUpdatePayload) => {
+      if (!editUserId) return false;
       setIsUpdating(true);
       try {
-        await updateUserById(editUserId, values, editUserType);
+        await patchAdminUser(editUserId, payload);
         toast.success("User updated successfully");
         closeEdit();
         refreshList();
@@ -97,64 +96,7 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
         setIsUpdating(false);
       }
     },
-    [editUserId, editUserType, closeEdit, refreshList]
-  );
-
-  const setStatus = useCallback(
-    async (user: NetworkUserRecord, status: "ACTIVE" | "INACTIVE") => {
-      setIsUpdating(true);
-      try {
-        let detail: UserDetailRecord | null = null;
-        try {
-          detail = await getUserById(user.id);
-        } catch {
-          detail = null;
-        }
-        await updateUserStatus(user.id, status, detail);
-        toast.success(
-          status === "ACTIVE" ? "User activated" : "User deactivated"
-        );
-        refreshList();
-      } catch (error) {
-        toast.error(getErrorMessage(error, "Failed to update status"));
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    [refreshList]
-  );
-
-  const activateUser = useCallback(
-    (user: NetworkUserRecord) => void setStatus(user, "ACTIVE"),
-    [setStatus]
-  );
-
-  const deactivateUser = useCallback(
-    (user: NetworkUserRecord) => void setStatus(user, "INACTIVE"),
-    [setStatus]
-  );
-
-  const resetPassword = useCallback(
-    async (user: NetworkUserRecord) => {
-      setIsUpdating(true);
-      try {
-        const detail = await getUserById(user.id);
-        const password = generateSecurePassword();
-        await resetUserPassword(user.id, password, detail);
-        try {
-          await navigator.clipboard.writeText(password);
-          toast.success("Password reset. New password copied to clipboard.");
-        } catch {
-          toast.success(`Password reset. New password: ${password}`);
-        }
-        refreshList();
-      } catch (error) {
-        toast.error(getErrorMessage(error, "Failed to reset password"));
-      } finally {
-        setIsUpdating(false);
-      }
-    },
-    [refreshList]
+    [editUserId, closeEdit, refreshList]
   );
 
   const openDelete = useCallback((user: NetworkUserRecord) => {
@@ -171,7 +113,9 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await deleteUserById(deleteTarget.id);
+      await deleteAdminUser(deleteTarget.id);
+      // Clear any create-form draft images/data kept in localStorage for this role
+      clearUserFormDraft(role);
       toast.success("User deleted successfully");
       closeDelete();
       refreshList();
@@ -180,7 +124,7 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteTarget, closeDelete, refreshList]);
+  }, [deleteTarget, role, closeDelete, refreshList]);
 
   return {
     viewOpen,
@@ -200,8 +144,5 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     openDelete,
     closeDelete,
     confirmDelete,
-    activateUser,
-    deactivateUser,
-    resetPassword,
   };
 }

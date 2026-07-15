@@ -248,6 +248,39 @@ export async function updateUserById(
   return normalizeUserDetail(data.data);
 }
 
+/** Status toggle via existing PUT /users/:id (ACTIVE | INACTIVE). */
+export async function updateUserStatus(
+  id: string,
+  status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "PENDING",
+  base?: UserDetailRecord | null
+): Promise<UserDetailRecord> {
+  if (base) {
+    const values = mapUserDetailToEditValues(base);
+    values.status = status;
+    values.password = "";
+    return updateUserById(id, values);
+  }
+
+  const { client, path } = getNetworkUserClient();
+  const { data } = await client.put<ApiResponse<UserDetailRecord>>(
+    path(id),
+    { status },
+    { headers: { "Content-Type": "application/json" } }
+  );
+  return normalizeUserDetail(data.data);
+}
+
+/** Reset password via existing PUT body.password field. */
+export async function resetUserPassword(
+  id: string,
+  newPassword: string,
+  base: UserDetailRecord
+): Promise<UserDetailRecord> {
+  const values = mapUserDetailToEditValues(base);
+  values.password = newPassword;
+  return updateUserById(id, values);
+}
+
 export async function deleteUserById(id: string): Promise<void> {
   const { client, path } = getNetworkUserClient();
   await client.delete(path(id));

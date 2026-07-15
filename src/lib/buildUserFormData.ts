@@ -6,10 +6,17 @@ export interface ApiUserRecord {
   lastName?: string;
   email?: string;
   mobile?: string;
+  phone?: string;
   alternateMobileNumber?: string;
   profileImage?: string;
   state?: string;
   city?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  aadhaarFrontUrl?: string;
+  aadhaarBackUrl?: string;
+  panCardUrl?: string;
+  ownerPhotoUrl?: string;
   profile?: {
     alternateMobileNumber?: string;
     profileImage?: string;
@@ -26,18 +33,25 @@ export interface ApiUserRecord {
     pincode?: string;
     latitude?: string | number;
     longitude?: string | number;
+    outletImage?: string;
+    outletPhoto?: string;
   };
   kyc?: {
     aadhaarNumber?: string;
     panNumber?: string;
     aadhaarFrontImage?: string;
     aadhaarFront?: string;
+    aadhaarFrontUrl?: string;
     aadhaarBackImage?: string;
     aadhaarBack?: string;
+    aadhaarBackUrl?: string;
     panCardImage?: string;
     panCard?: string;
+    panCardUrl?: string;
     ownerPhoto?: string;
+    ownerPhotoUrl?: string;
     videoVerification?: string;
+    videoVerificationUrl?: string;
   };
   bankAccount?: {
     accountHolderName?: string;
@@ -45,7 +59,9 @@ export interface ApiUserRecord {
     accountNumber?: string;
     ifscCode?: string;
     passbookImage?: string;
+    passbookUrl?: string;
     cancelledChequeImage?: string;
+    cancelledChequeUrl?: string;
   };
 }
 
@@ -165,7 +181,7 @@ export function mapApiUserToFormValues(
     firstName: user.firstName || "",
     lastName: user.lastName || "",
     email: user.email || "",
-    mobile: user.mobile || "",
+    mobile: user.mobile || user.phone || "",
     password: "",
     alternateMobileNumber:
       user.alternateMobileNumber || profile.alternateMobileNumber || "",
@@ -180,13 +196,22 @@ export function mapApiUserToFormValues(
     pincode: outlet.pincode || "",
     latitude: outlet.latitude != null ? String(outlet.latitude) : "",
     longitude: outlet.longitude != null ? String(outlet.longitude) : "",
-    aadhaarNumber: kyc.aadhaarNumber || "",
-    panNumber: kyc.panNumber || "",
+    aadhaarNumber: kyc.aadhaarNumber || user.aadhaarNumber || "",
+    panNumber: kyc.panNumber || user.panNumber || "",
     accountHolderName: bank.accountHolderName || "",
     bankName: bank.bankName || "",
     accountNumber: bank.accountNumber || "",
     ifscCode: bank.ifscCode || "",
   };
+}
+
+function firstUrl(
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
 }
 
 export function mapApiUserToExistingUrls(
@@ -195,16 +220,55 @@ export function mapApiUserToExistingUrls(
   const kyc = user.kyc || {};
   const bank = user.bankAccount || {};
   const profile = user.profile || {};
+  const outlet = user.outlet || {};
 
   return {
-    profileImage:
-      user.profileImage || profile.profileImage || null,
-    aadhaarFront: kyc.aadhaarFrontImage || kyc.aadhaarFront || null,
-    aadhaarBack: kyc.aadhaarBackImage || kyc.aadhaarBack || null,
-    panCard: kyc.panCardImage || kyc.panCard || null,
-    ownerPhoto: kyc.ownerPhoto || null,
-    videoVerification: kyc.videoVerification || null,
-    passbookImage: bank.passbookImage || null,
-    cancelledChequeImage: bank.cancelledChequeImage || null,
+    profileImage: firstUrl(user.profileImage, profile.profileImage),
+    aadhaarFront: firstUrl(
+      kyc.aadhaarFrontUrl,
+      kyc.aadhaarFrontImage,
+      kyc.aadhaarFront,
+      user.aadhaarFrontUrl
+    ),
+    aadhaarBack: firstUrl(
+      kyc.aadhaarBackUrl,
+      kyc.aadhaarBackImage,
+      kyc.aadhaarBack,
+      user.aadhaarBackUrl
+    ),
+    panCard: firstUrl(
+      kyc.panCardUrl,
+      kyc.panCardImage,
+      kyc.panCard,
+      user.panCardUrl
+    ),
+    ownerPhoto: firstUrl(
+      kyc.ownerPhotoUrl,
+      kyc.ownerPhoto,
+      user.ownerPhotoUrl
+    ),
+    videoVerification: firstUrl(
+      kyc.videoVerificationUrl,
+      kyc.videoVerification
+    ),
+    passbookImage: firstUrl(bank.passbookImage, bank.passbookUrl),
+    cancelledChequeImage: firstUrl(
+      bank.cancelledChequeImage,
+      bank.cancelledChequeUrl
+    ),
+  };
+}
+
+/** Extra media URLs that are not in USER_FILE_FIELDS (e.g. outlet). */
+export function mapApiUserToExtraMediaUrls(
+  user: ApiUserRecord = {}
+): { outletImage: string | null } {
+  const outlet = user.outlet || {};
+  return {
+    outletImage: firstUrl(
+      outlet.outletImage,
+      outlet.outletPhoto,
+      (outlet as { shopImage?: string }).shopImage
+    ),
   };
 }

@@ -32,9 +32,14 @@ interface DataTableProps<T> {
   pageCount?: number;
   pageIndex?: number;
   onPageChange?: (pageIndex: number) => void;
+  pageSizeOptions?: number[];
+  onPageSizeChange?: (pageSize: number) => void;
   manualSorting?: boolean;
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
+  /** Attractive striped header + hover for network user lists */
+  tone?: "default" | "network";
+  stickyHeader?: boolean;
 }
 
 function getAlignClass(align?: ColumnAlign): string {
@@ -56,13 +61,18 @@ export function DataTable<T>({
   pageCount: controlledPageCount,
   pageIndex: controlledPageIndex,
   onPageChange,
+  pageSizeOptions,
+  onPageSizeChange,
   manualSorting = false,
   sorting: controlledSorting,
   onSortingChange,
+  tone = "default",
+  stickyHeader = false,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [internalPageIndex, setInternalPageIndex] = useState(0);
+  const isNetworkTone = tone === "network";
 
   const pageIndex = manualPagination
     ? (controlledPageIndex ?? 0)
@@ -133,13 +143,24 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
+      <div
+        className={cn(
+          "overflow-x-auto rounded-xl border border-border",
+          isNetworkTone && "network-data-table shadow-sm",
+          stickyHeader && "max-h-[min(70vh,720px)] overflow-y-auto"
+        )}
+      >
         <table className="w-full min-w-[720px]">
-          <thead>
+          <thead className={cn(stickyHeader && "sticky top-0 z-10")}>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
                 key={headerGroup.id}
-                className="border-b border-border bg-background/80"
+                className={cn(
+                  "border-b border-border",
+                  isNetworkTone
+                    ? "bg-gradient-to-r from-[#4318FF] via-[#5B33FF] to-[#7551FF]"
+                    : "bg-background/80"
+                )}
               >
                 {headerGroup.headers.map((header) => {
                   const align = (
@@ -151,9 +172,12 @@ export function DataTable<T>({
                     <th
                       key={header.id}
                       className={cn(
-                        "px-4 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-muted select-none transition-colors hover:text-foreground",
+                        "px-4 py-3.5 text-[11px] font-semibold uppercase tracking-wider select-none transition-colors",
                         getAlignClass(align),
-                        header.column.getCanSort() && "cursor-pointer"
+                        header.column.getCanSort() && "cursor-pointer",
+                        isNetworkTone
+                          ? "text-white/95 hover:text-white"
+                          : "text-muted hover:text-foreground"
                       )}
                       style={{
                         width: header.column.getSize()
@@ -210,8 +234,19 @@ export function DataTable<T>({
                 <tr
                   key={row.id}
                   className={cn(
-                    "border-b border-border last:border-0 transition-colors hover:bg-primary/[0.03]",
-                    i % 2 === 0 && "bg-background/20"
+                    "border-b border-border last:border-0 transition-all duration-200",
+                    isNetworkTone
+                      ? cn(
+                          "network-data-row",
+                          i % 2 === 0
+                            ? "bg-white dark:bg-card"
+                            : "bg-[#F4F7FE]/80 dark:bg-white/[0.03]",
+                          "hover:bg-gradient-to-r hover:from-[#4318FF]/[0.08] hover:via-[#7551FF]/[0.06] hover:to-transparent hover:shadow-[inset_3px_0_0_0_#4318FF] hover:scale-[1.002]"
+                        )
+                      : cn(
+                          "hover:bg-primary/[0.03]",
+                          i % 2 === 0 && "bg-background/20"
+                        )
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {
@@ -224,7 +259,7 @@ export function DataTable<T>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "px-4 py-3 text-sm text-foreground align-middle",
+                          "px-4 py-3.5 text-sm text-foreground align-middle",
                           getAlignClass(align)
                         )}
                       >
@@ -242,10 +277,52 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="flex items-center justify-between pt-2">
-        <p className="text-sm text-muted">
-          Showing page {pageIndex + 1} of {table.getPageCount() || 1}
-        </p>
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted">
+            Showing page {pageIndex + 1} of {table.getPageCount() || 1}
+          </p>
+          {pageSizeOptions?.length && onPageSizeChange ? (
+            <label className="flex items-center gap-2 text-sm text-muted">
+              Show
+              <select
+                className="rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+              records
+            </label>
+          ) : null}
+          {manualPagination && onPageChange ? (
+            <label className="flex items-center gap-2 text-sm text-muted">
+              Go to
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, table.getPageCount())}
+                className="w-16 rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary"
+                placeholder={`${pageIndex + 1}`}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const value = Number((e.target as HTMLInputElement).value);
+                  if (!Number.isFinite(value)) return;
+                  const next = Math.min(
+                    Math.max(1, Math.floor(value)),
+                    Math.max(1, table.getPageCount())
+                  );
+                  onPageChange(next - 1);
+                  (e.target as HTMLInputElement).value = "";
+                }}
+              />
+            </label>
+          ) : null}
+        </div>
         <div className="flex items-center gap-1">
           {Array.from({
             length: Math.min(table.getPageCount(), 5),

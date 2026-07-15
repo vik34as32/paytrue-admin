@@ -10,6 +10,7 @@ interface DeleteNetworkUserDialogProps {
   onClose: () => void;
   user: NetworkUserRecord | null;
   isDeleting?: boolean;
+  confirmQuestion?: string;
   onConfirm: () => void;
 }
 
@@ -18,6 +19,7 @@ export function DeleteNetworkUserDialog({
   onClose,
   user,
   isDeleting = false,
+  confirmQuestion = "Are you sure you want to delete this user?",
   onConfirm,
 }: DeleteNetworkUserDialogProps) {
   return (
@@ -29,23 +31,23 @@ export function DeleteNetworkUserDialog({
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={isDeleting}>
-            Cancel
+            No, Cancel
           </Button>
           <Button variant="danger" onClick={onConfirm} isLoading={isDeleting}>
-            Delete
+            Yes, Delete
           </Button>
         </div>
       }
     >
       <p className="text-sm text-foreground">
-        Are you sure you want to delete{" "}
+        {confirmQuestion}{" "}
         <span className="font-semibold">
-          {user ? getNetworkUserName(user) : "this user"}
+          {user ? getNetworkUserName(user) : ""}
         </span>
-        ?
       </p>
       <p className="mt-2 text-sm text-muted">
-        This action cannot be undone.
+        This will soft-delete the user. If they still have an active downline,
+        deletion will be blocked.
       </p>
     </Modal>
   );

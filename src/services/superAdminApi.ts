@@ -56,14 +56,22 @@ function readPaginationMeta(
 }
 
 function withListParams(params: ListQueryParams = {}) {
-  const { pageSize = 10, page, ...rest } = params;
+  const { pageSize = 10, page, fromDate, toDate, startDate, endDate, ...rest } =
+    params;
   const limit = Math.min(pageSize, 100);
+  const resolvedFrom = fromDate || startDate || undefined;
+  const resolvedTo = toDate || endDate || undefined;
 
   return {
     ...rest,
     page,
     pageSize: limit,
     limit,
+    fromDate: resolvedFrom,
+    toDate: resolvedTo,
+    // Backend compatibility: some routes accept startDate/endDate
+    startDate: resolvedFrom,
+    endDate: resolvedTo,
   };
 }
 
@@ -530,4 +538,69 @@ export async function getAdminFundRequests(
     ApiResponse<PaginatedApiData<AdminFundRequest> | AdminFundRequest[]>
   >(`/admins/${adminId}/fund-requests`, { params });
   return normalizePaginated<AdminFundRequest>(data.data, ["fundRequests"]);
+}
+
+export type SuperAdminNetworkKind =
+  | "MASTER_DISTRIBUTOR"
+  | "DISTRIBUTOR"
+  | "RETAILER";
+
+async function listAllPages(
+  fetcher: (
+    params: ListQueryParams
+  ) => Promise<PaginatedApiData<NetworkUserRecord>>,
+  params: Omit<ListQueryParams, "page" | "pageSize"> = {}
+): Promise<NetworkUserRecord[]> {
+  const pageSize = 100;
+  let page = 1;
+  let totalPages = 1;
+  const collected: NetworkUserRecord[] = [];
+
+  do {
+    const result = await fetcher({ ...params, page, pageSize });
+    collected.push(...result.data);
+    totalPages =
+      result.totalPages ||
+      Math.max(1, Math.ceil((result.total || 0) / pageSize));
+    if (!result.data.length) break;
+    page += 1;
+  } while (page <= totalPages);
+
+  return collected;
+}
+
+export async function listAllMasterDistributors(
+  params: Omit<ListQueryParams, "page" | "pageSize"> = {}
+) {
+  return listAllPages(getMasterDistributors, params);
+}
+
+export async function listAllDistributors(
+  params: Omit<ListQueryParams, "page" | "pageSize"> = {}
+) {
+  return listAllPages(getDistributors, params);
+}
+
+export async function listAllRetailers(
+  params: Omit<ListQueryParams, "page" | "pageSize"> = {}
+) {
+  return listAllPages(getRetailers, params);
+}
+
+export async function listAllSuperAdminNetworkUsers(
+  kind: SuperAdminNetworkKind,
+  params: Omit<ListQueryParams, "page" | "pageSize"> = {}
+): Promise<NetworkUserRecord[]> {
+  if (kind === "MASTER_DISTRIBUTOR") return listAllMasterDistributors(params);
+  if (kind === "DISTRIBUTOR") return listAllDistributors(params);
+  return listAllRetailers(params);
+}
+
+export async function listSuperAdminNetworkUsers(
+  kind: SuperAdminNetworkKind,
+  params: ListQueryParams = {}
+): Promise<PaginatedApiData<NetworkUserRecord>> {
+  if (kind === "MASTER_DISTRIBUTOR") return getMasterDistributors(params);
+  if (kind === "DISTRIBUTOR") return getDistributors(params);
+  return getRetailers(params);
 }

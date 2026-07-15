@@ -20,16 +20,16 @@ interface AdminListFiltersProps {
   showUserType?: boolean;
   showDateRange?: boolean;
   showSort?: boolean;
+  /** Use legacy lowercase status values (older APIs). Default: uppercase ACTIVE/... */
+  legacyStatusValues?: boolean;
 }
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Status" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-  { value: "blocked", label: "Blocked" },
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "INACTIVE", label: "Inactive" },
+  { value: "SUSPENDED", label: "Suspended" },
+  { value: "PENDING", label: "Pending" },
 ];
 
 const FUND_REQUEST_STATUS_OPTIONS = [
@@ -46,6 +46,16 @@ const USER_TYPE_OPTIONS = [
   { value: "RETAILER", label: "Retailer" },
 ];
 
+const LEGACY_STATUS_OPTIONS = [
+  { value: "", label: "All Status" },
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "blocked", label: "Blocked" },
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+];
+
 export function AdminListFilters({
   value,
   onChange,
@@ -54,13 +64,16 @@ export function AdminListFilters({
   showUserType = false,
   showDateRange = false,
   showSort = false,
+  legacyStatusValues = false,
 }: AdminListFiltersProps) {
   const update = (patch: Partial<AdminListFiltersValue>) =>
     onChange({ ...value, ...patch });
 
   const statusOptions = showFundRequestStatus
     ? FUND_REQUEST_STATUS_OPTIONS
-    : STATUS_OPTIONS;
+    : legacyStatusValues
+      ? LEGACY_STATUS_OPTIONS
+      : STATUS_OPTIONS;
 
   return (
     <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -105,7 +118,7 @@ export function AdminListFilters({
             options={[
               { value: "createdAt", label: "Created Date" },
               { value: "name", label: "Name" },
-              { value: "mobile", label: "Phone" },
+              { value: "phone", label: "Phone" },
               { value: "email", label: "Email" },
             ]}
           />

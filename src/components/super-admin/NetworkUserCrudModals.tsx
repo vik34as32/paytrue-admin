@@ -1,11 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { NetworkUserViewModal } from "@/components/super-admin/NetworkUserViewModal";
-import { NetworkUserEditModal } from "@/components/super-admin/NetworkUserEditModal";
+import { SuperAdminUserStepModal } from "@/components/super-admin/SuperAdminUserStepModal";
 import { DeleteNetworkUserDialog } from "@/components/super-admin/DeleteNetworkUserDialog";
 import { useNetworkUserCrud } from "@/hooks/useNetworkUserCrud";
-import { createNetworkUserColumns } from "@/lib/networkUserColumns";
+import { createSuperAdminNetworkUserColumns } from "@/lib/networkUserColumns";
 
 interface NetworkUserCrudModalsProps {
   crud: ReturnType<typeof useNetworkUserCrud>;
@@ -14,13 +13,15 @@ interface NetworkUserCrudModalsProps {
 export function NetworkUserCrudModals({ crud }: NetworkUserCrudModalsProps) {
   return (
     <>
-      <NetworkUserViewModal
+      <SuperAdminUserStepModal
+        mode="view"
         isOpen={crud.viewOpen}
         onClose={crud.closeView}
         user={crud.viewUser}
         isLoading={crud.isFetchingDetail && crud.viewOpen}
       />
-      <NetworkUserEditModal
+      <SuperAdminUserStepModal
+        mode="edit"
         isOpen={crud.editOpen}
         onClose={crud.closeEdit}
         user={crud.viewUser}
@@ -40,26 +41,41 @@ export function NetworkUserCrudModals({ crud }: NetworkUserCrudModalsProps) {
 }
 
 export function useNetworkUserTableColumns(
-  onRefresh: () => void
+  onRefresh: () => void,
+  options?: { pageIndex?: number; pageSize?: number }
 ) {
   const crud = useNetworkUserCrud(onRefresh);
 
   const columns = useMemo(
     () =>
-      createNetworkUserColumns({
-        onView: (user) => void crud.openView(user),
-        onEdit: (user) => void crud.openEdit(user),
-        onDelete: crud.openDelete,
-        disabled:
-          crud.isFetchingDetail || crud.isUpdating || crud.isDeleting,
-      }),
+      createSuperAdminNetworkUserColumns(
+        {
+          onView: (user) => void crud.openView(user),
+          onEdit: (user) => void crud.openEdit(user),
+          onDelete: crud.openDelete,
+          onActivate: crud.activateUser,
+          onDeactivate: crud.deactivateUser,
+          onResetPassword: (user) => void crud.resetPassword(user),
+          disabled:
+            crud.isFetchingDetail || crud.isUpdating || crud.isDeleting,
+        },
+        {
+          pageIndex: options?.pageIndex,
+          pageSize: options?.pageSize,
+        }
+      ),
     [
       crud.openView,
       crud.openEdit,
       crud.openDelete,
+      crud.activateUser,
+      crud.deactivateUser,
+      crud.resetPassword,
       crud.isFetchingDetail,
       crud.isUpdating,
       crud.isDeleting,
+      options?.pageIndex,
+      options?.pageSize,
     ]
   );
 
