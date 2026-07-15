@@ -1,4 +1,4 @@
-import { superAdminModuleClient } from "@/lib/api/client";
+import { adminClient, superAdminModuleClient } from "@/lib/api/client";
 import {
   normalizeUserDetail,
   userDetailToApiRecord,
@@ -9,10 +9,37 @@ import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
 import { AdminEditValues } from "@/validations/adminSchemas";
 import { ApiResponse } from "@/types";
 import { normalizeAdminDetail } from "@/lib/normalizeAdmin";
+import { STORAGE_KEYS } from "@/constants/storage";
 
 /** GET / PUT / DELETE `api/v1/super-admin/users/:userId` */
 function superAdminUserPath(userId: string) {
   return `/users/${userId}`;
+}
+
+/** GET / PUT / DELETE `api/v1/users/:userId` (Admin token) */
+function adminUserPath(userId: string) {
+  return `/users/${userId}`;
+}
+
+function getNetworkUserClient() {
+  if (typeof window === "undefined") {
+    return {
+      client: superAdminModuleClient,
+      path: superAdminUserPath,
+    };
+  }
+
+  const adminToken =
+    localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) ||
+    sessionStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN);
+  if (adminToken) {
+    return { client: adminClient, path: adminUserPath };
+  }
+
+  return {
+    client: superAdminModuleClient,
+    path: superAdminUserPath,
+  };
 }
 
 const STATUS_ENUM = new Set([
@@ -197,9 +224,8 @@ export function mapUserDetailToEditValues(
 }
 
 export async function getUserById(id: string): Promise<UserDetailRecord> {
-  const { data } = await superAdminModuleClient.get<
-    ApiResponse<UserDetailRecord>
-  >(superAdminUserPath(id));
+  const { client, path } = getNetworkUserClient();
+  const { data } = await client.get<ApiResponse<UserDetailRecord>>(path(id));
   return normalizeUserDetail(data.data);
 }
 
@@ -209,18 +235,22 @@ export async function updateUserById(
   _userType?: string
 ): Promise<UserDetailRecord> {
   const body = buildSuperAdminEditUserBody(values, { includeOutlet: true });
+  const { client, path } = getNetworkUserClient();
 
-  const { data } = await superAdminModuleClient.put<
-    ApiResponse<UserDetailRecord>
-  >(superAdminUserPath(id), body, {
-    headers: { "Content-Type": "application/json" },
-  });
+  const { data } = await client.put<ApiResponse<UserDetailRecord>>(
+    path(id),
+    body,
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
 
   return normalizeUserDetail(data.data);
 }
 
 export async function deleteUserById(id: string): Promise<void> {
-  await superAdminModuleClient.delete(superAdminUserPath(id));
+  const { client, path } = getNetworkUserClient();
+  await client.delete(path(id));
 }
 
 export async function getAdminById(id: string): Promise<AdminDetailRecord> {

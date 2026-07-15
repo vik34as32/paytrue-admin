@@ -105,6 +105,7 @@ export function AdminListFilters({
             options={[
               { value: "createdAt", label: "Created Date" },
               { value: "name", label: "Name" },
+              { value: "mobile", label: "Phone" },
               { value: "email", label: "Email" },
             ]}
           />
