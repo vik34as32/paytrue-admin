@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  resendMobileVerification,
   sendMobileVerification,
   verifyMobile,
 } from "@/services/mobileVerification.service";
@@ -89,8 +90,34 @@ export function useMobileVerification(currentMobile: string) {
 
   const resendVerificationCode = useCallback(async () => {
     if (countdown > 0) return false;
-    return sendVerificationCode();
-  }, [countdown, sendVerificationCode]);
+
+    const mobile = normalizeMobile(currentMobile);
+    if (!mobile) {
+      toast.error("Please enter a mobile number");
+      return false;
+    }
+
+    if (!MOBILE_REGEX.test(mobile)) {
+      toast.error("Please enter a valid 10-digit mobile number");
+      return false;
+    }
+
+    setSending(true);
+    try {
+      await resendMobileVerification(mobile);
+      toast.success("OTP resent successfully");
+      startCountdown();
+      setModalOpen(true);
+      return true;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to resend OTP"
+      );
+      return false;
+    } finally {
+      setSending(false);
+    }
+  }, [countdown, currentMobile, startCountdown]);
 
   const verifyOtp = useCallback(
     async (otp: string) => {

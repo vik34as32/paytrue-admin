@@ -36,6 +36,8 @@ export const REQUEST_APPROVAL_CHAIN: UserRole[] = [
 
 export const ROUTES = {
   login: "/login",
+  forgotPassword: "/forgot-password",
+  resetPassword: "/reset-password",
   superAdminLogin: "/super-admin/login",
   dashboard: "/dashboard",
   users: "/users",

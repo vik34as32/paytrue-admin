@@ -10,7 +10,12 @@ import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
 import { hasPersistedAdminSession, hasPersistedSuperAdminSession } from "@/lib/authSession";
 import { isAdminRole } from "@/lib/normalizeAuthRole";
 
-const PUBLIC_ROUTES = [ROUTES.login, ROUTES.superAdminLogin];
+const PUBLIC_ROUTES = [
+  ROUTES.login,
+  ROUTES.forgotPassword,
+  ROUTES.resetPassword,
+  ROUTES.superAdminLogin,
+];
 
 /** Routes that require Super Admin session only */
 const SUPER_ADMIN_API_ROUTES = [

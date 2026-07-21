@@ -19,6 +19,15 @@ export async function sendMobileVerification(mobile: string) {
   return data;
 }
 
+/** POST /auth/resend-otp — Fast2SMS resend OTP to mobile */
+export async function resendMobileVerification(mobile: string) {
+  const { data } = await publicClient.post<ApiResponse<unknown>>(
+    "/auth/resend-otp",
+    { mobile } satisfies SendOtpPayload
+  );
+  return data;
+}
+
 /** POST /auth/verify-otp — verify mobile OTP */
 export async function verifyMobile(mobile: string, otp: string) {
   const { data } = await publicClient.post<ApiResponse<unknown>>(

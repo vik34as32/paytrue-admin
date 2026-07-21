@@ -155,6 +155,71 @@ export const adminEmailLoginSchema = z.object({
   rememberMe: z.boolean().optional(),
 });
 
+export const forgotPasswordSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .refine((v) => !v || z.string().email().safeParse(v).success, {
+        message: "Enter a valid email",
+      }),
+    mobile: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .refine((v) => !v || mobileRegex.test(v), {
+        message: "Enter a valid 10-digit mobile number",
+      }),
+  })
+  .refine((data) => Boolean(data.email?.trim() || data.mobile?.trim()), {
+    message: "Email or mobile is required",
+    path: ["email"],
+  });
+
+export const resetPasswordSchema = z
+  .object({
+    email: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .refine((v) => !v || z.string().email().safeParse(v).success, {
+        message: "Enter a valid email",
+      }),
+    mobile: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(""))
+      .refine((v) => !v || mobileRegex.test(v), {
+        message: "Enter a valid 10-digit mobile number",
+      }),
+    otp: z
+      .string()
+      .trim()
+      .length(6, "OTP must be 6 digits")
+      .regex(/^\d{6}$/, "OTP must be 6 digits"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(
+        passwordRegex,
+        "Password must contain uppercase, lowercase and number"
+      ),
+    confirmPassword: z.string().min(1, "Confirm password is required"),
+  })
+  .refine((data) => Boolean(data.email?.trim() || data.mobile?.trim()), {
+    message: "Email or mobile is required",
+    path: ["email"],
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
 export const addBalanceSchema = z.object({
   amount: z
     .number({ error: "Amount is required" })
@@ -189,6 +254,8 @@ export const superAdminProfileSchema = z.object({
 export type CreateAdminFormData = z.infer<typeof createAdminSchema>;
 export type SuperAdminLoginFormData = z.infer<typeof superAdminLoginSchema>;
 export type AdminEmailLoginFormData = z.infer<typeof adminEmailLoginSchema>;
+export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 export type AddBalanceFormData = z.infer<typeof addBalanceSchema>;
 export type WalletTransferFormData = z.infer<typeof walletTransferSchema>;
 export type WalletDeductFormData = z.infer<typeof walletDeductSchema>;

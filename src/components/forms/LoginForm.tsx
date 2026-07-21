@@ -13,6 +13,7 @@ import { adminLoginUser } from "@/store/api/authApi";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/constants";
+import Link from "next/link";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -79,12 +80,12 @@ export default function LoginForm() {
           />
           Remember me
         </label>
-        <button
-          type="button"
+        <Link
+          href={ROUTES.forgotPassword}
           className="text-sm font-medium text-blue-400 hover:text-blue-300"
         >
           Forgot password?
-        </button>
+        </Link>
       </div>
 
       <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
