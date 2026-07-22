@@ -26,6 +26,8 @@ import {
   SaveOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  UploadOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CommissionAntdProvider } from "@/components/commission/CommissionAntdProvider";
@@ -39,10 +41,10 @@ import { useCommissionServices } from "@/hooks/useCommissionServices";
 import { toCommissionServiceSelectOptions } from "@/lib/commission/serviceOptions";
 import { useCommissionRetailers } from "@/hooks/useCommissionRetailers";
 import {
-  getPublicNetworkUserLabel,
-  getPublicNetworkUserNameIdLabel,
+  getPublicNetworkUserDropdownLabel,
 } from "@/services/publicNetworkUsersApi";
 import type { FintechService } from "@/types/commission";
+import type { PublicNetworkUser } from "@/services/publicNetworkUsersApi";
 
 const { Text, Title } = Typography;
 
@@ -53,7 +55,7 @@ function CommissionRetailerGate({
   onRetry,
   onView,
 }: {
-  retailers: { value: string; label: string }[];
+  retailers: PublicNetworkUser[];
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;
@@ -61,6 +63,16 @@ function CommissionRetailerGate({
 }) {
   const { message } = App.useApp();
   const [retailerId, setRetailerId] = useState<string | undefined>();
+
+  const retailerOptions = useMemo(
+    () =>
+      retailers.map((retailer) => ({
+        value: retailer.id,
+        label: getPublicNetworkUserDropdownLabel(retailer),
+        retailer,
+      })),
+    [retailers]
+  );
 
   const handleView = () => {
     if (!retailerId) {
@@ -102,7 +114,7 @@ function CommissionRetailerGate({
             </Title>
             <Text type="secondary" style={{ fontSize: 13 }}>
               Select any retailer to configure RT / DD / MD commission slabs by
-              service. All retailers from the network are listed below.
+              service. Format: Name -- Code -- Mobile
             </Text>
           </div>
         </Space>
@@ -150,18 +162,62 @@ function CommissionRetailerGate({
             loading={loading}
             placeholder={
               loading
-                ? "Loading all retailers..."
+                ? "Loading retailers..."
                 : retailers.length
-                  ? "Search and select retailer"
+                  ? "Search name, code or mobile"
                   : "No retailers found"
             }
             optionFilterProp="label"
-            options={retailers}
+            filterOption={(input, option) => {
+              const q = input.trim().toLowerCase();
+              if (!q) return true;
+              const label = String(option?.label ?? "").toLowerCase();
+              const retailer = (option as { retailer?: PublicNetworkUser } | undefined)
+                ?.retailer;
+              const haystack = [
+                label,
+                retailer?.firstName,
+                retailer?.fullName,
+                retailer?.userCode,
+                retailer?.mobile,
+              ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
+              return haystack.includes(q);
+            }}
+            options={retailerOptions}
+            optionRender={(option) => {
+              const retailer = (option.data as { retailer?: PublicNetworkUser })
+                .retailer;
+              if (!retailer) return option.label;
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                    padding: "2px 0",
+                  }}
+                >
+                  <Text strong style={{ fontSize: 13, lineHeight: 1.3 }}>
+                    {retailer.firstName?.trim() ||
+                      retailer.fullName ||
+                      "Unknown"}
+                  </Text>
+                  <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.3 }}>
+                    {retailer.userCode || "—"}
+                    <span style={{ margin: "0 6px", opacity: 0.5 }}>--</span>
+                    {retailer.mobile || "—"}
+                  </Text>
+                </div>
+              );
+            }}
             value={retailerId}
             onChange={setRetailerId}
             style={{ width: "100%" }}
             size="large"
-            listHeight={320}
+            listHeight={360}
             notFoundContent={loading ? "Loading..." : "No retailers found"}
           />
           {!loading && !error ? (
@@ -275,7 +331,7 @@ function CommissionPageContent() {
       selectedRetailer
         ? {
             id: selectedRetailer.id,
-            name: getPublicNetworkUserLabel(selectedRetailer),
+            name: getPublicNetworkUserDropdownLabel(selectedRetailer),
             code: selectedRetailer.userCode ?? selectedRetailer.mobile,
           }
         : undefined,
@@ -290,15 +346,6 @@ function CommissionPageContent() {
   );
 
   const showCommissionUI = selectedRetailerId !== null;
-
-  const retailerOptions = useMemo(
-    () =>
-      retailers.map((retailer) => ({
-        value: retailer.id,
-        label: getPublicNetworkUserNameIdLabel(retailer),
-      })),
-    [retailers]
-  );
 
   const handleViewRetailer = (retailerId: string) => {
     setSelectedRetailerId(retailerId);
@@ -325,14 +372,14 @@ function CommissionPageContent() {
         title="Commission Management"
         subtitle={
           showCommissionUI && selectedRetailer
-            ? `RT / DD / MD slabs for ${getPublicNetworkUserLabel(selectedRetailer)}`
+            ? `RT / DD / MD slabs for ${getPublicNetworkUserDropdownLabel(selectedRetailer)}`
             : "Configure retailer commission slabs with RT, DD and MD shares"
         }
       />
 
       {!showCommissionUI ? (
         <CommissionRetailerGate
-          retailers={retailerOptions}
+          retailers={retailers}
           loading={retailersLoading}
           error={retailersError}
           onRetry={() => void reloadRetailers()}
@@ -350,11 +397,8 @@ function CommissionPageContent() {
                   All Retailers
                 </Button>
                 <Tag color="purple" style={{ margin: 0, padding: "5px 12px" }}>
-                  {getPublicNetworkUserLabel(selectedRetailer!)}
+                  {getPublicNetworkUserDropdownLabel(selectedRetailer!)}
                 </Tag>
-                {selectedRetailer?.id ? (
-                  <Tag style={{ margin: 0 }}>{selectedRetailer.id}</Tag>
-                ) : null}
                 {cm.hasUnsavedChanges ? (
                   <Tag color="orange">
                     {cm.newCount + cm.editedCount} pending save
@@ -487,8 +531,20 @@ function CommissionPageContent() {
                 >
                   Remove Selected
                 </Button>
+                <Button
+                  icon={<UploadOutlined />}
+                  onClick={cm.handleImport}
+                >
+                  Upload CSV
+                </Button>
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={cm.handleDownloadCsvTemplate}
+                >
+                  CSV Template
+                </Button>
                 <Button icon={<ExportOutlined />} onClick={cm.handleExport}>
-                  Export
+                  Export CSV
                 </Button>
               </Space>
             </Flex>

@@ -11,9 +11,10 @@ import {
 import { validateCommissionRow } from "@/lib/commission/validation";
 import {
   createRowId,
-  downloadJson,
+  commissionRowsToCsvRecords,
   getCommissionPersistState,
   isLocalCommissionId,
+  mapCsvRecordToCommissionPartial,
   nextRangeFromForService,
 } from "@/lib/commission/utils";
 import { resolveCommissionServiceLabel } from "@/lib/commission/serviceOptions";
@@ -25,6 +26,8 @@ import {
   importCommissions,
   saveRetailerCommissions,
 } from "@/services/commissionApi";
+import { exportToCSV } from "@/utils/export";
+import * as XLSX from "xlsx";
 
 export interface CommissionRetailerOption {
   id: string;
@@ -345,40 +348,113 @@ export function useCommissionManagement(
 
   const handleExport = () => {
     if (!selectedRetailerId) return;
-    downloadJson(
-      `commissions-${selectedRetailerId}-${Date.now()}.json`,
-      filteredRows
+    const records = commissionRowsToCsvRecords(filteredRows);
+    exportToCSV(
+      records,
+      `commissions-${selectedRetailerId}-${Date.now()}`
     );
-    message.success("Commission data exported");
+    message.success("Commission CSV exported");
   };
 
   const handleImport = () => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "application/json,.json";
+    input.accept = ".csv,text/csv,application/vnd.ms-excel,.json,application/json";
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file || !selectedRetailerId) return;
       try {
-        const text = await file.text();
-        const parsed = JSON.parse(text) as CommissionRangeRow[];
-        if (!Array.isArray(parsed)) throw new Error("Invalid format");
-        const imported = parsed.map((row) => ({
-          ...row,
-          id: createRowId(),
-          retailerId: selectedRetailerId,
-          retailerName: selectedRetailer?.name,
-          isNew: true,
-        }));
+        const lower = file.name.toLowerCase();
+        let records: Record<string, unknown>[] = [];
+
+        if (lower.endsWith(".json")) {
+          const text = await file.text();
+          const parsed = JSON.parse(text) as unknown;
+          if (!Array.isArray(parsed)) throw new Error("Invalid JSON format");
+          records = parsed as Record<string, unknown>[];
+        } else {
+          const buffer = await file.arrayBuffer();
+          const workbook = XLSX.read(buffer, { type: "array" });
+          const sheetName = workbook.SheetNames[0];
+          if (!sheetName) throw new Error("CSV has no sheets");
+          const sheet = workbook.Sheets[sheetName];
+          records = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+            defval: "",
+          });
+        }
+
+        if (!records.length) {
+          message.warning("No rows found in the uploaded file");
+          return;
+        }
+
+        const catalog = serviceCatalog.length ? serviceCatalog : services;
+        const imported = records.map((record) => {
+          const partial = mapCsvRecordToCommissionPartial(record);
+          const label = resolveCommissionServiceLabel(
+            partial.serviceId ?? "",
+            partial.serviceName ?? "",
+            catalog
+          );
+          return {
+            ...defaultRow(
+              catalog.find((s) => s.id === partial.serviceId) ?? {
+                id: partial.serviceId ?? "",
+                name: partial.serviceName || label || "Unknown",
+                code: partial.serviceId ?? "",
+                label,
+              },
+              selectedRetailerId,
+              selectedRetailer?.name,
+              partial.rangeFrom ?? 1,
+              partial.rangeTo ?? 1000
+            ),
+            ...partial,
+            id: createRowId(),
+            retailerId: selectedRetailerId,
+            retailerName: selectedRetailer?.name,
+            serviceName: label || partial.serviceName || "",
+            isNew: true,
+            isDirty: false,
+          } satisfies CommissionRangeRow;
+        });
+
         setRows((prev) => [...prev, ...imported]);
         setHasUnsavedChanges(true);
         await importCommissions(file);
-        message.success(`Imported ${imported.length} slab(s)`);
+        message.success(`Imported ${imported.length} slab(s) from CSV`);
       } catch {
-        message.error("Failed to import commission file");
+        message.error("Failed to import commission CSV/JSON file");
       }
     };
     input.click();
+  };
+
+  const handleDownloadCsvTemplate = () => {
+    exportToCSV(
+      [
+        {
+          serviceId: "",
+          serviceName: "Example Service",
+          rangeFrom: 1,
+          rangeTo: 1000,
+          deductionType: "flat",
+          deductionValue: 0,
+          retailerCommissionType: "flat",
+          retailerCommission: 5,
+          distributorCommissionType: "flat",
+          distributorCommission: 2,
+          masterDistributorCommissionType: "flat",
+          masterDistributorCommission: 1,
+          companyMarginType: "flat",
+          companyMargin: 0,
+          priority: 1,
+          status: "active",
+        },
+      ],
+      `commission-template-${Date.now()}`
+    );
+    message.success("CSV template downloaded");
   };
 
   const handleBulkUpdate = async (payload: BulkUpdatePayload) => {
@@ -461,6 +537,7 @@ export function useCommissionManagement(
     handleDelete,
     handleExport,
     handleImport,
+    handleDownloadCsvTemplate,
     handleBulkUpdate,
     handleCopy,
     handleSaveDrawer,

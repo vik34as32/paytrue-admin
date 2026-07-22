@@ -89,6 +89,20 @@ export function getPublicNetworkUserLabel(user: PublicNetworkUser): string {
   return code ? `${name} — ${code}` : name;
 }
 
+/** Dropdown label: firstName -- userCode -- mobile */
+export function getPublicNetworkUserDropdownLabel(
+  user: PublicNetworkUser
+): string {
+  const firstName =
+    user.firstName?.trim() ||
+    user.fullName?.trim() ||
+    user.name?.trim() ||
+    "Unknown";
+  const userCode = user.userCode?.trim() || "—";
+  const mobile = user.mobile?.trim() || "—";
+  return `${firstName} -- ${userCode} -- ${mobile}`;
+}
+
 /** Dropdown label: Name + user ID (for wallet summary / pickers) */
 export function getPublicNetworkUserNameIdLabel(user: PublicNetworkUser): string {
   const name =
