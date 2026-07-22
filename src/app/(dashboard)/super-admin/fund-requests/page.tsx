@@ -75,7 +75,13 @@ export default function SuperAdminFundRequestsPage() {
     {
       accessorKey: "createdAt",
       header: "Date",
-      cell: ({ row }) => formatDate(row.original.createdAt || ""),
+      cell: ({ row }) =>
+        formatDate(
+          row.original.createdAt ||
+            (row.original.requestedAt as string | undefined) ||
+            (row.original.updatedAt as string | undefined) ||
+            null
+        ),
     },
     {
       accessorKey: "amount",

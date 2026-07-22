@@ -10,6 +10,7 @@ import { Card, CardHeader } from "@/components/common/Card";
 import { PageHeader } from "@/components/common/PageHeader";
 import { DataTable } from "@/components/tables/DataTable";
 import { Badge } from "@/components/common/Badge";
+import { BankLogoName } from "@/components/common/BankLogoName";
 import { Button } from "@/components/common/Button";
 import { AdminFundRequestActionModal } from "@/components/admin/AdminFundRequestActionModal";
 import {
@@ -227,7 +228,12 @@ export function AdminFundRequestsView() {
     {
       accessorKey: "bankName",
       header: "Bank Name",
-      cell: ({ row }) => row.original.bankName || "—",
+      cell: ({ row }) => (
+        <BankLogoName
+          bankName={row.original.bankName}
+          className="min-w-[140px]"
+        />
+      ),
     },
     {
       accessorKey: "accountHolderName",

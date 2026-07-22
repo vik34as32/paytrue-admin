@@ -2,6 +2,7 @@
 
 import { Modal } from "@/components/modals/Modal";
 import { Badge } from "@/components/common/Badge";
+import { BankLogoName } from "@/components/common/BankLogoName";
 import {
   DetailField,
   DetailSection,
@@ -39,7 +40,17 @@ export function BankAccountViewModal({
         <DetailSection title="Account Information">
           <div className="grid gap-4 sm:grid-cols-2">
             <DetailField label="Account Holder" value={account.accountHolderName} />
-            <DetailField label="Bank Name" value={account.bankName} />
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">
+                Bank Name
+              </p>
+              <div className="mt-1 text-sm font-medium text-foreground">
+                <BankLogoName
+                  bankName={account.bankName}
+                  ifscCode={account.ifscCode}
+                />
+              </div>
+            </div>
             <DetailField label="Account Number" value={account.accountNumber} mono />
             <DetailField label="IFSC Code" value={account.ifscCode} mono />
             <DetailField label="Branch Name" value={account.branchName || "—"} />

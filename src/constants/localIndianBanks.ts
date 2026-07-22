@@ -53,9 +53,20 @@ export function getLocalBankLogoPath(slug: string): string {
   return `/indian-bank/${slug}.svg`;
 }
 
+/** Tolerant compare: ignores case, punctuation, spacing and Ltd/Limited suffixes. */
+function normalizeBankName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\b(ltd|limited)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 export function findLocalBankByName(name: string): LocalIndianBank | undefined {
-  const normalized = name.trim().toLowerCase();
-  return LOCAL_INDIAN_BANKS.find((bank) => bank.name.toLowerCase() === normalized);
+  const normalized = normalizeBankName(name);
+  if (!normalized) return undefined;
+  return LOCAL_INDIAN_BANKS.find(
+    (bank) => normalizeBankName(bank.name) === normalized
+  );
 }
 
 export function searchLocalIndianBanks(query: string): LocalIndianBank[] {

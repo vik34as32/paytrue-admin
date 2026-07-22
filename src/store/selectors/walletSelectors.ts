@@ -1,3 +1,4 @@
+import { createSelector } from "@reduxjs/toolkit";
 import { RootState } from "@/store";
 
 export const selectWalletBalance = (state: RootState) =>
@@ -12,20 +13,38 @@ export const selectWalletHistoryTotal = (state: RootState) =>
 export const selectWalletAdmins = (state: RootState) =>
   state.superAdminWallet.admins;
 
-export const selectWalletLoading = (state: RootState) => ({
-  balance: state.superAdminWallet.isLoadingBalance,
-  history: state.superAdminWallet.isLoadingHistory,
-  admins: state.superAdminWallet.isLoadingAdmins,
-  addBalance: state.superAdminWallet.addBalanceLoading,
-  transfer: state.superAdminWallet.transferLoading,
-  createAdmin: state.superAdminWallet.createAdminLoading,
-});
+const EMPTY_RECENT_TRANSFERS: RootState["superAdminWallet"]["history"] = [];
+
+export const selectWalletLoading = createSelector(
+  [
+    (state: RootState) => state.superAdminWallet.isLoadingBalance,
+    (state: RootState) => state.superAdminWallet.isLoadingHistory,
+    (state: RootState) => state.superAdminWallet.isLoadingAdmins,
+    (state: RootState) => state.superAdminWallet.addBalanceLoading,
+    (state: RootState) => state.superAdminWallet.transferLoading,
+    (state: RootState) => state.superAdminWallet.createAdminLoading,
+  ],
+  (balance, history, admins, addBalance, transfer, createAdmin) => ({
+    balance,
+    history,
+    admins,
+    addBalance,
+    transfer,
+    createAdmin,
+  })
+);
 
 export const selectWalletError = (state: RootState) =>
   state.superAdminWallet.error;
 
-export const selectRecentTransfers = (state: RootState, limit = 5) =>
-  state.superAdminWallet.history.slice(0, limit);
+/** Memoized slice of wallet history for dashboard recent transfers */
+export const selectRecentTransfers = createSelector(
+  [selectWalletHistory],
+  (history) => {
+    if (!history.length) return EMPTY_RECENT_TRANSFERS;
+    return history.slice(0, 5);
+  }
+);
 
 export const selectTotalAdmins = (state: RootState) =>
   state.superAdminWallet.admins.length;

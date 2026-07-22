@@ -1,3 +1,9 @@
+import {
+  LOCAL_INDIAN_BANKS,
+  findLocalBankByName,
+  getLocalBankLogoPath,
+} from "@/constants/localIndianBanks";
+
 export interface IndianBank {
   /** 4-letter IFSC bank code */
   code: string;
@@ -127,8 +133,31 @@ export const UNIQUE_INDIAN_BANKS: IndianBank[] = Array.from(
   new Map(RAW_INDIAN_BANKS.map((bank) => [bank.name, bank])).values()
 ).sort((a, b) => a.name.localeCompare(b.name));
 
-export function getBankLogoUrl(code: string): string {
-  return `https://cdn.razorpay.com/static/assets/bank/${code}.png`;
+/** IFSC prefix → local SVG slug under /public/indian-bank */
+const LOCAL_BANK_SLUG_BY_IFSC: Record<string, string> = Object.fromEntries(
+  LOCAL_INDIAN_BANKS.filter((bank) => bank.ifscPrefix).map((bank) => [
+    bank.ifscPrefix!.toUpperCase(),
+    bank.slug,
+  ])
+);
+
+/**
+ * Prefer local SVG from /public/indian-bank when available,
+ * otherwise fall back to Razorpay CDN (BankSelect onError → initials).
+ */
+export function getBankLogoUrl(code: string, bankName?: string): string {
+  const normalizedCode = code.trim().toUpperCase();
+  const slugFromCode = LOCAL_BANK_SLUG_BY_IFSC[normalizedCode];
+  if (slugFromCode) {
+    return getLocalBankLogoPath(slugFromCode);
+  }
+
+  if (bankName) {
+    const local = findLocalBankByName(bankName);
+    if (local) return getLocalBankLogoPath(local.slug);
+  }
+
+  return `https://cdn.razorpay.com/static/assets/bank/${normalizedCode}.png`;
 }
 
 export function findIndianBankByName(name: string): IndianBank | undefined {

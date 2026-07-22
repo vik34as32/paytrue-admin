@@ -3,6 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/common/Badge";
+import { BankLogoName } from "@/components/common/BankLogoName";
 import { Button } from "@/components/common/Button";
 import { BankAccountRecord } from "@/types/bankAccount";
 import { formatDate } from "@/lib/utils";
@@ -39,7 +40,14 @@ export function createBankAccountColumns(
     },
     {
       accessorKey: "bankName",
-      header: "Bank Name",
+      header: "Bank",
+      cell: ({ row }) => (
+        <BankLogoName
+          bankName={row.original.bankName}
+          ifscCode={row.original.ifscCode}
+          className="min-w-[140px]"
+        />
+      ),
     },
     {
       accessorKey: "accountNumber",

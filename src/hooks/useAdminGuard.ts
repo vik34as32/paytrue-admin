@@ -6,24 +6,43 @@ import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
 import { ROUTES } from "@/constants";
 import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
-import { hasPersistedAdminSession } from "@/lib/authSession";
+import {
+  hasPersistedAdminSession,
+  hasPersistedSuperAdminSession,
+} from "@/lib/authSession";
 import { loadStoredUser } from "@/store/api/authApi";
 
-export function useAdminGuard() {
+interface UseAdminGuardOptions {
+  /** Allow Super Admin session (shared pages like commission / service master) */
+  allowSuperAdmin?: boolean;
+}
+
+export function useAdminGuard(options: UseAdminGuardOptions = {}) {
+  const { allowSuperAdmin = false } = options;
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { isAdminApiAuth } = useRoleAccess();
   const { isLoading, isInitialized, isAuthenticated } = useAppSelector(
     (state) => state.auth
   );
+  const superAdminAuth = useAppSelector((state) => state.superAdminAuth);
   const isRestoring = useAppSelector(selectIsAuthRestoring);
   const rehydrateAttempted = useRef(false);
+
+  const hasSuperAdminAccess =
+    allowSuperAdmin &&
+    (superAdminAuth.isAuthenticated || hasPersistedSuperAdminSession());
 
   useEffect(() => {
     if (isRestoring || isLoading) return;
 
     if (isAdminApiAuth) {
       rehydrateAttempted.current = false;
+      return;
+    }
+
+    // Shared Admin + Super Admin pages (commission, service master, etc.)
+    if (hasSuperAdminAccess) {
       return;
     }
 
@@ -45,6 +64,7 @@ export function useAdminGuard() {
     router.replace(ROUTES.login);
   }, [
     dispatch,
+    hasSuperAdminAccess,
     isAdminApiAuth,
     isAuthenticated,
     isInitialized,
@@ -53,5 +73,9 @@ export function useAdminGuard() {
     router,
   ]);
 
-  return { isAdminApiAuth, isRestoring };
+  return {
+    isAdminApiAuth,
+    isRestoring,
+    hasSuperAdminAccess,
+  };
 }

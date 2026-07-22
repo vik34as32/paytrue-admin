@@ -16,6 +16,7 @@ import {
   getAdminBankAccounts,
   getBankAccountAssignments,
 } from "@/services/bankAccountApi";
+import { BankLogoName } from "@/components/common/BankLogoName";
 import { createBankAccountListColumns } from "@/lib/bankAccountColumns";
 import { formatDate } from "@/lib/utils";
 import {
@@ -146,7 +147,13 @@ export function AdminAssignBankAccountView() {
     {
       accessorKey: "bankName",
       header: "Assigned Bank",
-      cell: ({ row }) => row.original.bankName || "—",
+      cell: ({ row }) => (
+        <BankLogoName
+          bankName={row.original.bankName}
+          ifscCode={row.original.ifscCode}
+          className="min-w-[140px]"
+        />
+      ),
     },
     {
       accessorKey: "accountNumber",

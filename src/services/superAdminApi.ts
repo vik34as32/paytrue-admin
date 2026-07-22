@@ -537,7 +537,28 @@ export async function getAdminFundRequests(
   const { data } = await superAdminModuleClient.get<
     ApiResponse<PaginatedApiData<AdminFundRequest> | AdminFundRequest[]>
   >(`/admins/${adminId}/fund-requests`, { params });
-  return normalizePaginated<AdminFundRequest>(data.data, ["fundRequests"]);
+  const normalized = normalizePaginated<AdminFundRequest>(data.data, [
+    "fundRequests",
+  ]);
+  return {
+    ...normalized,
+    data: normalized.data.map((item) => {
+      const raw = item as AdminFundRequest & Record<string, unknown>;
+      const createdAt =
+        (typeof raw.createdAt === "string" && raw.createdAt) ||
+        (typeof raw.requestedAt === "string" && raw.requestedAt) ||
+        (typeof raw.updatedAt === "string" && raw.updatedAt) ||
+        (typeof raw.date === "string" && raw.date) ||
+        undefined;
+      return {
+        ...raw,
+        id: String(raw.id ?? ""),
+        amount: Number(raw.amount) || 0,
+        status: String(raw.status ?? "PENDING"),
+        createdAt,
+      };
+    }),
+  };
 }
 
 export type SuperAdminNetworkKind =

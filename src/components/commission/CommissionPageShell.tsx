@@ -16,7 +16,9 @@ interface CommissionPageShellProps {
 
 export function CommissionPageShell({ children }: CommissionPageShellProps) {
   const router = useRouter();
-  const { isAdminApiAuth, isRestoring: isAdminRestoring } = useAdminGuard();
+  const { isAdminApiAuth, isRestoring: isAdminRestoring } = useAdminGuard({
+    allowSuperAdmin: true,
+  });
   const {
     hasSuperAdminWalletAccess,
     isSuperAdminAuthenticated,

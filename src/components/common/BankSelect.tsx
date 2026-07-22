@@ -26,12 +26,22 @@ function BankLogo({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  const logoSrc = useMemo(
+    () => getBankLogoUrl(bank.code, bank.name),
+    [bank.code, bank.name]
+  );
   const initials = bank.name
     .split(" ")
+    .filter(Boolean)
     .slice(0, 2)
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+
+  // Reset failure when bank / logo source changes
+  useEffect(() => {
+    setFailed(false);
+  }, [logoSrc]);
 
   if (failed) {
     return (
@@ -41,7 +51,7 @@ function BankLogo({
           className
         )}
       >
-        {initials}
+        {initials || "BK"}
       </span>
     );
   }
@@ -49,9 +59,12 @@ function BankLogo({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={getBankLogoUrl(bank.code)}
+      src={logoSrc}
       alt={bank.name}
-      className={cn("shrink-0 rounded-lg object-contain bg-white", className)}
+      className={cn(
+        "shrink-0 rounded-lg border border-border/60 bg-white object-contain p-0.5",
+        className
+      )}
       onError={() => setFailed(true)}
     />
   );
@@ -119,7 +132,7 @@ export function BankSelect({
       >
         {selectedBank && !open ? (
           <>
-            <BankLogo bank={selectedBank} className="h-7 w-7" />
+            <BankLogo bank={selectedBank} className="h-8 w-8" />
             <button
               type="button"
               className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
@@ -141,7 +154,7 @@ export function BankSelect({
           </>
         ) : value && !open ? (
           <>
-            <BankLogo bank={{ code: "BANK", name: value }} className="h-7 w-7" />
+            <BankLogo bank={{ code: "BANK", name: value }} className="h-8 w-8" />
             <button
               type="button"
               className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
@@ -201,7 +214,7 @@ export function BankSelect({
                 )}
                 onClick={() => handleSelect(bank)}
               >
-                <BankLogo bank={bank} className="h-8 w-8" />
+                <BankLogo bank={bank} className="h-9 w-9" />
                 <span className="min-w-0 flex-1 truncate font-medium text-foreground">
                   {bank.name}
                 </span>

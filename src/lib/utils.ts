@@ -15,9 +15,25 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function formatDate(date: string | Date, pattern = "dd MMM yyyy, HH:mm"): string {
-  const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, pattern);
+export function formatDate(
+  date?: string | Date | null,
+  pattern = "dd MMM yyyy, HH:mm"
+): string {
+  if (date === null || date === undefined || date === "") return "—";
+
+  try {
+    const d =
+      typeof date === "string"
+        ? date.includes("T") || /^\d{4}-\d{2}-\d{2}/.test(date)
+          ? parseISO(date)
+          : new Date(date)
+        : date;
+
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "—";
+    return format(d, pattern);
+  } catch {
+    return "—";
+  }
 }
 
 export function generateId(prefix = "TXN"): string {
