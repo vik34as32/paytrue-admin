@@ -53,7 +53,9 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
   const kycRaw =
     obj.kyc && typeof obj.kyc === "object"
       ? (obj.kyc as Record<string, unknown>)
-      : undefined;
+      : obj.kycDocument && typeof obj.kycDocument === "object"
+        ? (obj.kycDocument as Record<string, unknown>)
+        : undefined;
 
   const aadhaarNumber =
     pickStr(kycRaw, "aadhaarNumber", "aadhaar", "aadhaar_number") ||
@@ -165,9 +167,23 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
   const profileRecord = profile as Record<string, unknown> | undefined;
   const walletRecord = wallet as Record<string, unknown> | undefined;
 
+  const wallets = Array.isArray(obj.wallets) ? obj.wallets : [];
+  const mainWalletFromList =
+    (wallets.find((item) => {
+      if (!item || typeof item !== "object") return false;
+      return (
+        String((item as Record<string, unknown>).walletType || "").toUpperCase() ===
+        "MAIN"
+      );
+    }) as Record<string, unknown> | undefined) ||
+    (wallets[0] && typeof wallets[0] === "object"
+      ? (wallets[0] as Record<string, unknown>)
+      : undefined);
+
   const walletBalance =
     parseAmount(obj.walletBalance) ??
     parseAmount(walletRecord?.balance) ??
+    parseAmount(mainWalletFromList?.balance) ??
     parseAmount(
       walletRecord?.wallet && typeof walletRecord.wallet === "object"
         ? (walletRecord.wallet as Record<string, unknown>).balance
@@ -212,6 +228,12 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     alternateMobileNumber,
     profileImage,
     status: obj.status as string | undefined,
+    verificationStatus: obj.verificationStatus as string | undefined,
+    idVerificationStatus: obj.idVerificationStatus as string | undefined,
+    verificationRemark: obj.verificationRemark as string | undefined,
+    rejectionReason: obj.rejectionReason as string | undefined,
+    verifiedAt: obj.verifiedAt as string | undefined,
+    rejectedAt: obj.rejectedAt as string | undefined,
     userType:
       (obj.userType as string | undefined) ||
       (obj.role as string | undefined) ||
@@ -266,6 +288,55 @@ export function getUserOutletName(user: NetworkUserRecord): string {
   }
   if (user.outletName) return String(user.outletName);
   return "—";
+}
+
+/** Prefer firstName only (retailer lastName is often a random code). */
+export function getUserFirstName(user: NetworkUserRecord): string {
+  const first = (user.firstName || "").trim();
+  if (first) return first;
+  const full = (user.name || getNetworkUserName(user) || "").trim();
+  if (!full) return "—";
+  return full.split(/\s+/)[0] || full;
+}
+
+/** InstantPay outlet id when present, else outlet UUID. */
+export function getUserOutletId(user: NetworkUserRecord): string {
+  const outlet = user.outlet;
+  if (outlet && typeof outlet === "object") {
+    const instantpay = outlet.instantpayOutletId;
+    if (instantpay !== null && instantpay !== undefined && `${instantpay}`.trim()) {
+      return String(instantpay).trim();
+    }
+    if (outlet.id) return String(outlet.id);
+  }
+  const topLevel = (user as Record<string, unknown>).instantpayOutletId;
+  if (typeof topLevel === "string" && topLevel.trim()) return topLevel.trim();
+  return "—";
+}
+
+const HIDDEN_NETWORK_USER_EMAILS = new Set(["retailer@fintech.com"]);
+
+export function isHiddenNetworkUser(user: NetworkUserRecord): boolean {
+  const email = String(user.email || "")
+    .trim()
+    .toLowerCase();
+  return HIDDEN_NETWORK_USER_EMAILS.has(email);
+}
+
+export function filterVisibleNetworkUsers(users: NetworkUserRecord[]): {
+  users: NetworkUserRecord[];
+  hiddenCount: number;
+} {
+  const visible: NetworkUserRecord[] = [];
+  let hiddenCount = 0;
+  for (const user of users) {
+    if (isHiddenNetworkUser(user)) {
+      hiddenCount += 1;
+      continue;
+    }
+    visible.push(user);
+  }
+  return { users: visible, hiddenCount };
 }
 
 export function getUserOutletField(

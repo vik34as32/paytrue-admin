@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react";
-import { adminEmailLoginSchema, AdminEmailLoginFormData } from "@/validations";
+import { Eye, EyeOff, Loader2, Lock, Mail, Phone } from "lucide-react";
+import {
+  adminEmailLoginSchema,
+  AdminEmailLoginFormData,
+  toAdminLoginPayload,
+} from "@/validations";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { adminLoginUser } from "@/store/api/authApi";
 import { Input } from "@/components/ui/Input";
@@ -24,14 +28,24 @@ export default function LoginForm() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<AdminEmailLoginFormData>({
     resolver: zodResolver(adminEmailLoginSchema),
-    defaultValues: { rememberMe: true },
+    defaultValues: { identifier: "", password: "", rememberMe: true },
   });
 
+  const identifier = watch("identifier") || "";
+  const looksLikeEmail = useMemo(
+    () => identifier.includes("@") || /[a-zA-Z]/.test(identifier),
+    [identifier]
+  );
+
   const onSubmit = async (data: AdminEmailLoginFormData) => {
-    const result = await dispatch(adminLoginUser(data));
+    const credentials = toAdminLoginPayload(data);
+    const result = await dispatch(
+      adminLoginUser({ ...credentials, rememberMe: data.rememberMe })
+    );
     if (adminLoginUser.fulfilled.match(result)) {
       toast.success("Welcome back!");
       router.replace(ROUTES.adminDashboard);
@@ -43,13 +57,21 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
       <Input
-        label="Email Address"
+        label="Email or Mobile"
         variant="dark"
-        type="email"
-        placeholder="admin@paytrue.com"
-        icon={<Mail className="h-4 w-4" />}
-        error={errors.email?.message}
-        {...register("email")}
+        type="text"
+        inputMode={looksLikeEmail ? "email" : "numeric"}
+        autoComplete="username"
+        placeholder="admin@paytrue.com or 9876543210"
+        icon={
+          looksLikeEmail ? (
+            <Mail className="h-4 w-4" />
+          ) : (
+            <Phone className="h-4 w-4" />
+          )
+        }
+        error={errors.identifier?.message}
+        {...register("identifier")}
       />
       <div>
         <Input
@@ -66,7 +88,11 @@ export default function LoginForm() {
           onClick={() => setShowPassword(!showPassword)}
           className="mt-2 flex items-center gap-2 text-xs text-slate-400 hover:text-blue-400"
         >
-          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showPassword ? (
+            <EyeOff className="h-4 w-4" />
+          ) : (
+            <Eye className="h-4 w-4" />
+          )}
           {showPassword ? "Hide password" : "Show password"}
         </button>
       </div>

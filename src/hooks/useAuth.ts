@@ -15,6 +15,7 @@ const PUBLIC_ROUTES = [
   ROUTES.forgotPassword,
   ROUTES.resetPassword,
   ROUTES.superAdminLogin,
+  ROUTES.unauthorized,
 ];
 
 /** Routes that require Super Admin session only */
@@ -34,13 +35,21 @@ const SUPER_ADMIN_API_ROUTES = [
   ROUTES.superAdminFundRequests,
   ROUTES.superAdminChangePassword,
   ROUTES.superAdminBankAccounts,
+  ROUTES.superAdminServiceCharges,
+  ROUTES.superAdminAepsLedger,
+  ROUTES.superAdminPermissionManagement,
+  ROUTES.superAdminIdVerification,
   ROUTES.superAdminCreateAdmin,
+  ROUTES.superAdminWalletManagement,
+  ROUTES.superAdminWalletLien,
 ];
 
 /** Shared Admin + Super Admin pages under `/admin/...` */
 const SHARED_ADMIN_SUPER_ADMIN_ROUTES = [
   ROUTES.adminCommissionManagement,
   ROUTES.adminServiceMaster,
+  ROUTES.adminWallets,
+  ROUTES.ledger,
 ];
 
 const ROLE_ROUTES: Record<UserRole, string[]> = {
@@ -68,11 +77,15 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.adminReports,
     ROUTES.adminHierarchy,
     ROUTES.adminLedger,
+    ROUTES.ledger,
     ROUTES.adminFundRequests,
     ROUTES.adminAssignBankAccount,
     ROUTES.adminCommissionManagement,
     ROUTES.adminServiceMaster,
     ROUTES.adminWalletSummary,
+    ROUTES.adminWalletManagement,
+    ROUTES.adminWallets,
+    ROUTES.adminIdVerification,
   ],
   master_distributor: [
     ROUTES.dashboard,
@@ -83,6 +96,7 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.ledger,
     ROUTES.hierarchy,
     ROUTES.history,
+    ROUTES.wallets,
     ROUTES.profile,
     ROUTES.settings,
     ROUTES.users,
@@ -95,6 +109,7 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.ledger,
     ROUTES.hierarchy,
     ROUTES.history,
+    ROUTES.wallets,
     ROUTES.profile,
     ROUTES.settings,
     ROUTES.users,
@@ -105,6 +120,7 @@ const ROLE_ROUTES: Record<UserRole, string[]> = {
     ROUTES.requests,
     ROUTES.ledger,
     ROUTES.history,
+    ROUTES.wallets,
     ROUTES.profile,
     ROUTES.settings,
   ],

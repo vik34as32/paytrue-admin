@@ -23,6 +23,13 @@ export interface SuperAdminUserActions {
   onActivate: (user: NetworkUserRecord) => void;
   onDeactivate: (user: NetworkUserRecord) => void;
   onResetPassword: (user: NetworkUserRecord) => void;
+  onVerify?: (user: NetworkUserRecord) => void;
+  onReject?: (user: NetworkUserRecord) => void;
+  onViewVerification?: (user: NetworkUserRecord) => void;
+  onViewRejectReason?: (user: NetworkUserRecord) => void;
+  onTransfer?: (user: NetworkUserRecord) => void;
+  onDeduct?: (user: NetworkUserRecord) => void;
+  showVerificationActions?: boolean;
   disabled?: boolean;
 }
 
@@ -105,29 +112,28 @@ export function SuperAdminUserActionsMenu({
           >
             <Pencil className="h-4 w-4 text-muted" /> Edit
           </button>
-          {isActive ? (
-            <button
-              type="button"
-              className={itemClass}
-              onClick={() => {
-                setOpen(false);
-                actions.onDeactivate(user);
-              }}
-            >
-              <PowerOff className="h-4 w-4 text-amber-600" /> Deactivate
-            </button>
-          ) : (
-            <button
-              type="button"
-              className={itemClass}
-              onClick={() => {
-                setOpen(false);
-                actions.onActivate(user);
-              }}
-            >
-              <Power className="h-4 w-4 text-emerald-600" /> Activate
-            </button>
-          )}
+          <button
+            type="button"
+            className={itemClass}
+            disabled={actions.disabled || isActive}
+            onClick={() => {
+              setOpen(false);
+              actions.onActivate(user);
+            }}
+          >
+            <Power className="h-4 w-4 text-emerald-600" /> Activate
+          </button>
+          <button
+            type="button"
+            className={itemClass}
+            disabled={actions.disabled || !isActive}
+            onClick={() => {
+              setOpen(false);
+              actions.onDeactivate(user);
+            }}
+          >
+            <PowerOff className="h-4 w-4 text-amber-600" /> Deactivate
+          </button>
           <button
             type="button"
             className={itemClass}

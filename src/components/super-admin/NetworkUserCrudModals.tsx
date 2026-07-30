@@ -2,9 +2,12 @@
 
 import { useMemo } from "react";
 import { SuperAdminUserStepModal } from "@/components/super-admin/SuperAdminUserStepModal";
+import { NetworkUserDetailsView } from "@/components/super-admin/NetworkUserDetailsView";
 import { DeleteNetworkUserDialog } from "@/components/super-admin/DeleteNetworkUserDialog";
 import { useNetworkUserCrud } from "@/hooks/useNetworkUserCrud";
 import { createSuperAdminNetworkUserColumns } from "@/lib/networkUserColumns";
+import type { NetworkUserListKind } from "@/lib/networkUserColumns";
+import { NetworkUserRecord } from "@/types/superAdmin";
 
 interface NetworkUserCrudModalsProps {
   crud: ReturnType<typeof useNetworkUserCrud>;
@@ -13,8 +16,7 @@ interface NetworkUserCrudModalsProps {
 export function NetworkUserCrudModals({ crud }: NetworkUserCrudModalsProps) {
   return (
     <>
-      <SuperAdminUserStepModal
-        mode="view"
+      <NetworkUserDetailsView
         isOpen={crud.viewOpen}
         onClose={crud.closeView}
         user={crud.viewUser}
@@ -39,10 +41,23 @@ export function NetworkUserCrudModals({ crud }: NetworkUserCrudModalsProps) {
     </>
   );
 }
-
 export function useNetworkUserTableColumns(
   onRefresh: () => void,
-  options?: { pageIndex?: number; pageSize?: number }
+  options?: {
+    pageIndex?: number;
+    pageSize?: number;
+    userKind?: NetworkUserListKind;
+    enableVerification?: boolean;
+    verification?: {
+      onVerify: (user: NetworkUserRecord) => void;
+      onReject: (user: NetworkUserRecord) => void;
+      onViewVerification: (user: NetworkUserRecord) => void;
+      onViewRejectReason: (user: NetworkUserRecord) => void;
+      onTransfer?: (user: NetworkUserRecord) => void;
+      onDeduct?: (user: NetworkUserRecord) => void;
+      disabled?: boolean;
+    };
+  }
 ) {
   const crud = useNetworkUserCrud(onRefresh);
 
@@ -56,12 +71,23 @@ export function useNetworkUserTableColumns(
           onActivate: crud.activateUser,
           onDeactivate: crud.deactivateUser,
           onResetPassword: (user) => void crud.resetPassword(user),
+          showVerificationActions: options?.enableVerification,
+          onVerify: options?.verification?.onVerify,
+          onReject: options?.verification?.onReject,
+          onViewVerification: options?.verification?.onViewVerification,
+          onViewRejectReason: options?.verification?.onViewRejectReason,
+          onTransfer: options?.verification?.onTransfer,
+          onDeduct: options?.verification?.onDeduct,
           disabled:
-            crud.isFetchingDetail || crud.isUpdating || crud.isDeleting,
+            crud.isFetchingDetail ||
+            crud.isUpdating ||
+            crud.isDeleting ||
+            options?.verification?.disabled,
         },
         {
           pageIndex: options?.pageIndex,
           pageSize: options?.pageSize,
+          userKind: options?.userKind,
         }
       ),
     [
@@ -76,6 +102,9 @@ export function useNetworkUserTableColumns(
       crud.isDeleting,
       options?.pageIndex,
       options?.pageSize,
+      options?.userKind,
+      options?.enableVerification,
+      options?.verification,
     ]
   );
 

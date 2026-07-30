@@ -45,23 +45,196 @@ function mapPublicNetworkUserOption(
   user: PublicNetworkUser,
   fallbackType: WalletSummaryUserType
 ): WalletSummaryUserOption {
+  const isRetailer =
+    ((user.userType as string) || fallbackType) === "RETAILER";
+  const displayName = isRetailer
+    ? user.firstName?.trim() ||
+      user.fullName?.trim()?.split(/\s+/)[0] ||
+      resolveName(user)
+    : resolveName(user);
+
   return {
     id: user.id,
-    name: resolveName(user),
+    name: displayName,
     userCode: user.userCode,
     email: user.email,
     mobile: user.mobile,
     userType: (user.userType as string) || fallbackType,
-    walletBalance: 0,
+    walletBalance: Number(user.walletBalance ?? user.balance ?? 0),
     status: user.status,
   };
 }
 
-/** Loads MD / DD / RT options from public `GET /api/v1/public/network-users` */
+function mapSummaryListItem(
+  raw: Record<string, unknown>
+): WalletSummaryUserOption {
+  const role = String(raw.role ?? raw.userType ?? "");
+  const firstName =
+    typeof raw.firstName === "string" ? raw.firstName.trim() : "";
+  const lastName = typeof raw.lastName === "string" ? raw.lastName.trim() : "";
+  const full =
+    (typeof raw.name === "string" && raw.name.trim()) ||
+    [firstName, lastName].filter(Boolean).join(" ").trim();
+  const name =
+    role === "RETAILER"
+      ? firstName || full.split(/\s+/)[0] || "—"
+      : full || "—";
+
+  return {
+    id: String(raw.userId ?? raw.id ?? ""),
+    name,
+    userCode: (raw.userCode as string | undefined) ?? undefined,
+    email: (raw.email as string | undefined) ?? undefined,
+    mobile: (raw.mobile as string | undefined) ?? undefined,
+    userType: role,
+    walletBalance: Number(
+      raw.mainWallet ?? raw.walletBalance ?? raw.availableBalance ?? 0
+    ),
+    status: (raw.status as string | undefined) ?? undefined,
+  };
+}
+
+function mapNetworkUsers(payload: Record<string, unknown>): WalletSummaryUserOption[] {
+  const users = Array.isArray(payload.users) ? payload.users : [];
+  return users
+    .filter((row): row is Record<string, unknown> => !!row && typeof row === "object")
+    .map(mapSummaryListItem)
+    .filter((u) => u.id)
+    .sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+}
+
+/**
+ * GET /api/v1/wallet/summaries?userType=ALL|ADMIN|RETAILER|...
+ * Production shape: { scope, filters, users[], transactions[], meta, viewedBy }
+ */
+export async function fetchNetworkWalletSummaries(
+  scope: WalletSummaryScope,
+  userType: WalletSummaryUserType,
+  params: WalletSummaryQueryParams = {}
+): Promise<WalletSummaryPageResult> {
+  const client = scope === "super_admin" ? superAdminClient : adminClient;
+  const pageSize = Math.min(params.pageSize ?? params.limit ?? 20, 100);
+  const operationType =
+    params.type && params.type !== "ALL" ? params.type : undefined;
+
+  const { data } = await client.get<ApiResponse<unknown>>(WALLET_API.summaries, {
+    params: {
+      userType: userType === "ALL" ? "ALL" : userType,
+      page: params.page ?? 1,
+      limit: pageSize,
+      sortBy: params.sortBy || "createdAt",
+      sortOrder: params.sortOrder || "desc",
+      ...(operationType
+        ? { type: operationType, transactionType: operationType }
+        : {}),
+      status: params.status || undefined,
+      startDate: params.startDate || params.fromDate || undefined,
+      endDate: params.endDate || params.toDate || undefined,
+      search: params.search || undefined,
+    },
+  });
+
+  const payload =
+    data?.data && typeof data.data === "object"
+      ? (data.data as Record<string, unknown>)
+      : {};
+
+  const transactions = (
+    Array.isArray(payload.transactions) ? payload.transactions : []
+  )
+    .map(normalizeActivityRecord)
+    .sort((a, b) => {
+      const order = (params.sortOrder || "desc") === "asc" ? 1 : -1;
+      const av = new Date(a.createdAt || 0).getTime();
+      const bv = new Date(b.createdAt || 0).getTime();
+      if (av === bv) return 0;
+      return av > bv ? order : -order;
+    });
+
+  const meta =
+    payload.meta && typeof payload.meta === "object"
+      ? (payload.meta as Record<string, unknown>)
+      : {};
+  const scopeInfo =
+    payload.scope && typeof payload.scope === "object"
+      ? (payload.scope as Record<string, unknown>)
+      : {};
+
+  const total = Number(meta.total ?? transactions.length) || transactions.length;
+  const limit = Number(meta.limit ?? pageSize) || pageSize;
+  const page = Number(meta.page ?? params.page ?? 1) || 1;
+  const totalPages =
+    Number(meta.totalPages) ||
+    Math.max(1, Math.ceil(total / Math.max(limit, 1)));
+
+  const users = mapNetworkUsers(payload);
+
+  return {
+    data: transactions,
+    total,
+    page,
+    pageSize: limit,
+    totalPages,
+    users,
+    header: {
+      scopeUserType: String(scopeInfo.userType ?? userType),
+      scopeUserCount: Number(scopeInfo.userCount ?? users.length) || users.length,
+      totalCreditAmount: transactions
+        .filter((t) => formatOp(t.operationType) === "CREDIT")
+        .reduce((s, t) => s + t.amount, 0),
+      totalDeductAmount: transactions
+        .filter((t) => formatOp(t.operationType) === "DEDUCT")
+        .reduce((s, t) => s + t.amount, 0),
+      totalCreditCount: transactions.filter(
+        (t) => formatOp(t.operationType) === "CREDIT"
+      ).length,
+      totalDeductCount: transactions.filter(
+        (t) => formatOp(t.operationType) === "DEDUCT"
+      ).length,
+    },
+  };
+}
+
+function formatOp(type?: string): string {
+  const upper = (type || "").toUpperCase();
+  if (upper.includes("DEDUCT") || upper.includes("DEBIT")) return "DEDUCT";
+  if (upper.includes("CREDIT") || upper.includes("ADD") || upper === "TRANSFER")
+    return "CREDIT";
+  return upper || "—";
+}
+
+/** Loads users for dropdown from /wallet/summaries `users` array */
 export async function fetchWalletSummaryUsers(
-  _scope: WalletSummaryScope,
+  scope: WalletSummaryScope,
   userType: WalletSummaryUserType
 ): Promise<WalletSummaryUserOption[]> {
+  try {
+    const result = await fetchNetworkWalletSummaries(scope, userType, {
+      page: 1,
+      pageSize: 100,
+      sortBy: "createdAt",
+      sortOrder: "asc",
+    });
+    if (result.users && result.users.length > 0) return result.users;
+  } catch {
+    // fall through
+  }
+
+  if (userType === "ADMIN") {
+    const users = await getPublicNetworkUsers("ADMIN");
+    return users.map((user) => mapPublicNetworkUserOption(user, "ADMIN"));
+  }
+
+  if (userType === "ALL") {
+    const users = await getPublicNetworkUsers();
+    return users.map((user) =>
+      mapPublicNetworkUserOption(
+        user,
+        (user.userType as WalletSummaryUserType) || "RETAILER"
+      )
+    );
+  }
+
   const users = await getPublicNetworkUsers(userType);
   return users.map((user) => mapPublicNetworkUserOption(user, userType));
 }
@@ -101,6 +274,13 @@ function normalizeActivityRecord(raw: unknown): WalletSummaryActivityRecord {
     readNestedPerson(obj.actionBy) ||
     readNestedPerson(obj.admin);
 
+  const target =
+    obj.targetUser && typeof obj.targetUser === "object"
+      ? (obj.targetUser as Record<string, unknown>)
+      : obj.user && typeof obj.user === "object"
+        ? (obj.user as Record<string, unknown>)
+        : undefined;
+
   return {
     id: String(obj.id ?? obj._id ?? obj.transactionId ?? obj.reference ?? ""),
     reference:
@@ -116,6 +296,7 @@ function normalizeActivityRecord(raw: unknown): WalletSummaryActivityRecord {
     remarks:
       (obj.remarks as string | undefined) ||
       (obj.description as string | undefined),
+    message: (obj.message as string | undefined) ?? undefined,
     performedByName:
       (obj.performedByName as string | undefined) ||
       performer?.name,
@@ -145,6 +326,20 @@ function normalizeActivityRecord(raw: unknown): WalletSummaryActivityRecord {
     createdAt: (obj.createdAt as string | undefined) ?? undefined,
     date: (obj.date as string | undefined) ?? undefined,
     time: (obj.time as string | undefined) ?? undefined,
+    targetUserId: target?.id ? String(target.id) : undefined,
+    targetUserName: target
+      ? resolveName({
+          name: target.name as string | undefined,
+          firstName: target.firstName as string | undefined,
+          lastName: target.lastName as string | undefined,
+          email: target.email as string | undefined,
+        })
+      : undefined,
+    targetUserCode: (target?.userCode as string | undefined) ?? undefined,
+    targetUserRole: String(
+      target?.role ?? target?.userType ?? target?.roleLabel ?? ""
+    ) || undefined,
+    targetUserMobile: (target?.mobile as string | undefined) ?? undefined,
   };
 }
 
@@ -307,7 +502,15 @@ export async function getUserWalletSummary(
   );
 
   const payload = data.data;
-  const items = extractItems(payload).map(normalizeActivityRecord);
+  const sortOrder = (params.sortOrder || "desc") === "asc" ? 1 : -1;
+  const items = extractItems(payload)
+    .map(normalizeActivityRecord)
+    .sort((a, b) => {
+      const av = new Date(a.createdAt || 0).getTime();
+      const bv = new Date(b.createdAt || 0).getTime();
+      if (av === bv) return 0;
+      return av > bv ? sortOrder : -sortOrder;
+    });
   const meta = extractMeta(payload);
   const pageSize = meta.pageSize ?? params.pageSize ?? 10;
   const total = meta.total ?? items.length;

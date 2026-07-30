@@ -12,7 +12,10 @@ import { Button } from "@/components/common/Button";
 import { walletDeductSchema, WalletDeductFormData } from "@/validations";
 import { formatCurrency } from "@/lib/utils";
 import { normalizeTransferAmount } from "@/lib/walletAmount";
-import { normalizeTransferRole } from "@/lib/walletTransferOptions";
+import {
+  formatWalletReceiverDropdownLabel,
+  normalizeTransferRole,
+} from "@/lib/walletTransferOptions";
 import type { WalletTransferReceiver } from "@/types/wallet";
 import type { WalletTransferRoleOption } from "@/components/wallet/WalletTransferForm";
 
@@ -91,7 +94,7 @@ export function WalletDeductForm({
       { value: "", label: "Select user" },
       ...roleReceivers.map((receiver) => ({
         value: receiver.id,
-        label: `${receiver.name} — ${formatCurrency(receiver.balance)}`,
+        label: formatWalletReceiverDropdownLabel(receiver),
       })),
     ];
   }, [isLoadingReceivers, roleReceivers, selectedRole]);
@@ -157,9 +160,11 @@ export function WalletDeductForm({
 
         {selectedReceiver ? (
           <div className="rounded-xl border border-accent-red/20 bg-accent-red/5 px-4 py-3 text-sm">
-            <p className="font-semibold text-foreground">{selectedReceiver.name}</p>
-            <p className="text-muted">
-              {selectedReceiver.roleLabel} · Current balance:{" "}
+            <p className="font-semibold text-foreground">
+              {formatWalletReceiverDropdownLabel(selectedReceiver)}
+            </p>
+            <p className="mt-1 text-muted">
+              Current balance:{" "}
               <span className="font-semibold text-foreground">
                 {formatCurrency(targetBalance)}
               </span>

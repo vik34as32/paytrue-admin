@@ -4,6 +4,12 @@ export const WALLET_API = {
   transfer: "/wallet/transfer",
   deduct: "/wallet/deduct",
   transfers: "/wallet/transfers",
+  hold: "/wallet/hold",
+  release: "/wallet/release",
+  freeze: "/wallet/freeze",
+  unfreeze: "/wallet/unfreeze",
+  users: "/wallet/users",
+  summaries: "/wallet/summaries",
   /** GET `/wallet/summary/:userId` — Admin / Super Admin user wallet activity */
   summary: "/wallet/summary",
 } as const;

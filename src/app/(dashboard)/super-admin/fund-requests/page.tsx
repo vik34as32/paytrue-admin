@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
 import { DataTable } from "@/components/tables/DataTable";
+import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import { Badge } from "@/components/common/Badge";
 import {
   SuperAdminListFilters,
@@ -20,16 +22,44 @@ import { getAdminDisplayName, getAdminId } from "@/services/admin";
 import { ROUTES } from "@/constants";
 import { AdminFundRequest } from "@/types/superAdmin";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  downloadReportExcel,
+  downloadReportPdf,
+  reportFilename,
+} from "@/lib/reportExport";
 
 const PAGE_SIZE = 10;
+
+const EXPORT_COLUMNS = [
+  { key: "#", label: "#" },
+  { key: "date", label: "Date" },
+  { key: "amount", label: "Amount" },
+  { key: "status", label: "Status" },
+  { key: "remarks", label: "Remarks" },
+  { key: "adminName", label: "Admin" },
+];
+
+function toExportRows(items: AdminFundRequest[]) {
+  return items.map((item, index) => ({
+    "#": index + 1,
+    date: formatDate(
+      item.createdAt ||
+        (item.requestedAt as string | undefined) ||
+        (item.updatedAt as string | undefined) ||
+        null
+    ),
+    amount: formatCurrency(Number(item.amount) || 0),
+    status: item.status || "—",
+    remarks: item.remarks || "—",
+    adminName: item.adminName || "—",
+  }));
+}
 
 export default function SuperAdminFundRequestsPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
-  const { data, total, isLoading, error } = useAppSelector(
-    selectFundRequests
-  );
+  const { data, total, isLoading, error } = useAppSelector(selectFundRequests);
   const { admins, isLoadingAdmins } = useAppSelector(
     (state) => state.superAdminWallet
   );
@@ -37,6 +67,7 @@ export default function SuperAdminFundRequestsPage() {
   const [search, setSearch] = useState("");
   const [selectedAdminId, setSelectedAdminId] = useState("");
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({});
+  const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
@@ -71,6 +102,48 @@ export default function SuperAdminFundRequestsPage() {
     loadData();
   }, [loadData]);
 
+  const handleExportExcel = () => {
+    try {
+      setExportLoading(true);
+      if (!data.length) {
+        toast.error("No records available to export");
+        return;
+      }
+      downloadReportExcel(
+        toExportRows(data),
+        reportFilename("fund-requests"),
+        "Fund Requests"
+      );
+      toast.success("Excel downloaded successfully");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const handleExportPdf = () => {
+    try {
+      setExportLoading(true);
+      if (!data.length) {
+        toast.error("No records available to export");
+        return;
+      }
+      downloadReportPdf({
+        title: "Admin Fund Requests",
+        subtitle: "Fund requests report",
+        filename: reportFilename("fund-requests"),
+        columns: EXPORT_COLUMNS,
+        rows: toExportRows(data),
+      });
+      toast.success("PDF print dialog opened");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "PDF export failed");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const columns: ColumnDef<AdminFundRequest, unknown>[] = [
     {
       accessorKey: "createdAt",
@@ -87,7 +160,9 @@ export default function SuperAdminFundRequestsPage() {
       accessorKey: "amount",
       header: "Amount",
       cell: ({ row }) => (
-        <span className="font-semibold">{formatCurrency(row.original.amount)}</span>
+        <span className="font-semibold">
+          {formatCurrency(row.original.amount)}
+        </span>
       ),
     },
     {
@@ -96,8 +171,10 @@ export default function SuperAdminFundRequestsPage() {
       cell: ({ row }) => (
         <Badge
           variant={
-            (row.original.status?.toLowerCase() as "success" | "pending" | "rejected") ||
-            "default"
+            (row.original.status?.toLowerCase() as
+              | "success"
+              | "pending"
+              | "rejected") || "default"
           }
         >
           {row.original.status}
@@ -164,6 +241,13 @@ export default function SuperAdminFundRequestsPage() {
           }}
         />
 
+        <ReportExportBar
+          className="mb-4"
+          loading={exportLoading || isLoading}
+          onExportExcel={handleExportExcel}
+          onExportPdf={handleExportPdf}
+        />
+
         {!selectedAdminId ? (
           <p className="py-8 text-center text-sm text-muted">
             Select an admin to view fund requests
@@ -179,6 +263,8 @@ export default function SuperAdminFundRequestsPage() {
             pageIndex={pageIndex}
             onPageChange={setPageIndex}
             pageSize={PAGE_SIZE}
+            totalRows={total}
+            tone="report"
           />
         )}
       </Card>

@@ -12,7 +12,10 @@ import { Button } from "@/components/common/Button";
 import { walletTransferSchema, WalletTransferFormData } from "@/validations";
 import { formatCurrency } from "@/lib/utils";
 import { normalizeTransferAmount } from "@/lib/walletAmount";
-import { normalizeTransferRole } from "@/lib/walletTransferOptions";
+import {
+  formatWalletReceiverDropdownLabel,
+  normalizeTransferRole,
+} from "@/lib/walletTransferOptions";
 import type { WalletTransferReceiver } from "@/types/wallet";
 
 export interface WalletTransferRoleOption {
@@ -97,7 +100,7 @@ export function WalletTransferForm({
       { value: "", label: "Select user" },
       ...roleReceivers.map((receiver) => ({
         value: receiver.id,
-        label: `${receiver.name} — ${formatCurrency(receiver.balance)}`,
+        label: formatWalletReceiverDropdownLabel(receiver),
       })),
     ];
   }, [isLoadingReceivers, roleReceivers, selectedRole]);
@@ -175,10 +178,14 @@ export function WalletTransferForm({
 
         {selectedReceiver ? (
           <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
-            <p className="font-semibold text-foreground">{selectedReceiver.name}</p>
-            <p className="text-muted">
-              {selectedReceiver.roleLabel} · Current balance:{" "}
-              {formatCurrency(selectedReceiver.balance)}
+            <p className="font-semibold text-foreground">
+              {formatWalletReceiverDropdownLabel(selectedReceiver)}
+            </p>
+            <p className="mt-1 text-muted">
+              Current balance:{" "}
+              <span className="font-semibold text-foreground">
+                {formatCurrency(selectedReceiver.balance)}
+              </span>
             </p>
           </div>
         ) : null}

@@ -270,7 +270,25 @@ export async function updateUserStatus(
   return normalizeUserDetail(data.data);
 }
 
-/** Reset password via existing PUT body.password field. */
+/** POST /api/v1/super-admin/users/:id/activate */
+export async function activateSuperAdminUser(id: string): Promise<void> {
+  await superAdminModuleClient.post(`/users/${id}/activate`);
+}
+
+/** POST /api/v1/super-admin/users/:id/deactivate — INACTIVE + revoke sessions */
+export async function deactivateSuperAdminUser(id: string): Promise<void> {
+  await superAdminModuleClient.post(`/users/${id}/deactivate`);
+}
+
+/**
+ * POST /api/v1/super-admin/users/:id/reset-password
+ * Server generates password and emails it — response does not include password.
+ */
+export async function resetSuperAdminUserPassword(id: string): Promise<void> {
+  await superAdminModuleClient.post(`/users/${id}/reset-password`);
+}
+
+/** @deprecated Prefer resetSuperAdminUserPassword for Super Admin users */
 export async function resetUserPassword(
   id: string,
   newPassword: string,

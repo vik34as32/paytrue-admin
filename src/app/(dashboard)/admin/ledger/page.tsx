@@ -1,12 +1,16 @@
 "use client";
 
-import { AdminPageShell } from "@/components/admin/AdminPageShell";
-import { AdminLedgerView } from "@/components/admin/AdminLedgerView";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/constants";
 
-export default function AdminLedgerPage() {
-  return (
-    <AdminPageShell>
-      <AdminLedgerView />
-    </AdminPageShell>
-  );
+/** Legacy admin ledger route — redirect to centralized ledger. */
+export default function AdminLedgerRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/ledger/admin");
+  }, [router]);
+
+  return null;
 }

@@ -149,11 +149,57 @@ export const superAdminLoginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-export const adminEmailLoginSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-  rememberMe: z.boolean().optional(),
-});
+export const adminEmailLoginSchema = z
+  .object({
+    identifier: z.string().min(1, "Email or mobile is required"),
+    password: z.string().min(1, "Password is required"),
+    rememberMe: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const value = data.identifier.trim();
+    if (!value) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Email or mobile is required",
+        path: ["identifier"],
+      });
+      return;
+    }
+
+    if (value.includes("@")) {
+      if (!z.string().email().safeParse(value).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Enter a valid email address",
+          path: ["identifier"],
+        });
+      }
+      return;
+    }
+
+    const digits = value.replace(/\D/g, "");
+    const mobile = digits.length > 10 ? digits.slice(-10) : digits;
+    if (!mobileRegex.test(mobile)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Enter a valid email or 10-digit mobile number",
+        path: ["identifier"],
+      });
+    }
+  });
+
+/** Build API login body: email OR mobile + password */
+export function toAdminLoginPayload(
+  data: z.infer<typeof adminEmailLoginSchema>
+): { email?: string; mobile?: string; password: string } {
+  const value = data.identifier.trim();
+  if (value.includes("@")) {
+    return { email: value.toLowerCase(), password: data.password };
+  }
+  const digits = value.replace(/\D/g, "");
+  const mobile = digits.length > 10 ? digits.slice(-10) : digits;
+  return { mobile, password: data.password };
+}
 
 export const forgotPasswordSchema = z
   .object({

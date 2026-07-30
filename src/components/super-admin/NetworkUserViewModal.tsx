@@ -6,6 +6,7 @@ import {
   StatusBadge,
   UserDetailSections,
 } from "@/components/super-admin/NetworkUserDetailSections";
+import { WalletLienUserSection } from "@/components/wallet-lien/WalletLienUserSection";
 import { UserDetailRecord } from "@/types/superAdmin";
 import {
   formatUserTypeLabel,
@@ -102,6 +103,7 @@ export function NetworkUserViewModal({
           </div>
 
           <UserDetailSections user={user} />
+          <WalletLienUserSection userId={user.id} />
         </div>
       ) : (
         <p className="text-sm text-muted">No user details available.</p>

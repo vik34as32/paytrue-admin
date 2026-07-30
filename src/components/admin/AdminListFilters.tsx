@@ -6,6 +6,7 @@ import { Select } from "@/components/common/Select";
 export interface AdminListFiltersValue {
   status?: string;
   userType?: string;
+  verificationStatus?: string;
   startDate?: string;
   endDate?: string;
   sortBy?: string;
@@ -17,6 +18,7 @@ interface AdminListFiltersProps {
   onChange: (value: AdminListFiltersValue) => void;
   showStatus?: boolean;
   showFundRequestStatus?: boolean;
+  showVerificationStatus?: boolean;
   showUserType?: boolean;
   showDateRange?: boolean;
   showSort?: boolean;
@@ -36,6 +38,13 @@ const FUND_REQUEST_STATUS_OPTIONS = [
   { value: "", label: "All Status" },
   { value: "PENDING", label: "Pending" },
   { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
+const VERIFICATION_STATUS_OPTIONS = [
+  { value: "", label: "All" },
+  { value: "PENDING", label: "Pending" },
+  { value: "VERIFIED", label: "Verified" },
   { value: "REJECTED", label: "Rejected" },
 ];
 
@@ -61,6 +70,7 @@ export function AdminListFilters({
   onChange,
   showStatus = true,
   showFundRequestStatus = false,
+  showVerificationStatus = false,
   showUserType = false,
   showDateRange = false,
   showSort = false,
@@ -83,6 +93,16 @@ export function AdminListFilters({
           value={value.status || ""}
           onChange={(e) => update({ status: e.target.value || undefined })}
           options={statusOptions}
+        />
+      )}
+      {showVerificationStatus && (
+        <Select
+          label="Verification Status"
+          value={value.verificationStatus || ""}
+          onChange={(e) =>
+            update({ verificationStatus: e.target.value || undefined })
+          }
+          options={VERIFICATION_STATUS_OPTIONS}
         />
       )}
       {showUserType && (

@@ -2,6 +2,7 @@ import { publicClient } from "@/lib/api/client";
 import { ApiResponse } from "@/types";
 
 export type PublicNetworkUserType =
+  | "ADMIN"
   | "MASTER_DISTRIBUTOR"
   | "DISTRIBUTOR"
   | "RETAILER";
@@ -18,13 +19,21 @@ export interface PublicNetworkUser {
   userType?: string;
   parentId?: string | null;
   status?: string;
+  balance?: number;
+  walletBalance?: number;
+  holdBalance?: number;
+  walletStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface PublicNetworkUsersData {
+  admins?: PublicNetworkUser[];
   masterDistributors?: PublicNetworkUser[];
   distributors?: PublicNetworkUser[];
   retailers?: PublicNetworkUser[];
   counts?: {
+    admins?: number;
     masterDistributors?: number;
     distributors?: number;
     retailers?: number;
@@ -38,6 +47,12 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function parseBalance(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function normalizePublicNetworkUser(raw: unknown): PublicNetworkUser {
   const obj = asRecord(raw);
   const firstName = (obj.firstName as string | undefined) ?? undefined;
@@ -47,6 +62,14 @@ function normalizePublicNetworkUser(raw: unknown): PublicNetworkUser {
     (obj.name as string | undefined) ||
     [firstName, lastName].filter(Boolean).join(" ") ||
     undefined;
+  const wallet = asRecord(obj.wallet);
+  const balance =
+    parseBalance(obj.walletBalance) ??
+    parseBalance(obj.balance) ??
+    parseBalance(obj.currentWalletBalance) ??
+    parseBalance(obj.currentBalance) ??
+    parseBalance(wallet.balance) ??
+    parseBalance(wallet.walletBalance);
 
   return {
     id: String(obj.id ?? ""),
@@ -60,6 +83,15 @@ function normalizePublicNetworkUser(raw: unknown): PublicNetworkUser {
     userType: (obj.userType as string | undefined) ?? undefined,
     parentId: (obj.parentId as string | null | undefined) ?? null,
     status: (obj.status as string | undefined) ?? undefined,
+    balance,
+    walletBalance: balance,
+    holdBalance:
+      parseBalance(obj.holdBalance) ?? parseBalance(wallet.holdAmount),
+    walletStatus:
+      (obj.walletStatus as string | undefined) ??
+      (wallet.status as string | undefined),
+    createdAt: (obj.createdAt as string | undefined) ?? undefined,
+    updatedAt: (obj.updatedAt as string | undefined) ?? undefined,
   };
 }
 
@@ -68,6 +100,8 @@ function pickUsersByType(
   userType: PublicNetworkUserType
 ): PublicNetworkUser[] {
   switch (userType) {
+    case "ADMIN":
+      return data.admins ?? [];
     case "MASTER_DISTRIBUTOR":
       return data.masterDistributors ?? [];
     case "DISTRIBUTOR":
@@ -103,6 +137,31 @@ export function getPublicNetworkUserDropdownLabel(
   return `${firstName} -- ${userCode} -- ${mobile}`;
 }
 
+/** Dropdown / transfer label: Name - UserType - Mobile - Balance */
+export function getPublicNetworkUserTransferLabel(
+  user: PublicNetworkUser,
+  balance?: number
+): string {
+  const name =
+    user.firstName?.trim() ||
+    user.fullName?.trim() ||
+    user.name?.trim() ||
+    "Unknown";
+  const userType = (user.userType || "—")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const mobile = user.mobile?.trim() || "—";
+  const amount = balance ?? user.walletBalance ?? user.balance ?? 0;
+  const formatted =
+    typeof amount === "number" && Number.isFinite(amount)
+      ? `₹${amount.toLocaleString("en-IN", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2,
+        })}`
+      : "₹0";
+  return `${name} - ${userType} - ${mobile} - ${formatted}`;
+}
+
 /** Dropdown label: Name + user ID (for wallet summary / pickers) */
 export function getPublicNetworkUserNameIdLabel(user: PublicNetworkUser): string {
   const name =
@@ -115,15 +174,18 @@ export function getPublicNetworkUserNameIdLabel(user: PublicNetworkUser): string
 
 /**
  * GET /api/v1/public/network-users
- * Optional `userType` filters to one group; without it returns all groups flattened.
+ * Supports userType=ADMIN|Admin|MASTER_DISTRIBUTOR|DISTRIBUTOR|RETAILER
  */
 export async function getPublicNetworkUsers(
-  userType?: PublicNetworkUserType
+  userType?: PublicNetworkUserType | "ALL"
 ): Promise<PublicNetworkUser[]> {
+  const apiUserType =
+    !userType || userType === "ALL" ? undefined : userType;
+
   const { data } = await publicClient.get<
     ApiResponse<PublicNetworkUsersData | PublicNetworkUser[]>
   >("/public/network-users", {
-    params: userType ? { userType } : undefined,
+    params: apiUserType ? { userType: apiUserType } : undefined,
   });
 
   const payload = data.data;
@@ -132,20 +194,21 @@ export async function getPublicNetworkUsers(
       .map(normalizePublicNetworkUser)
       .filter((user) => user.id)
       .filter((user) => {
-        if (!userType) return true;
+        if (!apiUserType) return true;
         if (!user.userType) return true;
-        return user.userType.toUpperCase() === userType;
+        return user.userType.toUpperCase() === apiUserType;
       });
   }
 
   const grouped = payload ?? {};
-  if (userType) {
-    return pickUsersByType(grouped, userType)
+  if (apiUserType) {
+    return pickUsersByType(grouped, apiUserType)
       .map(normalizePublicNetworkUser)
       .filter((user) => user.id);
   }
 
   return [
+    ...(grouped.admins ?? []),
     ...(grouped.masterDistributors ?? []),
     ...(grouped.distributors ?? []),
     ...(grouped.retailers ?? []),

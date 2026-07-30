@@ -3,11 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { Download, FileSpreadsheet, Printer } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
-import { Button } from "@/components/common/Button";
 import { DataTable } from "@/components/tables/DataTable";
+import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import {
   SuperAdminListFilters,
   SuperAdminListFiltersValue,
@@ -15,13 +14,15 @@ import {
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchWalletHistory } from "@/store/api/superAdminWalletApi";
-import { fetchSuperAdminProfile } from "@/store/api/superAdminApi";
-import { selectSuperAdminProfile } from "@/store/selectors/superAdminSelectors";
 import { getWalletHistory } from "@/services/superAdminWallet";
 import { ROUTES, APP_NAME } from "@/constants";
 import { WalletHistoryRecord } from "@/types/superAdmin";
 import { formatCurrency, cn } from "@/lib/utils";
-import { exportToCSV, exportToExcel } from "@/utils/export";
+import {
+  downloadReportExcel,
+  downloadReportPdf,
+  reportFilename,
+} from "@/lib/reportExport";
 import {
   resolveCurrentBalance,
   resolveHistoryDate,
@@ -31,7 +32,6 @@ import {
   toWalletHistoryExportRows,
 } from "@/lib/walletHistoryFormat";
 import { toast } from "sonner";
-import { printWalletStatement } from "@/lib/walletHistoryStatement";
 
 const PAGE_SIZE = 10;
 const ADD_BALANCE_TYPE = "ADD_BALANCE";
@@ -68,13 +68,10 @@ export default function WalletHistoryPage() {
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
   const { history, isLoadingHistory, error, historyTotal, historySummary } =
     useAppSelector((state) => state.superAdminWallet);
-  const profile = useAppSelector(selectSuperAdminProfile);
-  const authUser = useAppSelector((state) => state.superAdminAuth.user);
 
   const [pageIndex, setPageIndex] = useState(0);
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({});
   const [exportLoading, setExportLoading] = useState(false);
-  const [printLoading, setPrintLoading] = useState(false);
 
   const loadHistory = useCallback(() => {
     dispatch(
@@ -95,12 +92,6 @@ export default function WalletHistoryPage() {
     }
     loadHistory();
   }, [hasSuperAdminWalletAccess, router, loadHistory]);
-
-  useEffect(() => {
-    if (hasSuperAdminWalletAccess && !profile) {
-      void dispatch(fetchSuperAdminProfile());
-    }
-  }, [dispatch, hasSuperAdminWalletAccess, profile]);
 
   const fetchAllFilteredHistory = useCallback(async () => {
     const first = await getWalletHistory({
@@ -132,7 +123,7 @@ export default function WalletHistoryPage() {
     return { records: all, summary: first.summary ?? historySummary };
   }, [filters.startDate, filters.endDate, historySummary]);
 
-  const handleExport = async (format: "excel" | "csv") => {
+  const handleExportExcel = async () => {
     try {
       setExportLoading(true);
       const { records } = await fetchAllFilteredHistory();
@@ -140,15 +131,12 @@ export default function WalletHistoryPage() {
         toast.error("No records available to export");
         return;
       }
-      const rows = toWalletHistoryExportRows(records);
-      const filename = `paytrue-wallet-history-${new Date().toISOString().slice(0, 10)}`;
-      if (format === "excel") {
-        exportToExcel(rows, filename, "Wallet History");
-        toast.success("Excel downloaded successfully");
-      } else {
-        exportToCSV(rows, filename);
-        toast.success("CSV downloaded successfully");
-      }
+      downloadReportExcel(
+        toWalletHistoryExportRows(records),
+        reportFilename("wallet-history"),
+        "Wallet History"
+      );
+      toast.success("Excel downloaded successfully");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to export wallet history"
@@ -158,32 +146,33 @@ export default function WalletHistoryPage() {
     }
   };
 
-  const handlePrint = async () => {
+  const handleExportPdf = async () => {
     try {
-      setPrintLoading(true);
-      const { records, summary } = await fetchAllFilteredHistory();
-      const account = profile || authUser;
-      printWalletStatement({
-        records,
-        summary,
-        accountName:
-          account?.name ||
-          [account?.firstName, account?.lastName].filter(Boolean).join(" ") ||
-          "Super Admin",
-        accountEmail: account?.email || "—",
-        accountMobile: account?.mobile || "—",
-        state: account?.state || "—",
-        city: account?.city || "—",
-        address: account?.address || "—",
-        startDate: filters.startDate,
-        endDate: filters.endDate,
+      setExportLoading(true);
+      const { records } = await fetchAllFilteredHistory();
+      if (records.length === 0) {
+        toast.error("No records available to export");
+        return;
+      }
+      const rows = toWalletHistoryExportRows(records);
+      const columns = Object.keys(rows[0] || {}).map((key) => ({
+        key,
+        label: key,
+      }));
+      downloadReportPdf({
+        title: "Wallet Credit History",
+        subtitle: "Virtual balance credits added by Super Admin",
+        filename: reportFilename("wallet-history"),
+        columns,
+        rows,
       });
+      toast.success("PDF print dialog opened");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to print statement"
+        err instanceof Error ? err.message : "Failed to export PDF"
       );
     } finally {
-      setPrintLoading(false);
+      setExportLoading(false);
     }
   };
 
@@ -242,38 +231,6 @@ export default function WalletHistoryPage() {
         breadcrumb="Super Admin"
         title="Wallet History"
         subtitle={`${APP_NAME} wallet top-up statement and transaction history`}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || printLoading}
-              onClick={() => void handleExport("csv")}
-            >
-              <Download className="h-4 w-4" />
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || printLoading}
-              onClick={() => void handleExport("excel")}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              isLoading={printLoading}
-              disabled={exportLoading || printLoading}
-              onClick={() => void handlePrint()}
-            >
-              <Printer className="h-4 w-4" />
-              Print Statement
-            </Button>
-          </div>
-        }
       />
 
       {error && (
@@ -322,6 +279,12 @@ export default function WalletHistoryPage() {
           resultsCount={historyTotal}
           resultsLabel="transactions"
         />
+        <ReportExportBar
+          className="mb-4"
+          loading={exportLoading || isLoadingHistory}
+          onExportExcel={() => void handleExportExcel()}
+          onExportPdf={() => void handleExportPdf()}
+        />
         <DataTable
           data={history}
           columns={columns}
@@ -332,6 +295,8 @@ export default function WalletHistoryPage() {
           pageIndex={pageIndex}
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}
+          totalRows={historyTotal}
+          tone="report"
         />
       </Card>
     </div>

@@ -1,6 +1,8 @@
 export type WalletSummaryScope = "super_admin" | "admin";
 
 export type WalletSummaryUserType =
+  | "ALL"
+  | "ADMIN"
   | "MASTER_DISTRIBUTOR"
   | "DISTRIBUTOR"
   | "RETAILER";
@@ -58,6 +60,7 @@ export interface WalletSummaryActivityRecord {
   status?: string;
   operationType?: string;
   remarks?: string;
+  message?: string;
   performedByName?: string;
   performedByRole?: string;
   performedByCode?: string;
@@ -67,6 +70,11 @@ export interface WalletSummaryActivityRecord {
   createdAt?: string;
   date?: string;
   time?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetUserCode?: string;
+  targetUserRole?: string;
+  targetUserMobile?: string;
 }
 
 export interface WalletSummaryHeader {
@@ -83,6 +91,9 @@ export interface WalletSummaryHeader {
   totalDeductCount?: number;
   city?: string;
   state?: string;
+  /** Network summary scope */
+  scopeUserType?: string;
+  scopeUserCount?: number;
 }
 
 export interface WalletSummaryPageResult {
@@ -92,6 +103,11 @@ export interface WalletSummaryPageResult {
   pageSize: number;
   totalPages: number;
   header?: WalletSummaryHeader | null;
+  users?: WalletSummaryUserOption[];
+}
+
+export interface NetworkWalletSummariesParams extends WalletSummaryQueryParams {
+  userType?: WalletSummaryUserType | string;
 }
 
 export interface WalletSummaryTotals {

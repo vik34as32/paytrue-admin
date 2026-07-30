@@ -11,7 +11,7 @@ import {
   SortingState,
   OnChangeFn,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
@@ -34,12 +34,15 @@ interface DataTableProps<T> {
   onPageChange?: (pageIndex: number) => void;
   pageSizeOptions?: number[];
   onPageSizeChange?: (pageSize: number) => void;
+  /** Total records across all pages (for "Showing X to Y of Z") */
+  totalRows?: number;
   manualSorting?: boolean;
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
-  /** Attractive striped header + hover for network user lists */
-  tone?: "default" | "network";
+  /** `report` = Wallet Credit History style (default). `network` kept for compatibility. */
+  tone?: "default" | "network" | "report";
   stickyHeader?: boolean;
+  minTableWidth?: number;
 }
 
 function getAlignClass(align?: ColumnAlign): string {
@@ -63,24 +66,24 @@ export function DataTable<T>({
   onPageChange,
   pageSizeOptions,
   onPageSizeChange,
+  totalRows,
   manualSorting = false,
   sorting: controlledSorting,
   onSortingChange,
-  tone = "default",
+  tone: _tone = "report",
   stickyHeader = false,
+  minTableWidth = 720,
 }: DataTableProps<T>) {
+  void _tone;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [internalPageIndex, setInternalPageIndex] = useState(0);
-  const isNetworkTone = tone === "network";
 
   const pageIndex = manualPagination
     ? (controlledPageIndex ?? 0)
     : internalPageIndex;
   const pageCount = manualPagination ? (controlledPageCount ?? 1) : undefined;
-  const activeSorting = manualSorting
-    ? (controlledSorting ?? [])
-    : sorting;
+  const activeSorting = manualSorting ? (controlledSorting ?? []) : sorting;
 
   const table = useReactTable({
     data,
@@ -123,6 +126,33 @@ export function DataTable<T>({
     onSearch?.(value);
   };
 
+  const filteredCount = manualPagination
+    ? (totalRows ?? data.length)
+    : table.getFilteredRowModel().rows.length;
+
+  const range = useMemo(() => {
+    if (!filteredCount) return { from: 0, to: 0, total: 0 };
+    const from = pageIndex * pageSize + 1;
+    const to = Math.min(
+      (pageIndex + 1) * pageSize,
+      manualPagination ? filteredCount : filteredCount
+    );
+    return { from, to: Math.min(to, filteredCount), total: filteredCount };
+  }, [filteredCount, pageIndex, pageSize, manualPagination]);
+
+  const totalPages = Math.max(1, table.getPageCount() || 1);
+  const pageButtons = useMemo(() => {
+    const maxButtons = 5;
+    if (totalPages <= maxButtons) {
+      return Array.from({ length: totalPages }, (_, i) => i);
+    }
+    const start = Math.max(
+      0,
+      Math.min(pageIndex - 2, totalPages - maxButtons)
+    );
+    return Array.from({ length: maxButtons }, (_, i) => start + i);
+  }, [pageIndex, totalPages]);
+
   return (
     <div className="space-y-4">
       {!hideSearch && (
@@ -135,32 +165,21 @@ export function DataTable<T>({
               onChange={(e) => handleSearch(e.target.value)}
             />
           </div>
-          <p className="text-sm text-muted">
-            {manualPagination
-              ? `${data.length} results`
-              : `${table.getFilteredRowModel().rows.length} results`}
-          </p>
         </div>
       )}
 
       <div
         className={cn(
-          "overflow-x-auto rounded-xl border border-border",
-          isNetworkTone && "network-data-table shadow-sm",
+          "overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white shadow-sm dark:border-border dark:bg-card",
           stickyHeader && "max-h-[min(70vh,720px)] overflow-y-auto"
         )}
       >
-        <table className="w-full min-w-[720px]">
+        <table className="w-full" style={{ minWidth: minTableWidth }}>
           <thead className={cn(stickyHeader && "sticky top-0 z-10")}>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
                 key={headerGroup.id}
-                className={cn(
-                  "border-b border-border",
-                  isNetworkTone
-                    ? "bg-gradient-to-r from-[#4318FF] via-[#5B33FF] to-[#7551FF]"
-                    : "bg-background/80"
-                )}
+                className="border-b border-[#E2E8F0] bg-[#F1F5F9] dark:border-border dark:bg-muted/40"
               >
                 {headerGroup.headers.map((header) => {
                   const align = (
@@ -172,12 +191,10 @@ export function DataTable<T>({
                     <th
                       key={header.id}
                       className={cn(
-                        "px-4 py-3.5 text-[11px] font-semibold uppercase tracking-wider select-none transition-colors",
+                        "px-4 py-3.5 text-[11px] font-bold uppercase tracking-wider text-[#334155] select-none dark:text-foreground",
                         getAlignClass(align),
-                        header.column.getCanSort() && "cursor-pointer",
-                        isNetworkTone
-                          ? "text-white/95 hover:text-white"
-                          : "text-muted hover:text-foreground"
+                        header.column.getCanSort() &&
+                          "cursor-pointer hover:text-[#0F172A]"
                       )}
                       style={{
                         width: header.column.getSize()
@@ -189,8 +206,8 @@ export function DataTable<T>({
                       <span
                         className={cn(
                           "inline-flex items-center gap-1",
-                          align === "right" && "justify-end w-full",
-                          align === "center" && "justify-center w-full"
+                          align === "right" && "w-full justify-end",
+                          align === "center" && "w-full justify-center"
                         )}
                       >
                         {flexRender(
@@ -209,10 +226,10 @@ export function DataTable<T>({
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-border">
+                <tr key={i} className="border-b border-[#E2E8F0] dark:border-border">
                   {columns.map((_, j) => (
-                    <td key={j} className="px-4 py-3">
-                      <div className="h-4 animate-pulse rounded bg-border" />
+                    <td key={j} className="px-4 py-3.5">
+                      <div className="h-4 animate-pulse rounded bg-[#E2E8F0] dark:bg-border" />
                     </td>
                   ))}
                 </tr>
@@ -230,23 +247,12 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row, i) => (
+              table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
                   className={cn(
-                    "border-b border-border last:border-0 transition-all duration-200",
-                    isNetworkTone
-                      ? cn(
-                          "network-data-row",
-                          i % 2 === 0
-                            ? "bg-white dark:bg-card"
-                            : "bg-[#F4F7FE]/80 dark:bg-white/[0.03]",
-                          "hover:bg-gradient-to-r hover:from-[#4318FF]/[0.08] hover:via-[#7551FF]/[0.06] hover:to-transparent hover:shadow-[inset_3px_0_0_0_#4318FF] hover:scale-[1.002]"
-                        )
-                      : cn(
-                          "hover:bg-primary/[0.03]",
-                          i % 2 === 0 && "bg-background/20"
-                        )
+                    "border-b border-[#E2E8F0] bg-white last:border-0 transition-colors dark:border-border dark:bg-card",
+                    "hover:bg-[#EEF2FF]/70 dark:hover:bg-primary/5"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {
@@ -259,7 +265,7 @@ export function DataTable<T>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "px-4 py-3.5 text-sm text-foreground align-middle",
+                          "px-4 py-3.5 text-sm text-[#0F172A] align-middle dark:text-foreground",
                           getAlignClass(align)
                         )}
                       >
@@ -277,91 +283,66 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-muted">
-            Showing page {pageIndex + 1} of {table.getPageCount() || 1}
-          </p>
-          {pageSizeOptions?.length && onPageSizeChange ? (
-            <label className="flex items-center gap-2 text-sm text-muted">
-              Show
-              <select
-                className="rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary"
-                value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              >
-                {pageSizeOptions.map((size) => (
-                  <option key={size} value={size}>
-                    {size}
-                  </option>
-                ))}
-              </select>
-              records
-            </label>
-          ) : null}
-          {manualPagination && onPageChange ? (
-            <label className="flex items-center gap-2 text-sm text-muted">
-              Go to
-              <input
-                type="number"
-                min={1}
-                max={Math.max(1, table.getPageCount())}
-                className="w-16 rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary"
-                placeholder={`${pageIndex + 1}`}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  const value = Number((e.target as HTMLInputElement).value);
-                  if (!Number.isFinite(value)) return;
-                  const next = Math.min(
-                    Math.max(1, Math.floor(value)),
-                    Math.max(1, table.getPageCount())
-                  );
-                  onPageChange(next - 1);
-                  (e.target as HTMLInputElement).value = "";
-                }}
-              />
-            </label>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1">
-          {Array.from({
-            length: Math.min(table.getPageCount(), 5),
-          }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => {
-                if (manualPagination) {
-                  onPageChange?.(i);
-                } else {
-                  table.setPageIndex(i);
-                }
-              }}
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-lg text-xs font-medium transition-colors",
-                pageIndex === i
-                  ? "bg-primary text-white"
-                  : "text-muted hover:bg-background"
-              )}
-            >
-              {i + 1}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-[#64748B] dark:text-muted">
+          Showing {range.from} to {range.to} of {range.total} entries
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
+            className="!h-8 !rounded-md"
           >
             <HiChevronLeft className="h-4 w-4" />
           </Button>
+
+          {pageButtons.map((i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => {
+                if (manualPagination) onPageChange?.(i);
+                else table.setPageIndex(i);
+              }}
+              className={cn(
+                "flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors",
+                pageIndex === i
+                  ? "bg-[#4318FF] text-white shadow-sm"
+                  : "border border-[#E2E8F0] bg-white text-[#334155] hover:bg-[#F1F5F9] dark:border-border dark:bg-card dark:text-foreground"
+              )}
+            >
+              {i + 1}
+            </button>
+          ))}
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
+            className="!h-8 !rounded-md"
           >
             <HiChevronRight className="h-4 w-4" />
           </Button>
+
+          {pageSizeOptions?.length && onPageSizeChange ? (
+            <label className="ml-1 flex items-center gap-2 text-sm text-[#64748B]">
+              <select
+                className="rounded-md border border-[#E2E8F0] bg-white px-2 py-1.5 text-sm text-[#0F172A] outline-none focus:border-[#4318FF] dark:border-border dark:bg-card dark:text-foreground"
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size} / page
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
       </div>
     </div>

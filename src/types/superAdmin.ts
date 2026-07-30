@@ -4,7 +4,8 @@ export interface SuperAdminLoginPayload {
 }
 
 export interface AdminLoginPayload {
-  email: string;
+  email?: string;
+  mobile?: string;
   password: string;
 }
 
@@ -286,6 +287,20 @@ export interface NetworkUserRecord {
     videoVerification?: string;
     videoVerificationUrl?: string;
     [key: string]: string | undefined;
+  };
+  verificationStatus?: string;
+  idVerificationStatus?: string;
+  verificationRemark?: string;
+  rejectionReason?: string;
+  verifiedAt?: string;
+  rejectedAt?: string;
+  verification?: {
+    status?: string;
+    remark?: string;
+    reason?: string;
+    verifiedAt?: string;
+    rejectedAt?: string;
+    [key: string]: unknown;
   };
   [key: string]: unknown;
 }

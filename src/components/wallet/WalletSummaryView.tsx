@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef, SortingState } from "@tanstack/react-table";
-import {
-  Download,
-  FileSpreadsheet,
-  FileText,
-  Printer,
-  RefreshCw,
-  Wallet,
-} from "lucide-react";
+import { RefreshCw, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
@@ -18,20 +11,25 @@ import { Badge } from "@/components/common/Badge";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
 import { DataTable } from "@/components/tables/DataTable";
+import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import { APP_NAME } from "@/constants";
 import { cn, formatCurrency } from "@/lib/utils";
+import {
+  downloadReportExcel,
+  downloadReportPdf,
+  reportFilename,
+} from "@/lib/reportExport";
 import {
   formatOperationType,
   formatWalletUserType,
   mergeHeaderTotals,
   resolveActivityDate,
-  resolveActivityTime,
   toWalletSummaryExportRows,
   WALLET_SUMMARY_TAB_LABELS,
 } from "@/lib/walletSummaryFormat";
-import { openWalletSummaryStatement } from "@/lib/walletSummaryStatement";
 import {
   fetchAllUserWalletSummaryPages,
+  fetchNetworkWalletSummaries,
   fetchWalletSummaryUsers,
   getUserWalletSummary,
 } from "@/services/walletSummaryApi";
@@ -45,9 +43,8 @@ import {
   WalletSummaryUserOption,
   WalletSummaryUserType,
 } from "@/types/walletSummary";
-import { exportToCSV, exportToExcel } from "@/utils/export";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 const TYPE_OPTIONS = [
   { value: "ALL", label: "All Types" },
@@ -101,22 +98,19 @@ function statusVariant(
 export function WalletSummaryView({
   scope,
   breadcrumb,
-  accountName,
-  accountEmail,
-  accountCity,
-  accountState,
 }: WalletSummaryViewProps) {
-  const tabs: WalletSummaryUserType[] = [
-    "MASTER_DISTRIBUTOR",
-    "DISTRIBUTOR",
-    "RETAILER",
-  ];
+  const tabs: WalletSummaryUserType[] =
+    scope === "super_admin"
+      ? ["ALL", "ADMIN", "MASTER_DISTRIBUTOR", "DISTRIBUTOR", "RETAILER"]
+      : ["ALL", "MASTER_DISTRIBUTOR", "DISTRIBUTOR", "RETAILER"];
 
-  const [userType, setUserType] =
-    useState<WalletSummaryUserType>("MASTER_DISTRIBUTOR");
+  const [userType, setUserType] = useState<WalletSummaryUserType>(
+    scope === "super_admin" ? "ALL" : "MASTER_DISTRIBUTOR"
+  );
   const [users, setUsers] = useState<WalletSummaryUserOption[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [scopeUserCount, setScopeUserCount] = useState(0);
 
   const [pageIndex, setPageIndex] = useState(0);
   const [search, setSearch] = useState("");
@@ -143,33 +137,15 @@ export function WalletSummaryView({
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  useEffect(() => {
+    setPageIndex(0);
+    setSelectedUserId("");
+  }, [userType]);
+
   const selectedUser = useMemo(
     () => users.find((user) => user.id === selectedUserId) || null,
     [users, selectedUserId]
   );
-
-  const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
-    try {
-      const list = await fetchWalletSummaryUsers(scope, userType);
-      setUsers(list);
-      setSelectedUserId((prev) =>
-        list.some((item) => item.id === prev) ? prev : ""
-      );
-    } catch (err) {
-      setUsers([]);
-      setSelectedUserId("");
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load users"
-      );
-    } finally {
-      setUsersLoading(false);
-    }
-  }, [scope, userType]);
-
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
 
   const queryParams = useMemo<WalletSummaryQueryParams>(
     () => ({
@@ -196,25 +172,40 @@ export function WalletSummaryView({
   );
 
   const loadSummary = useCallback(async () => {
-    if (!selectedUserId) {
-      setRows([]);
-      setHeader(null);
-      setTotal(0);
-      setError(null);
-      return;
-    }
-
     setIsLoading(true);
+    setUsersLoading(true);
     setError(null);
     try {
-      const result = await getUserWalletSummary(
-        selectedUserId,
-        queryParams,
-        scope
+      // Optional single-user drill-down
+      if (selectedUserId) {
+        const result = await getUserWalletSummary(
+          selectedUserId,
+          queryParams,
+          scope
+        );
+        setRows(result.data);
+        setHeader(result.header ?? null);
+        setTotal(result.total);
+        return;
+      }
+
+      // Network summaries for selected userType tab
+      const result = await fetchNetworkWalletSummaries(
+        scope,
+        userType,
+        queryParams
       );
       setRows(result.data);
       setHeader(result.header ?? null);
       setTotal(result.total);
+      setScopeUserCount(result.header?.scopeUserCount ?? result.users?.length ?? 0);
+      if (result.users && result.users.length > 0) {
+        setUsers(result.users);
+      } else {
+        const list = await fetchWalletSummaryUsers(scope, userType);
+        setUsers(list);
+        setScopeUserCount(list.length);
+      }
     } catch (err) {
       setRows([]);
       setHeader(null);
@@ -224,8 +215,9 @@ export function WalletSummaryView({
       );
     } finally {
       setIsLoading(false);
+      setUsersLoading(false);
     }
-  }, [selectedUserId, queryParams, scope]);
+  }, [selectedUserId, queryParams, scope, userType]);
 
   useEffect(() => {
     void loadSummary();
@@ -258,13 +250,6 @@ export function WalletSummaryView({
         cell: ({ row }) => resolveActivityDate(row.original),
       },
       {
-        id: "time",
-        header: "Time",
-        enableSorting: false,
-        meta: { align: "left" as const },
-        cell: ({ row }) => resolveActivityTime(row.original),
-      },
-      {
         accessorKey: "reference",
         header: "Reference",
         meta: { align: "left" as const },
@@ -273,6 +258,33 @@ export function WalletSummaryView({
             {row.original.reference || "—"}
           </span>
         ),
+      },
+      {
+        id: "targetUser",
+        header: "User",
+        enableSorting: false,
+        meta: { align: "left" as const },
+        cell: ({ row }) => {
+          const name = row.original.targetUserName;
+          if (!name && !selectedUser) return "—";
+          return (
+            <div className="min-w-0 text-left">
+              <p className="truncate font-medium">
+                {name || selectedUser?.name || "—"}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {formatWalletUserType(
+                  row.original.targetUserRole || selectedUser?.userType
+                )}
+                {row.original.targetUserCode
+                  ? ` · ${row.original.targetUserCode}`
+                  : selectedUser?.userCode
+                    ? ` · ${selectedUser.userCode}`
+                    : ""}
+              </p>
+            </div>
+          );
+        },
       },
       {
         accessorKey: "operationType",
@@ -310,6 +322,42 @@ export function WalletSummaryView({
         },
       },
       {
+        id: "previousBalance",
+        header: "Prev. Balance",
+        enableSorting: false,
+        meta: { align: "right" as const },
+        cell: ({ row }) =>
+          row.original.previousBalance != null ? (
+            <span className="tabular-nums text-muted">
+              {formatCurrency(row.original.previousBalance)}
+            </span>
+          ) : (
+            "—"
+          ),
+      },
+      {
+        id: "updatedBalance",
+        header: "Updated Balance",
+        enableSorting: false,
+        size: scope === "super_admin" ? 180 : 150,
+        meta: { align: "right" as const },
+        cell: ({ row }) =>
+          row.original.updatedBalance != null ? (
+            <span
+              className={cn(
+                "inline-block rounded-md px-2.5 py-1 font-bold tabular-nums",
+                scope === "super_admin"
+                  ? "bg-emerald-600/15 text-base text-emerald-800 dark:text-emerald-300"
+                  : "bg-emerald-600/10 text-sm text-emerald-700 dark:text-emerald-300"
+              )}
+            >
+              {formatCurrency(row.original.updatedBalance)}
+            </span>
+          ) : (
+            "—"
+          ),
+      },
+      {
         accessorKey: "status",
         header: "Status",
         meta: { align: "center" as const },
@@ -340,43 +388,8 @@ export function WalletSummaryView({
           </div>
         ),
       },
-      {
-        id: "previousBalance",
-        header: "Prev. Balance",
-        enableSorting: false,
-        meta: { align: "right" as const },
-        cell: ({ row }) =>
-          row.original.previousBalance != null ? (
-            <span className="tabular-nums text-blue-700 dark:text-blue-300">
-              {formatCurrency(row.original.previousBalance)}
-            </span>
-          ) : (
-            "—"
-          ),
-      },
-      {
-        id: "updatedBalance",
-        header: "Updated Balance",
-        enableSorting: false,
-        meta: { align: "right" as const },
-        cell: ({ row }) =>
-          row.original.updatedBalance != null ? (
-            <span className="tabular-nums text-violet-700 dark:text-violet-300">
-              {formatCurrency(row.original.updatedBalance)}
-            </span>
-          ) : (
-            "—"
-          ),
-      },
-      {
-        accessorKey: "remarks",
-        header: "Remarks",
-        enableSorting: false,
-        meta: { align: "left" as const },
-        cell: ({ row }) => row.original.remarks || "—",
-      },
     ],
-    [pageIndex]
+    [pageIndex, scope, selectedUser]
   );
 
   const filterParams = useMemo(
@@ -392,38 +405,59 @@ export function WalletSummaryView({
     [type, status, startDate, endDate, debouncedSearch, sortBy, sortOrder]
   );
 
-  const requireUser = () => {
-    if (!selectedUserId) {
-      toast.error("Select a user to view wallet summary");
+  const requireData = () => {
+    if (rows.length === 0 && !isLoading) {
+      toast.error("No wallet summary records to export");
       return false;
     }
     return true;
   };
 
-  const handleExport = async (format: "excel" | "csv") => {
-    if (!requireUser()) return;
-    try {
-      setExportLoading(true);
-      const { records } = await fetchAllUserWalletSummaryPages(
+  const fetchAllExportRecords = async () => {
+    let records: WalletSummaryActivityRecord[] = [];
+
+    if (selectedUserId) {
+      const packed = await fetchAllUserWalletSummaryPages(
         selectedUserId,
         filterParams,
         scope
       );
+      records = packed.records;
+    } else {
+      const first = await fetchNetworkWalletSummaries(scope, userType, {
+        ...filterParams,
+        page: 1,
+        pageSize: 100,
+      });
+      records = [...first.data];
+      for (let page = 2; page <= first.totalPages; page += 1) {
+        const next = await fetchNetworkWalletSummaries(scope, userType, {
+          ...filterParams,
+          page,
+          pageSize: first.pageSize,
+        });
+        records.push(...next.data);
+      }
+    }
+
+    return records;
+  };
+
+  const handleExportExcel = async () => {
+    if (!requireData() && rows.length === 0) return;
+    try {
+      setExportLoading(true);
+      const records = await fetchAllExportRecords();
       if (records.length === 0) {
         toast.error("No records available to export");
         return;
       }
-      const exportRows = toWalletSummaryExportRows(records);
-      const filename = `paytrue-wallet-summary-${selectedUserId.slice(0, 8)}-${new Date()
-        .toISOString()
-        .slice(0, 10)}`;
-      if (format === "excel") {
-        exportToExcel(exportRows, filename, "Wallet Summary");
-        toast.success("Excel downloaded successfully");
-      } else {
-        exportToCSV(exportRows, filename);
-        toast.success("CSV downloaded successfully");
-      }
+      downloadReportExcel(
+        toWalletSummaryExportRows(records),
+        reportFilename(`wallet-summary-${userType.toLowerCase()}`),
+        "Wallet Summary"
+      );
+      toast.success("Excel downloaded successfully");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to export wallet summary"
@@ -433,41 +467,30 @@ export function WalletSummaryView({
     }
   };
 
-  const handlePrintOrPdf = async (mode: "print" | "pdf") => {
-    if (!requireUser()) return;
+  const handleExportPdf = async () => {
+    if (!requireData() && rows.length === 0) return;
     try {
       setExportLoading(true);
-      const { records, header: fullHeader } =
-        await fetchAllUserWalletSummaryPages(
-          selectedUserId,
-          filterParams,
-          scope
-        );
-      openWalletSummaryStatement({
-        records,
-        header: fullHeader,
-        totals: mergeHeaderTotals(fullHeader, records),
-        scopeLabel: scope === "super_admin" ? "Super Admin" : "Admin",
-        userTypeLabel: WALLET_SUMMARY_TAB_LABELS[userType],
-        selectedUserName: selectedUser?.name,
-        accountName,
-        accountEmail,
-        city: accountCity || selectedUser?.city,
-        state: accountState || selectedUser?.state,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        search: debouncedSearch || undefined,
-        status: status || undefined,
-        type,
+      const records = await fetchAllExportRecords();
+      if (records.length === 0) {
+        toast.error("No records available to export");
+        return;
+      }
+      const exportRows = toWalletSummaryExportRows(records);
+      downloadReportPdf({
+        title: "Wallet Summary",
+        subtitle: `${WALLET_SUMMARY_TAB_LABELS[userType]} network wallet activity`,
+        filename: reportFilename(`wallet-summary-${userType.toLowerCase()}`),
+        columns: Object.keys(exportRows[0] || {}).map((key) => ({
+          key,
+          label: key,
+        })),
+        rows: exportRows,
       });
-      toast.success(
-        mode === "pdf"
-          ? "PDF view opened — use Print → Save as PDF"
-          : "Print dialog opened"
-      );
+      toast.success("PDF print dialog opened");
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Failed to open statement"
+        err instanceof Error ? err.message : "Failed to export PDF"
       );
     } finally {
       setExportLoading(false);
@@ -478,69 +501,35 @@ export function WalletSummaryView({
   const userOptions = [
     {
       value: "",
-      label: usersLoading ? "Loading users..." : "Select user",
+      label: usersLoading
+        ? "Loading users..."
+        : `All users (${scopeUserCount || users.length || 0})`,
     },
     ...users.map((user) => ({
       value: user.id,
-      label: `${user.name} (${user.id})`,
+      label: [user.name, user.userCode || user.mobile || user.userType]
+        .filter(Boolean)
+        .join(" · "),
     })),
   ];
 
+  const totals = mergeHeaderTotals(header, rows);
   return (
     <div className="page-container">
       <PageHeader
         breadcrumb={breadcrumb}
         title="Wallet Summary"
-        subtitle={`${APP_NAME} — view MD / DD / RT wallet activity via /wallet/summary/:userId`}
+        subtitle={`${APP_NAME} — network wallet activity by user type (/wallet/summaries)`}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || isLoading || !selectedUserId}
-              onClick={() => void loadSummary()}
-            >
-              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-              Refresh
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || !selectedUserId}
-              onClick={() => void handleExport("csv")}
-            >
-              <Download className="h-4 w-4" />
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || !selectedUserId}
-              onClick={() => void handleExport("excel")}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || !selectedUserId}
-              onClick={() => void handlePrintOrPdf("pdf")}
-            >
-              <FileText className="h-4 w-4" />
-              PDF
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={exportLoading || !selectedUserId}
-              isLoading={exportLoading}
-              onClick={() => void handlePrintOrPdf("print")}
-            >
-              <Printer className="h-4 w-4" />
-              Print
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exportLoading || isLoading}
+            onClick={() => void loadSummary()}
+          >
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            Refresh
+          </Button>
         }
       />
 
@@ -607,7 +596,7 @@ export function WalletSummaryView({
           />
           <Input
             label="Search"
-            placeholder="Reference, remarks, performer..."
+            placeholder="Reference, user, performer..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -649,34 +638,48 @@ export function WalletSummaryView({
           />
         </div>
 
-        {selectedUser || header ? (
-          <div className="mb-4 rounded-xl border border-border bg-background/50 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-              <span className="inline-flex items-center gap-2 font-medium text-foreground">
-                <Wallet className="h-4 w-4 text-primary" />
-                {header?.name || selectedUser?.name || "Selected user"}
-              </span>
-              <span className="text-muted">
-                Code: {header?.userCode || selectedUser?.userCode || "—"}
-              </span>
-              <span className="text-muted">
-                Mobile: {header?.mobile || selectedUser?.mobile || "—"}
-              </span>
-              <span className="text-muted">
-                Type:{" "}
-                {formatWalletUserType(
-                  header?.userType || selectedUser?.userType || userType
-                )}
-              </span>
-            </div>
+        <div className="mb-4 rounded-xl border border-border bg-background/50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <span className="inline-flex items-center gap-2 font-medium text-foreground">
+              <Wallet className="h-4 w-4 text-primary" />
+              {selectedUser
+                ? selectedUser.name
+                : `${WALLET_SUMMARY_TAB_LABELS[userType]} network summary`}
+            </span>
+            <span className="text-muted">
+              Users:{" "}
+              {selectedUser
+                ? 1
+                : header?.scopeUserCount || scopeUserCount || users.length || 0}
+            </span>
+            <span className="text-muted">
+              Records: {total.toLocaleString("en-IN")}
+            </span>
+            <span className="text-accent-green">
+              Credit: {formatCurrency(totals.totalCreditAmount)}
+            </span>
+            <span className="text-accent-red">
+              Deduct: {formatCurrency(totals.totalDeductAmount)}
+            </span>
+            {selectedUser ? (
+              <>
+                <span className="text-muted">
+                  Code: {selectedUser.userCode || "—"}
+                </span>
+                <span className="text-muted">
+                  Mobile: {selectedUser.mobile || "—"}
+                </span>
+              </>
+            ) : null}
           </div>
-        ) : (
-          <div className="mb-4 rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted">
-            Select a {WALLET_SUMMARY_TAB_LABELS[userType].toLowerCase()} to load
-            wallet summary from{" "}
-            <code className="text-xs">GET /wallet/summary/:userId</code>
-          </div>
-        )}
+        </div>
+
+        <ReportExportBar
+          className="mb-4"
+          loading={exportLoading || isLoading}
+          onExportExcel={() => void handleExportExcel()}
+          onExportPdf={() => void handleExportPdf()}
+        />
 
         <DataTable
           data={rows}
@@ -688,6 +691,8 @@ export function WalletSummaryView({
           pageIndex={pageIndex}
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}
+          totalRows={total}
+          tone="report"
           manualSorting
           sorting={sorting}
           onSortingChange={(updater) => {

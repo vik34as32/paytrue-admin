@@ -38,9 +38,23 @@ export async function adminLogin(
   credentials: AdminLoginPayload,
   rememberMe = true
 ) {
+  const body: AdminLoginPayload = {
+    password: credentials.password,
+  };
+  if (credentials.email?.trim()) {
+    body.email = credentials.email.trim().toLowerCase();
+  }
+  if (credentials.mobile?.trim()) {
+    body.mobile = credentials.mobile.trim();
+  }
+
+  if (!body.email && !body.mobile) {
+    throw new Error("Email or mobile is required");
+  }
+
   const { data } = await publicClient.post<ApiResponse<AdminLoginResponseData>>(
     "/auth/login",
-    credentials
+    body
   );
 
   const payload = data.data;

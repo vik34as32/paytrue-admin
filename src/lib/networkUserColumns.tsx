@@ -4,17 +4,23 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/common/Button";
+import { MailtoLink } from "@/components/common/MailtoLink";
 import { NetworkUserAvatar } from "@/components/super-admin/NetworkUserAvatar";
+import { VerificationBadge } from "@/components/verification/VerificationBadge";
+import { VerificationActions } from "@/components/verification/VerificationActions";
+import { DocumentThumbStack } from "@/components/verification/DocumentThumbStack";
 import { NetworkUserRecord } from "@/types/superAdmin";
+import { getUserVerificationStatus } from "@/lib/idVerification";
 import {
   formatUserTypeLabel,
   getNetworkUserName,
   getUserAadhaarNumber,
+  getUserFirstName,
   getUserOutletField,
+  getUserOutletId,
   getUserOutletName,
   getUserPanNumber,
 } from "@/lib/normalizeUser";
-import { formatCurrency, formatDate } from "@/lib/utils";
 
 import {
   SuperAdminUserActions,
@@ -25,8 +31,20 @@ interface NetworkUserColumnActions {
   onView: (user: NetworkUserRecord) => void;
   onEdit: (user: NetworkUserRecord) => void;
   onDelete: (user: NetworkUserRecord) => void;
+  onVerify?: (user: NetworkUserRecord) => void;
+  onReject?: (user: NetworkUserRecord) => void;
+  onViewVerification?: (user: NetworkUserRecord) => void;
+  onViewRejectReason?: (user: NetworkUserRecord) => void;
+  onTransfer?: (user: NetworkUserRecord) => void;
+  onDeduct?: (user: NetworkUserRecord) => void;
+  showVerificationActions?: boolean;
   disabled?: boolean;
 }
+
+export type NetworkUserListKind =
+  | "RETAILER"
+  | "DISTRIBUTOR"
+  | "MASTER_DISTRIBUTOR";
 
 function getPhone(user: NetworkUserRecord): string {
   const phone =
@@ -36,6 +54,14 @@ function getPhone(user: NetworkUserRecord): string {
   return phone || "—";
 }
 
+function displayName(
+  user: NetworkUserRecord,
+  kind?: NetworkUserListKind
+): string {
+  if (kind === "RETAILER") return getUserFirstName(user);
+  return getNetworkUserName(user);
+}
+
 function ActionsCell({
   user,
   actions,
@@ -43,8 +69,23 @@ function ActionsCell({
   user: NetworkUserRecord;
   actions: NetworkUserColumnActions;
 }) {
+  const status = getUserVerificationStatus(user);
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-[160px] flex-wrap items-center gap-1.5">
+      {actions.showVerificationActions ? (
+        <VerificationActions
+          status={status}
+          canManage
+          compact
+          disabled={actions.disabled}
+          onVerify={() => actions.onVerify?.(user)}
+          onReject={() => actions.onReject?.(user)}
+          onViewDetails={() => actions.onViewVerification?.(user)}
+          onViewReason={() => actions.onViewRejectReason?.(user)}
+          onTransfer={() => actions.onTransfer?.(user)}
+          onDeduct={() => actions.onDeduct?.(user)}
+        />
+      ) : null}
       <Button
         variant="ghost"
         size="sm"
@@ -76,11 +117,30 @@ function ActionsCell({
   );
 }
 
+function statusBadge(statusRaw?: string) {
+  const status = String(statusRaw || "").toUpperCase();
+  const variant =
+    status === "ACTIVE"
+      ? "success"
+      : status === "PENDING"
+        ? "pending"
+        : status === "SUSPENDED"
+          ? "suspended"
+          : status === "INACTIVE"
+            ? "inactive"
+            : "default";
+  return <Badge variant={variant}>{status || "—"}</Badge>;
+}
+
 /** Compact columns matched to GET /admin/users list payload */
 export function createAdminNetworkUserColumns(
-  actions: NetworkUserColumnActions
+  actions: NetworkUserColumnActions,
+  options?: { userKind?: NetworkUserListKind }
 ): ColumnDef<NetworkUserRecord, unknown>[] {
-  return [
+  const kind = options?.userKind;
+  const isRetailer = kind === "RETAILER";
+
+  const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
     {
       id: "profileImage",
       header: "Profile",
@@ -92,7 +152,7 @@ export function createAdminNetworkUserColumns(
       cell: ({ row }) => (
         <div className="min-w-[140px]">
           <p className="font-semibold text-foreground">
-            {getNetworkUserName(row.original)}
+            {displayName(row.original, kind)}
           </p>
           <p className="text-xs text-muted">
             {formatUserTypeLabel(row.original.userType || row.original.role)}
@@ -109,44 +169,47 @@ export function createAdminNetworkUserColumns(
         </span>
       ),
     },
-    { accessorKey: "email", header: "Email" },
+  ];
+
+  if (isRetailer) {
+    columns.push({
+      id: "outletId",
+      header: "Outlet ID",
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-semibold text-foreground">
+          {getUserOutletId(row.original)}
+        </span>
+      ),
+    });
+  }
+
+  columns.push(
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => <MailtoLink email={row.original.email} />,
+    },
     {
       id: "phone",
       header: "Phone",
       cell: ({ row }) => getPhone(row.original),
     },
     {
-      id: "walletBalance",
-      header: "Wallet",
-      meta: { align: "right" as const },
-      cell: ({ row }) =>
-        typeof row.original.walletBalance === "number"
-          ? formatCurrency(row.original.walletBalance)
-          : "—",
+      id: "documents",
+      header: "Documents",
+      cell: ({ row }) => <DocumentThumbStack user={row.original} />,
     },
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => {
-        const status = String(row.original.status || "").toUpperCase();
-        const variant =
-          status === "ACTIVE"
-            ? "success"
-            : status === "PENDING"
-              ? "pending"
-              : status === "SUSPENDED"
-                ? "suspended"
-                : status === "INACTIVE"
-                  ? "inactive"
-                  : "default";
-        return <Badge variant={variant}>{status || "—"}</Badge>;
-      },
+      cell: ({ row }) => statusBadge(row.original.status),
     },
     {
-      accessorKey: "createdAt",
-      header: "Created",
-      cell: ({ row }) =>
-        row.original.createdAt ? formatDate(row.original.createdAt) : "—",
+      id: "verificationStatus",
+      header: "Verification Status",
+      cell: ({ row }) => (
+        <VerificationBadge status={getUserVerificationStatus(row.original)} />
+      ),
     },
     {
       id: "actions",
@@ -154,8 +217,10 @@ export function createAdminNetworkUserColumns(
       cell: ({ row }) => (
         <ActionsCell user={row.original} actions={actions} />
       ),
-    },
-  ];
+    }
+  );
+
+  return columns;
 }
 
 export function createNetworkUserColumns(
@@ -172,7 +237,11 @@ export function createNetworkUserColumns(
       header: "Name",
       cell: ({ row }) => getNetworkUserName(row.original),
     },
-    { accessorKey: "email", header: "Email" },
+    {
+      accessorKey: "email",
+      header: "Email",
+      cell: ({ row }) => <MailtoLink email={row.original.email} />,
+    },
     {
       id: "mobile",
       header: "Mobile",
@@ -223,12 +292,18 @@ export function createNetworkUserColumns(
 /** Enterprise columns for Super Admin MD / Distributor / Retailer lists */
 export function createSuperAdminNetworkUserColumns(
   actions: SuperAdminUserActions,
-  options?: { pageIndex?: number; pageSize?: number }
+  options?: {
+    pageIndex?: number;
+    pageSize?: number;
+    userKind?: NetworkUserListKind;
+  }
 ): ColumnDef<NetworkUserRecord, unknown>[] {
   const pageIndex = options?.pageIndex ?? 0;
   const pageSize = options?.pageSize ?? 10;
+  const kind = options?.userKind;
+  const isRetailer = kind === "RETAILER";
 
-  return [
+  const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
     {
       id: "srNo",
       header: "Sr No.",
@@ -253,7 +328,7 @@ export function createSuperAdminNetworkUserColumns(
         <div className="flex min-w-[150px] items-center gap-2">
           <NetworkUserAvatar user={row.original} size="sm" />
           <span className="font-semibold text-foreground">
-            {getNetworkUserName(row.original)}
+            {displayName(row.original, kind)}
           </span>
         </div>
       ),
@@ -264,10 +339,27 @@ export function createSuperAdminNetworkUserColumns(
       enableSorting: false,
       cell: ({ row }) => getUserOutletName(row.original),
     },
+  ];
+
+  if (isRetailer) {
+    columns.push({
+      id: "outletId",
+      header: "Outlet ID",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-semibold text-foreground">
+          {getUserOutletId(row.original)}
+        </span>
+      ),
+    });
+  }
+
+  columns.push(
     {
       accessorKey: "email",
       header: "Email",
       enableSorting: true,
+      cell: ({ row }) => <MailtoLink email={row.original.email} />,
     },
     {
       id: "phone",
@@ -289,48 +381,64 @@ export function createSuperAdminNetworkUserColumns(
       cell: ({ row }) => getUserPanNumber(row.original),
     },
     {
-      id: "walletBalance",
-      header: "Wallet Balance",
+      id: "documents",
+      header: "Documents",
       enableSorting: false,
-      meta: { align: "right" as const },
-      cell: ({ row }) =>
-        typeof row.original.walletBalance === "number"
-          ? formatCurrency(row.original.walletBalance)
-          : "—",
+      cell: ({ row }) => <DocumentThumbStack user={row.original} />,
     },
     {
       accessorKey: "status",
       header: "Status",
       enableSorting: false,
-      cell: ({ row }) => {
-        const status = String(row.original.status || "").toUpperCase();
-        const variant =
-          status === "ACTIVE"
-            ? "success"
-            : status === "PENDING"
-              ? "pending"
-              : status === "SUSPENDED"
-                ? "suspended"
-                : status === "INACTIVE"
-                  ? "inactive"
-                  : "default";
-        return <Badge variant={variant}>{status || "—"}</Badge>;
-      },
+      cell: ({ row }) => statusBadge(row.original.status),
     },
     {
-      accessorKey: "createdAt",
-      header: "Created Date",
-      enableSorting: true,
-      cell: ({ row }) =>
-        row.original.createdAt ? formatDate(row.original.createdAt) : "—",
+      id: "verificationStatus",
+      header: "Verification Status",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <VerificationBadge status={getUserVerificationStatus(row.original)} />
+      ),
     },
     {
       id: "actions",
       header: "Actions",
       enableSorting: false,
-      cell: ({ row }) => (
-        <SuperAdminUserActionsMenu user={row.original} actions={actions} />
-      ),
-    },
-  ];
+      cell: ({ row }) => {
+        const user = row.original;
+        const status = getUserVerificationStatus(user);
+        const accountStatus = String(user.status || "").toUpperCase();
+        // Verified users get full menu; inactive/suspended can open menu to Activate
+        const showMoreMenu =
+          !actions.showVerificationActions ||
+          status === "VERIFIED" ||
+          accountStatus === "INACTIVE" ||
+          accountStatus === "SUSPENDED";
+
+        return (
+          <div className="flex min-w-[180px] flex-wrap items-center gap-2">
+            {actions.showVerificationActions ? (
+              <VerificationActions
+                status={status}
+                canManage
+                compact
+                disabled={actions.disabled}
+                onVerify={() => actions.onVerify?.(user)}
+                onReject={() => actions.onReject?.(user)}
+                onViewDetails={() => actions.onViewVerification?.(user)}
+                onViewReason={() => actions.onViewRejectReason?.(user)}
+                onTransfer={() => actions.onTransfer?.(user)}
+                onDeduct={() => actions.onDeduct?.(user)}
+              />
+            ) : null}
+            {showMoreMenu ? (
+              <SuperAdminUserActionsMenu user={user} actions={actions} />
+            ) : null}
+          </div>
+        );
+      },
+    }
+  );
+
+  return columns;
 }

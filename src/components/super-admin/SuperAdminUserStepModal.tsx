@@ -20,6 +20,7 @@ import { Select } from "@/components/common/Select";
 import { ImageUpload } from "@/components/common/ImageUpload";
 import { ImagePreviewModal } from "@/components/common/ImagePreviewModal";
 import { BankLogoGrid } from "@/components/common/BankLogoGrid";
+import { VerificationCard } from "@/components/verification/VerificationCard";
 import {
   mapApiUserToExistingUrls,
   mapApiUserToExtraMediaUrls,
@@ -287,6 +288,21 @@ export function SuperAdminUserStepModal({
         </div>
       ) : (
         <div className="space-y-6">
+          {isView ? (
+            <VerificationCard
+              userId={user.id}
+              userName={getNetworkUserName(user)}
+              fallbackStatus={
+                typeof (user as Record<string, unknown>).verificationStatus ===
+                "string"
+                  ? String(
+                      (user as Record<string, unknown>).verificationStatus
+                    )
+                  : null
+              }
+              canManage
+            />
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {STEPS.map((formStep) => (
               <button

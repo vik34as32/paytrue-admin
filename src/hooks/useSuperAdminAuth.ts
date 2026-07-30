@@ -29,6 +29,12 @@ const SUPER_ADMIN_PROTECTED_PREFIXES = [
   ROUTES.superAdminFundRequests,
   ROUTES.superAdminChangePassword,
   ROUTES.superAdminBankAccounts,
+  ROUTES.superAdminServiceCharges,
+  ROUTES.superAdminAepsLedger,
+  ROUTES.superAdminPermissionManagement,
+  ROUTES.superAdminIdVerification,
+  ROUTES.superAdminWalletManagement,
+  ROUTES.superAdminWalletLien,
 ];
 
 const SHARED_ADMIN_SUPER_ADMIN_PREFIXES = [

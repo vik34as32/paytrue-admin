@@ -109,6 +109,8 @@ export const WALLET_SUMMARY_TAB_LABELS: Record<
   WalletSummaryUserType,
   string
 > = {
+  ALL: "All",
+  ADMIN: "Admin",
   MASTER_DISTRIBUTOR: "Master Distributor",
   DISTRIBUTOR: "Distributor",
   RETAILER: "Retailer",

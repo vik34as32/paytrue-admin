@@ -24,6 +24,12 @@ import {
   Building2,
   ShoppingBag,
   Layers,
+  ShieldCheck,
+  BadgeCheck,
+  Wallet,
+  Lock,
+  Receipt,
+  Landmark,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { logoutUser } from "@/store/api/authApi";
@@ -49,6 +55,12 @@ const iconMap: Record<string, React.ReactNode> = {
   settings: <Settings className="h-5 w-5" />,
   commission: <Percent className="h-5 w-5" />,
   services: <Layers className="h-5 w-5" />,
+  permissions: <ShieldCheck className="h-5 w-5" />,
+  verification: <BadgeCheck className="h-5 w-5" />,
+  wallet: <Wallet className="h-5 w-5" />,
+  lien: <Lock className="h-5 w-5" />,
+  serviceCharges: <Receipt className="h-5 w-5" />,
+  aepsLedger: <Landmark className="h-5 w-5" />,
 };
 
 interface SidebarProps {
@@ -172,24 +184,44 @@ export function Sidebar({
 </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {filteredItems.map((item) => {
+          {filteredItems.map((item, index) => {
             const isActive = pathname.startsWith(item.href);
+            const section =
+              "section" in item
+                ? (item.section as string | undefined)
+                : undefined;
+            const prev = filteredItems[index - 1];
+            const prevSection =
+              prev && "section" in prev
+                ? (prev.section as string | undefined)
+                : undefined;
+            const showSection = !!section && section !== prevSection;
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onMobileClose}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-primary text-white shadow-lg shadow-primary/25"
-                    : "text-muted hover:bg-background hover:text-foreground"
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                {iconMap[item.icon]}
-                {!collapsed && <span>{item.label}</span>}
-              </Link>
+              <div key={item.href}>
+                {showSection && !collapsed ? (
+                  <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    {section}
+                  </p>
+                ) : null}
+                {showSection && collapsed ? (
+                  <div className="my-2 border-t border-border/70" />
+                ) : null}
+                <Link
+                  href={item.href}
+                  onClick={onMobileClose}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                    isActive
+                      ? "bg-primary text-white shadow-lg shadow-primary/25"
+                      : "text-muted hover:bg-background hover:text-foreground"
+                  )}
+                  title={collapsed ? item.label : undefined}
+                >
+                  {iconMap[item.icon]}
+                  {!collapsed && <span>{item.label}</span>}
+                </Link>
+              </div>
             );
           })}
         </nav>

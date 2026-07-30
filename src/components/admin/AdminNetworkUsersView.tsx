@@ -22,6 +22,7 @@ import {
   exportNetworkUsersToExcel,
   openNetworkUsersStatement,
 } from "@/lib/networkUserExport";
+import { getUserVerificationStatus } from "@/lib/idVerification";
 import {
   AdminManagedUserRole,
   listAdminUsers,
@@ -29,12 +30,19 @@ import {
   mapAdminListFiltersToUsersParams,
 } from "@/services/adminUsersApi";
 import { NetworkUserRecord } from "@/types/superAdmin";
+import { IdVerificationStatus } from "@/types/idVerification";
+import { filterVisibleNetworkUsers } from "@/lib/normalizeUser";
+import { ReportExportBar } from "@/components/tables/ReportExportBar";
+import { ReportStatsRow } from "@/components/tables/ReportStatsRow";
+import { useVerificationWorkflow } from "@/hooks/useVerificationWorkflow";
 import {
   Download,
-  FileSpreadsheet,
-  FileText,
   Printer,
+  ShieldCheck,
   UserPlus,
+  Users,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 
 const PAGE_SIZE = 10;
@@ -93,8 +101,9 @@ export function AdminNetworkUsersView({
         page: pageIndex + 1,
         pageSize: PAGE_SIZE,
       });
-      setData(result.data);
-      setTotal(result.total ?? result.data.length);
+      const { users, hiddenCount } = filterVisibleNetworkUsers(result.data);
+      setData(users);
+      setTotal(Math.max(0, (result.total ?? result.data.length) - hiddenCount));
     } catch (err) {
       setData([]);
       setTotal(0);
@@ -104,9 +113,86 @@ export function AdminNetworkUsersView({
     }
   }, [queryParams, pageIndex]);
 
-  const { columns, crud } = useAdminUserTableColumns(userKind, () => {
+  const enableVerification =
+    userKind === "RETAILER" || userKind === "MASTER_DISTRIBUTOR";
+
+  const verification = useVerificationWorkflow(() => {
     void loadData();
   });
+
+  const { columns, crud } = useAdminUserTableColumns(
+    userKind,
+    () => {
+      void loadData();
+    },
+    {
+      enableVerification,
+      verification: enableVerification
+        ? {
+            onVerify: verification.openVerify,
+            onReject: verification.openReject,
+            onViewVerification: verification.openDetails,
+            onViewRejectReason: verification.openReason,
+            onTransfer: verification.openTransfer,
+            onDeduct: verification.openDeduct,
+            disabled: verification.isBusy,
+          }
+        : undefined,
+    }
+  );
+
+  const tableData = useMemo(() => {
+    const status = filters.verificationStatus as IdVerificationStatus | undefined;
+    if (!status) return data;
+    return data.filter((user) => getUserVerificationStatus(user) === status);
+  }, [data, filters.verificationStatus]);
+
+  const verificationStats = useMemo(() => {
+    let pending = 0;
+    let verified = 0;
+    let rejected = 0;
+    for (const user of data) {
+      const status = getUserVerificationStatus(user);
+      if (status === "PENDING") pending += 1;
+      else if (status === "VERIFIED") verified += 1;
+      else if (status === "REJECTED") rejected += 1;
+    }
+    return { pending, verified, rejected };
+  }, [data]);
+
+  const summaryCards = useMemo(
+    () => [
+      {
+        label: `Total ${ADMIN_NETWORK_USER_KIND_LABEL[userKind]}s`,
+        value: String(total),
+        hint: "All Time",
+        icon: Users,
+        iconClassName: "bg-[#4318FF]/10 text-[#4318FF]",
+      },
+      {
+        label: "Verified",
+        value: String(verificationStats.verified),
+        hint: "This page",
+        icon: UserCheck,
+        iconClassName: "bg-emerald-500/10 text-emerald-600",
+      },
+      {
+        label: "Pending",
+        value: String(verificationStats.pending),
+        hint: "This page",
+        icon: ShieldCheck,
+        iconClassName: "bg-amber-500/10 text-amber-600",
+      },
+      {
+        label: "Rejected",
+        value: String(verificationStats.rejected),
+        hint: "This page",
+        icon: UserX,
+        iconClassName: "bg-rose-500/10 text-rose-600",
+      },
+    ],
+    [userKind, total, verificationStats]
+  );
 
   useEffect(() => {
     void loadData();
@@ -120,7 +206,8 @@ export function AdminNetworkUsersView({
   };
 
   const loadExportUsers = async () => {
-    const users = await listAllAdminUsers(queryParams);
+    const raw = await listAllAdminUsers(queryParams);
+    const { users } = filterVisibleNetworkUsers(raw);
     if (!users.length) {
       toast.error("No records available to export");
       return null;
@@ -202,64 +289,27 @@ export function AdminNetworkUsersView({
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container space-y-5">
       <PageHeader
         breadcrumb="Admin"
         title={title}
         subtitle={subtitle}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || isLoading}
-              onClick={() => void handleExportCsv()}
+          createHref && createLabel ? (
+            <Link
+              href={createHref}
+              onClick={() => clearUserFormDraft(userKind)}
             >
-              <Download className="h-4 w-4" />
-              CSV
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || isLoading}
-              onClick={() => void handleExportExcel()}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || isLoading}
-              onClick={() => void handlePrintOrPdf("pdf")}
-            >
-              <FileText className="h-4 w-4" />
-              PDF
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={exportLoading || isLoading}
-              isLoading={exportLoading}
-              onClick={() => void handlePrintOrPdf("print")}
-            >
-              <Printer className="h-4 w-4" />
-              Print
-            </Button>
-            {createHref && createLabel ? (
-              <Link
-                href={createHref}
-                onClick={() => clearUserFormDraft(userKind)}
-              >
-                <Button>
-                  <UserPlus className="h-4 w-4" />
-                  {createLabel}
-                </Button>
-              </Link>
-            ) : null}
-          </div>
+              <Button>
+                <UserPlus className="h-4 w-4" />
+                {createLabel}
+              </Button>
+            </Link>
+          ) : null
         }
       />
+
+      {enableVerification ? <ReportStatsRow items={summaryCards} /> : null}
 
       {error ? (
         <div className="rounded-xl border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
@@ -267,7 +317,7 @@ export function AdminNetworkUsersView({
         </div>
       ) : null}
 
-      <Card>
+      <Card className="space-y-4 border-[#E2E8F0] p-4 shadow-sm dark:border-border sm:p-5">
         <AdminListFilters
           value={filters}
           onChange={(next) => {
@@ -276,14 +326,39 @@ export function AdminNetworkUsersView({
           }}
           showSort
           showDateRange
+          showVerificationStatus
         />
-        <p className="mb-3 text-xs text-muted">
-          Powered by <code>/api/v1/admin/users</code> — search name / email /
-          phone, sort, date range, View / Edit / Delete. Export pulls every
-          matching record (e.g. 1000+), not only the current page.
-        </p>
+
+        <ReportExportBar
+          loading={exportLoading || isLoading}
+          onExportExcel={() => void handleExportExcel()}
+          onExportPdf={() => void handlePrintOrPdf("pdf")}
+          left={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportLoading || isLoading}
+                onClick={() => void handleExportCsv()}
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={exportLoading || isLoading}
+                onClick={() => void handlePrintOrPdf("print")}
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
+            </div>
+          }
+        />
+
         <DataTable
-          data={data}
+          data={tableData}
           columns={columns}
           isLoading={isLoading}
           searchPlaceholder={searchPlaceholder}
@@ -296,11 +371,14 @@ export function AdminNetworkUsersView({
           pageIndex={pageIndex}
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}
-          tone="network"
+          totalRows={total}
+          tone="report"
+          minTableWidth={1300}
         />
       </Card>
 
       <AdminUserCrudModals crud={crud} />
+      {enableVerification ? verification.dialogs : null}
     </div>
   );
 }

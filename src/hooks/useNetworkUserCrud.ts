@@ -3,19 +3,24 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import {
+  activateSuperAdminUser,
+  deactivateSuperAdminUser,
   deleteUserById,
   getUserById,
-  resetUserPassword,
+  resetSuperAdminUserPassword,
   updateUserById,
-  updateUserStatus,
 } from "@/services/userApi";
-import { generateSecurePassword } from "@/lib/generatePassword";
 import { NetworkUserRecord, UserDetailRecord } from "@/types/superAdmin";
 import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
+import { getNetworkUserName } from "@/lib/normalizeUser";
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+function userLabel(user: NetworkUserRecord): string {
+  return getNetworkUserName(user) || user.email || user.userCode || "this user";
 }
 
 export function useNetworkUserCrud(onSuccess?: () => void) {
@@ -100,23 +105,20 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     [editUserId, editUserType, closeEdit, refreshList]
   );
 
-  const setStatus = useCallback(
-    async (user: NetworkUserRecord, status: "ACTIVE" | "INACTIVE") => {
+  const activateUser = useCallback(
+    async (user: NetworkUserRecord) => {
+      const ok = window.confirm(
+        `Activate ${userLabel(user)}? The account will become ACTIVE.`
+      );
+      if (!ok) return;
+
       setIsUpdating(true);
       try {
-        let detail: UserDetailRecord | null = null;
-        try {
-          detail = await getUserById(user.id);
-        } catch {
-          detail = null;
-        }
-        await updateUserStatus(user.id, status, detail);
-        toast.success(
-          status === "ACTIVE" ? "User activated" : "User deactivated"
-        );
+        await activateSuperAdminUser(user.id);
+        toast.success("User activated successfully");
         refreshList();
       } catch (error) {
-        toast.error(getErrorMessage(error, "Failed to update status"));
+        toast.error(getErrorMessage(error, "Failed to activate user"));
       } finally {
         setIsUpdating(false);
       }
@@ -124,29 +126,40 @@ export function useNetworkUserCrud(onSuccess?: () => void) {
     [refreshList]
   );
 
-  const activateUser = useCallback(
-    (user: NetworkUserRecord) => void setStatus(user, "ACTIVE"),
-    [setStatus]
-  );
-
   const deactivateUser = useCallback(
-    (user: NetworkUserRecord) => void setStatus(user, "INACTIVE"),
-    [setStatus]
+    async (user: NetworkUserRecord) => {
+      const ok = window.confirm(
+        `Deactivate ${userLabel(user)}? The account will become INACTIVE and sessions will be revoked.`
+      );
+      if (!ok) return;
+
+      setIsUpdating(true);
+      try {
+        await deactivateSuperAdminUser(user.id);
+        toast.success("User deactivated successfully");
+        refreshList();
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Failed to deactivate user"));
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [refreshList]
   );
 
   const resetPassword = useCallback(
     async (user: NetworkUserRecord) => {
+      const ok = window.confirm(
+        `Reset password for ${userLabel(user)}? A new password will be emailed to ${user.email || "the user"}.`
+      );
+      if (!ok) return;
+
       setIsUpdating(true);
       try {
-        const detail = await getUserById(user.id);
-        const password = generateSecurePassword();
-        await resetUserPassword(user.id, password, detail);
-        try {
-          await navigator.clipboard.writeText(password);
-          toast.success("Password reset. New password copied to clipboard.");
-        } catch {
-          toast.success(`Password reset. New password: ${password}`);
-        }
+        await resetSuperAdminUserPassword(user.id);
+        toast.success(
+          "Password reset successfully. New password has been sent to the user's email."
+        );
         refreshList();
       } catch (error) {
         toast.error(getErrorMessage(error, "Failed to reset password"));

@@ -47,10 +47,10 @@ export default function SuperAdminTransferBalancePage() {
         </Card>
       </div>
 
-      <SuperAdminWalletHistoryTable
+      {/* <SuperAdminWalletHistoryTable
         variant="transfer"
         refreshKey={historyRefreshKey}
-      />
+      /> */}
     </div>
   );
 }

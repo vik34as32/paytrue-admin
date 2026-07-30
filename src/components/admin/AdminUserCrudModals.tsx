@@ -2,10 +2,12 @@
 
 import { useMemo } from "react";
 import { AdminUserStepModal } from "@/components/admin/AdminUserStepModal";
+import { NetworkUserDetailsView } from "@/components/super-admin/NetworkUserDetailsView";
 import { DeleteNetworkUserDialog } from "@/components/super-admin/DeleteNetworkUserDialog";
 import { useAdminUserCrud } from "@/hooks/useAdminUserCrud";
 import { createAdminNetworkUserColumns } from "@/lib/networkUserColumns";
 import { AdminManagedUserRole } from "@/services/adminUsersApi";
+import { NetworkUserRecord } from "@/types/superAdmin";
 
 interface AdminUserCrudModalsProps {
   crud: ReturnType<typeof useAdminUserCrud>;
@@ -14,8 +16,7 @@ interface AdminUserCrudModalsProps {
 export function AdminUserCrudModals({ crud }: AdminUserCrudModalsProps) {
   return (
     <>
-      <AdminUserStepModal
-        mode="view"
+      <NetworkUserDetailsView
         isOpen={crud.viewOpen}
         onClose={crud.closeView}
         user={crud.viewUser}
@@ -44,26 +45,54 @@ export function AdminUserCrudModals({ crud }: AdminUserCrudModalsProps) {
 
 export function useAdminUserTableColumns(
   role: AdminManagedUserRole,
-  onRefresh: () => void
+  onRefresh: () => void,
+  options?: {
+    enableVerification?: boolean;
+    verification?: {
+      onVerify: (user: NetworkUserRecord) => void;
+      onReject: (user: NetworkUserRecord) => void;
+      onViewVerification: (user: NetworkUserRecord) => void;
+      onViewRejectReason: (user: NetworkUserRecord) => void;
+      onTransfer?: (user: NetworkUserRecord) => void;
+      onDeduct?: (user: NetworkUserRecord) => void;
+      disabled?: boolean;
+    };
+  }
 ) {
   const crud = useAdminUserCrud(role, onRefresh);
 
   const columns = useMemo(
     () =>
-      createAdminNetworkUserColumns({
-        onView: (user) => void crud.openView(user),
-        onEdit: (user) => void crud.openEdit(user),
-        onDelete: crud.openDelete,
-        disabled:
-          crud.isFetchingDetail || crud.isUpdating || crud.isDeleting,
-      }),
+      createAdminNetworkUserColumns(
+        {
+          onView: (user) => void crud.openView(user),
+          onEdit: (user) => void crud.openEdit(user),
+          onDelete: crud.openDelete,
+          showVerificationActions: options?.enableVerification,
+          onVerify: options?.verification?.onVerify,
+          onReject: options?.verification?.onReject,
+          onViewVerification: options?.verification?.onViewVerification,
+          onViewRejectReason: options?.verification?.onViewRejectReason,
+          onTransfer: options?.verification?.onTransfer,
+          onDeduct: options?.verification?.onDeduct,
+          disabled:
+            crud.isFetchingDetail ||
+            crud.isUpdating ||
+            crud.isDeleting ||
+            options?.verification?.disabled,
+        },
+        { userKind: role }
+      ),
     [
+      role,
       crud.openView,
       crud.openEdit,
       crud.openDelete,
       crud.isFetchingDetail,
       crud.isUpdating,
       crud.isDeleting,
+      options?.enableVerification,
+      options?.verification,
     ]
   );
 

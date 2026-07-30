@@ -26,3 +26,111 @@ export interface WalletTransferReceiver {
   email?: string;
   mobile?: string;
 }
+
+/** Admin Wallet Management */
+
+export type WalletUserRole =
+  | "RETAILER"
+  | "DISTRIBUTOR"
+  | "MASTER_DISTRIBUTOR"
+  | "ADMIN";
+
+export type WalletUserStatus =
+  | "ACTIVE"
+  | "INACTIVE"
+  | "SUSPENDED"
+  | "PENDING"
+  | "BLOCKED";
+
+export type WalletVerificationStatus =
+  | "VERIFIED"
+  | "PENDING"
+  | "REJECTED"
+  | "SUBMITTED";
+
+export type WalletSortBy =
+  | "name"
+  | "role"
+  | "mainWallet"
+  | "commissionWallet"
+  | "aepsWallet"
+  | "totalBalance"
+  | "createdAt";
+
+export type WalletSortOrder = "asc" | "desc";
+
+export interface WalletBalances {
+  mainWallet: number;
+  commissionWallet: number;
+  aepsWallet: number;
+  holdBalance: number;
+  availableBalance: number;
+  totalBalance: number;
+}
+
+export interface WalletUser extends WalletBalances {
+  userId: string;
+  id: string;
+  userCode: string | null;
+  name: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  email: string | null;
+  mobile: string | null;
+  role: WalletUserRole;
+  status: WalletUserStatus | string;
+  verificationStatus: WalletVerificationStatus | string;
+  createdAt: string;
+  updatedAt?: string;
+  wallet?: {
+    id: string;
+    status: string;
+    currency: string;
+    createdAt?: string;
+    updatedAt?: string;
+  } | null;
+  outlet?: {
+    shopName?: string | null;
+    shopAddress?: string | null;
+    outletName?: string | null;
+    address?: string | null;
+  } | null;
+  kycVerifiedAt?: string | null;
+  /** Wallet row status (ACTIVE / FROZEN) when API provides it */
+  walletStatus?: string;
+}
+
+export interface WalletListSummary {
+  totalUsers: number;
+  totalMainWalletBalance: number;
+  totalCommissionWalletBalance: number;
+  totalAepsWalletBalance: number;
+  totalHoldBalance: number;
+  totalAvailableBalance: number;
+  /** Main + commission + AEPS */
+  totalBalance: number;
+}
+
+export interface WalletListPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface WalletUsersListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: WalletUserRole | "";
+  status?: WalletUserStatus | "";
+  verificationStatus?: WalletVerificationStatus | "";
+  sortBy?: WalletSortBy;
+  sortOrder?: WalletSortOrder;
+}
+
+export interface WalletUsersListResult {
+  items: WalletUser[];
+  pagination: WalletListPagination;
+  summary: WalletListSummary;
+}

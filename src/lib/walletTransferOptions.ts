@@ -13,6 +13,9 @@ import { getWalletBalance } from "@/lib/normalizeUser";
 import { formatUserTypeLabel } from "@/lib/normalizeUser";
 import type { WalletTransferReceiver } from "@/types/wallet";
 import type { AdminRecord, NetworkUserRecord } from "@/types/superAdmin";
+import type { PublicNetworkUser } from "@/services/publicNetworkUsersApi";
+import { getPublicNetworkUserTransferLabel } from "@/services/publicNetworkUsersApi";
+import { formatCurrency } from "@/lib/utils";
 
 export function formatWalletTransferRole(role: string): string {
   return formatUserTypeLabel(role);
@@ -28,6 +31,16 @@ export function getNetworkUserRecordId(user: NetworkUserRecord): string {
   return String(user.id || raw._id || raw.userId || "");
 }
 
+/** Dropdown label: Name - UserType - Mobile - Balance */
+export function formatWalletReceiverDropdownLabel(
+  receiver: WalletTransferReceiver
+): string {
+  const name = receiver.name?.trim() || "Unknown";
+  const userType = receiver.roleLabel || formatWalletTransferRole(receiver.role);
+  const mobile = receiver.mobile?.trim() || "—";
+  return `${name} - ${userType} - ${mobile} - ${formatCurrency(receiver.balance ?? 0)}`;
+}
+
 export function networkUserToReceiver(
   user: NetworkUserRecord,
   role: string
@@ -36,7 +49,8 @@ export function networkUserToReceiver(
   if (!id) return null;
 
   const resolvedRole =
-    normalizeTransferRole(user.userType || user.role) || normalizeTransferRole(role);
+    normalizeTransferRole(user.userType || user.role) ||
+    normalizeTransferRole(role);
 
   return {
     id,
@@ -54,7 +68,9 @@ export function networkUserToReceiver(
   };
 }
 
-export function adminRecordToReceiver(admin: AdminRecord): WalletTransferReceiver | null {
+export function adminRecordToReceiver(
+  admin: AdminRecord
+): WalletTransferReceiver | null {
   const id = getAdminId(admin);
   if (!id) return null;
 
@@ -90,6 +106,39 @@ export function adminNetworkUserToReceiver(
   };
 }
 
+export function publicNetworkUserToReceiver(
+  user: PublicNetworkUser,
+  role: string
+): WalletTransferReceiver | null {
+  if (!user.id) return null;
+
+  const resolvedRole =
+    normalizeTransferRole(user.userType) || normalizeTransferRole(role);
+  const name =
+    user.firstName?.trim() ||
+    user.fullName?.trim() ||
+    user.name?.trim() ||
+    user.mobile ||
+    "—";
+
+  return {
+    id: user.id,
+    name,
+    role: resolvedRole || normalizeTransferRole(role),
+    roleLabel: formatWalletTransferRole(resolvedRole || role),
+    balance: user.walletBalance ?? user.balance ?? 0,
+    email: user.email,
+    mobile: user.mobile,
+  };
+}
+
+export function publicNetworkUserDropdownLabel(
+  user: PublicNetworkUser,
+  balance?: number
+): string {
+  return getPublicNetworkUserTransferLabel(user, balance);
+}
+
 export function filterWalletTransferReceivers(
   receivers: WalletTransferReceiver[],
   query: string,
@@ -107,6 +156,7 @@ export function filterWalletTransferReceivers(
       receiver.email,
       receiver.mobile,
       receiver.roleLabel,
+      formatWalletReceiverDropdownLabel(receiver),
     ]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedQuery));

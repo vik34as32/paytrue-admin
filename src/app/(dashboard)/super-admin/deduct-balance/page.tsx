@@ -47,10 +47,10 @@ export default function SuperAdminDeductBalancePage() {
         </Card>
       </div>
 
-      <SuperAdminWalletHistoryTable
+      {/* <SuperAdminWalletHistoryTable
         variant="deduct"
         refreshKey={historyRefreshKey}
-      />
+      /> */}
     </div>
   );
 }

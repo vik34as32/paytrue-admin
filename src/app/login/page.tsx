@@ -153,7 +153,7 @@ export default function LoginPage() {
             <div className="mb-8 text-center">
               <h2 className="text-2xl font-bold text-white">Welcome back</h2>
               <p className="mt-1.5 text-sm text-slate-400">
-                Sign in to your admin console
+                Sign in with email or mobile number
               </p>
             </div>
             <LoginForm />
