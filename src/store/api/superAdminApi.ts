@@ -9,7 +9,7 @@ import {
   getMasterDistributors,
   getDistributors,
   getAdmins,
-  getAdminFundRequests,
+  getSuperAdminFundRequests,
 } from "@/services/superAdminApi";
 import { RootState } from "@/store";
 import {
@@ -166,15 +166,11 @@ export const fetchAdminsList = createAsyncThunk(
 
 export const fetchAdminFundRequests = createAsyncThunk(
   "superAdmin/fetchAdminFundRequests",
-  async (
-    { adminId, ...params }: ListQueryParams & { adminId: string },
-    { rejectWithValue }
-  ) => {
+  async (params: ListQueryParams = {}, { rejectWithValue }) => {
     try {
       return {
-        adminId,
         ...params,
-        result: await getAdminFundRequests(adminId, params),
+        result: await getSuperAdminFundRequests(params),
       };
     } catch (error) {
       return rejectWithValue(

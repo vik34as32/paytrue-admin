@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
+import { Button } from "@/components/common/Button";
 import { DataTable } from "@/components/tables/DataTable";
 import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import { Badge } from "@/components/common/Badge";
@@ -16,12 +18,10 @@ import {
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { fetchAdminFundRequests } from "@/store/api/superAdminApi";
-import { fetchAllAdmins } from "@/store/api/superAdminWalletApi";
 import { selectFundRequests } from "@/store/selectors/superAdminSelectors";
-import { getAdminDisplayName, getAdminId } from "@/services/admin";
 import { ROUTES } from "@/constants";
 import { AdminFundRequest } from "@/types/superAdmin";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import {
   downloadReportExcel,
   downloadReportPdf,
@@ -30,26 +30,55 @@ import {
 
 const PAGE_SIZE = 10;
 
+const FUND_REQUEST_STATUS_OPTIONS = [
+  { value: "", label: "All Status" },
+  { value: "PENDING", label: "Pending" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+];
+
 const EXPORT_COLUMNS = [
   { key: "#", label: "#" },
   { key: "date", label: "Date" },
+  { key: "requesterName", label: "Requester" },
+  { key: "requesterType", label: "Type" },
+  { key: "mobile", label: "Mobile" },
   { key: "amount", label: "Amount" },
   { key: "status", label: "Status" },
+  { key: "paymentMode", label: "Payment Mode" },
+  { key: "bankName", label: "Bank" },
+  { key: "utr", label: "UTR / Ref" },
   { key: "remarks", label: "Remarks" },
   { key: "adminName", label: "Admin" },
 ];
 
+function statusVariant(
+  status?: string
+): "success" | "pending" | "rejected" | "default" {
+  const value = (status || "").toLowerCase();
+  if (value === "approved" || value === "success") return "success";
+  if (value === "pending") return "pending";
+  if (value === "rejected" || value === "failed") return "rejected";
+  return "default";
+}
+
+function formatRole(value?: string): string {
+  if (!value) return "—";
+  return value.replace(/_/g, " ");
+}
+
 function toExportRows(items: AdminFundRequest[]) {
   return items.map((item, index) => ({
     "#": index + 1,
-    date: formatDate(
-      item.createdAt ||
-        (item.requestedAt as string | undefined) ||
-        (item.updatedAt as string | undefined) ||
-        null
-    ),
+    date: formatDate(item.createdAt || item.updatedAt || null),
+    requesterName: item.requesterName || item.userName || "—",
+    requesterType: formatRole(item.requesterType || item.userType),
+    mobile: item.requesterMobile || "—",
     amount: formatCurrency(Number(item.amount) || 0),
     status: item.status || "—",
+    paymentMode: item.paymentMode || item.fundingMode || "—",
+    bankName: item.bankName || "—",
+    utr: item.utr || item.reference || item.referenceNumber || "—",
     remarks: item.remarks || "—",
     adminName: item.adminName || "—",
   }));
@@ -60,47 +89,43 @@ export default function SuperAdminFundRequestsPage() {
   const dispatch = useAppDispatch();
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
   const { data, total, isLoading, error } = useAppSelector(selectFundRequests);
-  const { admins, isLoadingAdmins } = useAppSelector(
-    (state) => state.superAdminWallet
-  );
   const [pageIndex, setPageIndex] = useState(0);
   const [search, setSearch] = useState("");
-  const [selectedAdminId, setSelectedAdminId] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filters, setFilters] = useState<SuperAdminListFiltersValue>({});
   const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
       router.replace(ROUTES.superAdminLogin);
-      return;
     }
-    dispatch(fetchAllAdmins());
-  }, [dispatch, hasSuperAdminWalletAccess, router]);
+  }, [hasSuperAdminWalletAccess, router]);
 
   useEffect(() => {
-    if (admins.length > 0 && !selectedAdminId) {
-      setSelectedAdminId(getAdminId(admins[0]));
-    }
-  }, [admins, selectedAdminId]);
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      350
+    );
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const loadData = useCallback(() => {
-    if (!selectedAdminId) return;
     dispatch(
       fetchAdminFundRequests({
-        adminId: selectedAdminId,
         page: pageIndex + 1,
         pageSize: PAGE_SIZE,
-        search: search || undefined,
-        status: filters.status,
+        search: debouncedSearch || undefined,
+        status: filters.status || undefined,
         startDate: filters.startDate,
         endDate: filters.endDate,
       })
     );
-  }, [dispatch, selectedAdminId, pageIndex, search, filters]);
+  }, [dispatch, pageIndex, debouncedSearch, filters]);
 
   useEffect(() => {
+    if (!hasSuperAdminWalletAccess) return;
     loadData();
-  }, [loadData]);
+  }, [hasSuperAdminWalletAccess, loadData]);
 
   const handleExportExcel = () => {
     try {
@@ -130,8 +155,8 @@ export default function SuperAdminFundRequestsPage() {
         return;
       }
       downloadReportPdf({
-        title: "Admin Fund Requests",
-        subtitle: "Fund requests report",
+        title: "Fund Requests",
+        subtitle: "Super Admin fund requests report",
         filename: reportFilename("fund-requests"),
         columns: EXPORT_COLUMNS,
         rows: toExportRows(data),
@@ -144,60 +169,150 @@ export default function SuperAdminFundRequestsPage() {
     }
   };
 
-  const columns: ColumnDef<AdminFundRequest, unknown>[] = [
-    {
-      accessorKey: "createdAt",
-      header: "Date",
-      cell: ({ row }) =>
-        formatDate(
-          row.original.createdAt ||
-            (row.original.requestedAt as string | undefined) ||
-            (row.original.updatedAt as string | undefined) ||
-            null
+  const columns = useMemo<ColumnDef<AdminFundRequest, unknown>[]>(
+    () => [
+      {
+        id: "sr",
+        header: "Sr No.",
+        enableSorting: false,
+        size: 70,
+        cell: ({ row }) => (
+          <span className="tabular-nums text-muted">
+            {pageIndex * PAGE_SIZE + row.index + 1}
+          </span>
         ),
-    },
-    {
-      accessorKey: "amount",
-      header: "Amount",
-      cell: ({ row }) => (
-        <span className="font-semibold">
-          {formatCurrency(row.original.amount)}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={
-            (row.original.status?.toLowerCase() as
-              | "success"
-              | "pending"
-              | "rejected") || "default"
-          }
-        >
-          {row.original.status}
-        </Badge>
-      ),
-    },
-    { accessorKey: "remarks", header: "Remarks" },
-    { accessorKey: "adminName", header: "Admin" },
-  ];
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Date",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap text-sm tabular-nums">
+            {formatDate(row.original.createdAt || row.original.updatedAt || null)}
+          </span>
+        ),
+      },
+      {
+        id: "requester",
+        header: "Requester",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground">
+              {row.original.requesterName || row.original.userName || "—"}
+            </p>
+            <p className="font-mono text-xs text-muted">
+              {row.original.requesterUserCode || "—"}
+            </p>
+          </div>
+        ),
+      },
+      {
+        id: "requesterType",
+        header: "Type",
+        enableSorting: false,
+        cell: ({ row }) =>
+          formatRole(row.original.requesterType || row.original.userType),
+      },
+      {
+        id: "mobile",
+        header: "Mobile",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.requesterMobile || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "amount",
+        header: "Amount",
+        enableSorting: false,
+        meta: { align: "right" as const },
+        cell: ({ row }) => (
+          <span className="font-semibold tabular-nums">
+            {formatCurrency(Number(row.original.amount) || 0)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge variant={statusVariant(row.original.status)}>
+            {row.original.status || "—"}
+          </Badge>
+        ),
+      },
+      {
+        id: "paymentMode",
+        header: "Payment Mode",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.paymentMode || row.original.fundingMode || "—",
+      },
+      {
+        id: "bank",
+        header: "Bank",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="text-sm text-foreground">
+              {row.original.bankName || "—"}
+            </p>
+            <p className="font-mono text-xs text-muted">
+              {row.original.utr ||
+                row.original.reference ||
+                row.original.referenceNumber ||
+                "—"}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "remarks",
+        header: "Remarks",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span
+            className="block max-w-[180px] truncate"
+            title={row.original.remarks || ""}
+          >
+            {row.original.remarks || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "adminName",
+        header: "Admin",
+        enableSorting: false,
+        cell: ({ row }) => row.original.adminName || "—",
+      },
+    ],
+    [pageIndex]
+  );
 
   if (!hasSuperAdminWalletAccess) return null;
-
-  const adminOptions = admins.map((admin) => ({
-    value: getAdminId(admin),
-    label: getAdminDisplayName(admin),
-  }));
 
   return (
     <div className="page-container">
       <PageHeader
         breadcrumb="Super Admin"
-        title="Admin Fund Requests"
-        subtitle="Fund requests by admin with pagination and filters"
+        title="Fund Requests"
+        subtitle="All fund requests from GET /super-admin/fund-requests"
+        action={
+          <Button
+            variant="outline"
+            onClick={() => loadData()}
+            disabled={isLoading}
+          >
+            <RefreshCw
+              className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")}
+            />
+            Refresh
+          </Button>
+        }
       />
 
       {error && (
@@ -216,29 +331,15 @@ export default function SuperAdminFundRequestsPage() {
           showDateRange
           showStatus
           showSort={false}
+          statusOptions={FUND_REQUEST_STATUS_OPTIONS}
           search={search}
           onSearch={(value) => {
             setSearch(value);
             setPageIndex(0);
           }}
-          searchPlaceholder="Search fund requests..."
-          resultsCount={data.length}
-          adminSelect={{
-            value: selectedAdminId,
-            onChange: (value) => {
-              setSelectedAdminId(value);
-              setPageIndex(0);
-            },
-            options:
-              adminOptions.length > 0
-                ? adminOptions
-                : [
-                    {
-                      value: "",
-                      label: isLoadingAdmins ? "Loading..." : "No admins",
-                    },
-                  ],
-          }}
+          searchPlaceholder="Search name, mobile, UTR..."
+          resultsCount={total}
+          resultsLabel="requests"
         />
 
         <ReportExportBar
@@ -248,25 +349,21 @@ export default function SuperAdminFundRequestsPage() {
           onExportPdf={handleExportPdf}
         />
 
-        {!selectedAdminId ? (
-          <p className="py-8 text-center text-sm text-muted">
-            Select an admin to view fund requests
-          </p>
-        ) : (
-          <DataTable
-            data={data}
-            columns={columns}
-            isLoading={isLoading}
-            hideSearch
-            manualPagination
-            pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-            pageIndex={pageIndex}
-            onPageChange={setPageIndex}
-            pageSize={PAGE_SIZE}
-            totalRows={total}
-            tone="report"
-          />
-        )}
+        <DataTable
+          data={data}
+          columns={columns}
+          isLoading={isLoading}
+          hideSearch
+          manualPagination
+          pageCount={Math.max(1, Math.ceil(total / PAGE_SIZE))}
+          pageIndex={pageIndex}
+          onPageChange={setPageIndex}
+          pageSize={PAGE_SIZE}
+          totalRows={total}
+          minTableWidth={1200}
+          tone="report"
+          stickyHeader
+        />
       </Card>
     </div>
   );

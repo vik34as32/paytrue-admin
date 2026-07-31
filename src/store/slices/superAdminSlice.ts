@@ -224,7 +224,7 @@ const superAdminSlice = createSlice({
         state.fundRequests.error = null;
       })
       .addCase(fetchAdminFundRequests.fulfilled, (state, action) => {
-        state.fundRequests.adminId = action.payload.adminId;
+        state.fundRequests.adminId = null;
         applyListResult(state.fundRequests, action.payload, action.payload.result);
       })
       .addCase(fetchAdminFundRequests.rejected, (state, action) => {

@@ -37,6 +37,8 @@ interface SuperAdminListFiltersProps {
     options: { value: string; label: string }[];
     label?: string;
   };
+  /** Override default user-lifecycle status options */
+  statusOptions?: { value: string; label: string }[];
   pageSizeSelect?: {
     value: number;
     onChange: (value: number) => void;
@@ -93,6 +95,7 @@ export function SuperAdminListFilters({
   resultsCount,
   resultsLabel,
   adminSelect,
+  statusOptions = STATUS_OPTIONS,
   pageSizeSelect,
 }: SuperAdminListFiltersProps) {
   const update = (patch: Partial<SuperAdminListFiltersValue>) =>
@@ -129,7 +132,7 @@ export function SuperAdminListFilters({
               label="Status"
               value={value.status || ""}
               onChange={(e) => update({ status: e.target.value || undefined })}
-              options={STATUS_OPTIONS}
+              options={statusOptions}
             />
           </div>
         )}

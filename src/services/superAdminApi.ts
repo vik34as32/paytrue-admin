@@ -33,24 +33,26 @@ import { normalizeAdminRecord } from "@/lib/normalizeAdmin";
 function readPaginationMeta(
   obj: Record<string, unknown>
 ): Pick<PaginatedApiData<unknown>, "total" | "page" | "pageSize" | "totalPages"> {
-  const meta =
-    obj.meta && typeof obj.meta === "object"
-      ? (obj.meta as Record<string, unknown>)
-      : obj;
+  const nested =
+    obj.pagination && typeof obj.pagination === "object"
+      ? (obj.pagination as Record<string, unknown>)
+      : obj.meta && typeof obj.meta === "object"
+        ? (obj.meta as Record<string, unknown>)
+        : {};
 
   return {
     total:
-      (meta.total as number | undefined) ??
+      (nested.total as number | undefined) ??
       (obj.total as number | undefined),
     page:
-      (meta.page as number | undefined) ?? (obj.page as number | undefined),
+      (nested.page as number | undefined) ?? (obj.page as number | undefined),
     pageSize:
-      (meta.limit as number | undefined) ??
-      (meta.pageSize as number | undefined) ??
+      (nested.limit as number | undefined) ??
+      (nested.pageSize as number | undefined) ??
       (obj.pageSize as number | undefined) ??
       (obj.limit as number | undefined),
     totalPages:
-      (meta.totalPages as number | undefined) ??
+      (nested.totalPages as number | undefined) ??
       (obj.totalPages as number | undefined),
   };
 }
@@ -530,34 +532,162 @@ export async function getAdmins(
   };
 }
 
+function pickNestedName(source: Record<string, unknown> | null): string | undefined {
+  if (!source) return undefined;
+  const name = source.name;
+  if (typeof name === "string" && name.trim()) return name.trim();
+  const first =
+    typeof source.firstName === "string" ? source.firstName.trim() : "";
+  const last =
+    typeof source.lastName === "string" ? source.lastName.trim() : "";
+  const joined = [first, last].filter(Boolean).join(" ");
+  return joined || undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function pickStr(
+  source: Record<string, unknown>,
+  ...keys: string[]
+): string | undefined {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return undefined;
+}
+
+export function normalizeAdminFundRequest(raw: unknown): AdminFundRequest {
+  const obj = asRecord(raw) || {};
+  const user = asRecord(obj.user) || asRecord(obj.requester);
+  const admin = asRecord(obj.admin) || asRecord(obj.createdBy);
+  const bank = asRecord(obj.bank) || asRecord(obj.bankAccount);
+
+  const createdAt =
+    pickStr(obj, "createdAt", "requestedAt", "date", "updatedAt") || undefined;
+
+  const requesterName =
+    pickStr(obj, "requesterName", "userName", "name") ||
+    pickNestedName(user) ||
+    undefined;
+
+  const adminName =
+    pickStr(obj, "adminName") || pickNestedName(admin) || undefined;
+
+  return {
+    ...obj,
+    id: String(obj.id ?? ""),
+    amount: Number(obj.amount) || 0,
+    status: String(obj.status ?? "PENDING").toUpperCase(),
+    createdAt,
+    updatedAt: pickStr(obj, "updatedAt"),
+    adminId:
+      pickStr(obj, "adminId") ||
+      (admin ? pickStr(admin, "id", "adminId") : undefined),
+    adminName,
+    remarks: pickStr(obj, "remarks", "note", "description"),
+    adminRemarks: pickStr(obj, "adminRemarks", "actionRemarks"),
+    reference: pickStr(obj, "reference", "referenceNumber", "refNo"),
+    utr: pickStr(obj, "utr", "utrNumber", "transactionId"),
+    referenceNumber: pickStr(obj, "referenceNumber", "reference"),
+    paymentMode: pickStr(obj, "paymentMode", "fundingMode", "mode"),
+    fundingMode: pickStr(obj, "fundingMode", "paymentMode"),
+    bankName:
+      pickStr(obj, "bankName") ||
+      (bank ? pickStr(bank, "bankName", "name") : undefined),
+    accountHolderName:
+      pickStr(obj, "accountHolderName") ||
+      (bank ? pickStr(bank, "accountHolderName", "holderName") : undefined),
+    accountNumber:
+      pickStr(obj, "accountNumber") ||
+      (bank ? pickStr(bank, "accountNumber") : undefined),
+    ifscCode:
+      pickStr(obj, "ifscCode", "ifsc") ||
+      (bank ? pickStr(bank, "ifscCode", "ifsc") : undefined),
+    requesterId:
+      pickStr(obj, "requesterId", "userId") ||
+      (user ? pickStr(user, "id") : undefined),
+    requesterName,
+    requesterType:
+      pickStr(obj, "requesterType", "userType", "role") ||
+      (user ? pickStr(user, "userType", "role") : undefined),
+    requesterMobile:
+      pickStr(obj, "requesterMobile", "mobile", "phone") ||
+      (user ? pickStr(user, "mobile", "phone") : undefined),
+    requesterEmail:
+      pickStr(obj, "requesterEmail", "email") ||
+      (user ? pickStr(user, "email") : undefined),
+    requesterUserCode:
+      pickStr(obj, "requesterUserCode", "userCode") ||
+      (user ? pickStr(user, "userCode") : undefined),
+    userId:
+      pickStr(obj, "userId") || (user ? pickStr(user, "id") : undefined),
+    userName: requesterName,
+    userType:
+      pickStr(obj, "userType", "requesterType") ||
+      (user ? pickStr(user, "userType", "role") : undefined),
+    actionByName: pickStr(obj, "actionByName", "approverName", "reviewedBy"),
+    approverName: pickStr(obj, "approverName", "actionByName"),
+    approvedAt: pickStr(obj, "approvedAt"),
+    rejectedAt: pickStr(obj, "rejectedAt"),
+    imageUrl:
+      (typeof obj.imageUrl === "string" && obj.imageUrl) ||
+      (typeof obj.paymentProof === "string" && obj.paymentProof) ||
+      null,
+  };
+}
+
+/**
+ * GET /api/v1/super-admin/fund-requests?page=&pageSize=
+ * Global Super Admin fund requests list.
+ */
+export async function getSuperAdminFundRequests(
+  params: ListQueryParams = {}
+): Promise<PaginatedApiData<AdminFundRequest>> {
+  const { data } = await superAdminModuleClient.get<
+    ApiResponse<PaginatedApiData<AdminFundRequest> | AdminFundRequest[]> |
+      Record<string, unknown>
+  >("/fund-requests", { params: withListParams(params) });
+
+  const envelope = asRecord(data) || {};
+  // Prefer full envelope when `data` is an array + sibling `pagination`
+  const payload =
+    Array.isArray(envelope.data) || envelope.pagination
+      ? envelope
+      : envelope.data ?? data;
+
+  const normalized = normalizePaginated<AdminFundRequest>(payload, [
+    "fundRequests",
+    "requests",
+    "items",
+  ]);
+
+  return {
+    ...normalized,
+    data: normalized.data.map(normalizeAdminFundRequest),
+  };
+}
+
+/** @deprecated Prefer getSuperAdminFundRequests for the global list */
 export async function getAdminFundRequests(
   adminId: string,
   params: ListQueryParams = {}
 ): Promise<PaginatedApiData<AdminFundRequest>> {
   const { data } = await superAdminModuleClient.get<
-    ApiResponse<PaginatedApiData<AdminFundRequest> | AdminFundRequest[]>
-  >(`/admins/${adminId}/fund-requests`, { params });
-  const normalized = normalizePaginated<AdminFundRequest>(data.data, [
+    ApiResponse<PaginatedApiData<AdminFundRequest> | AdminFundRequest[]> |
+      Record<string, unknown>
+  >(`/admins/${adminId}/fund-requests`, { params: withListParams(params) });
+  const normalized = normalizePaginated<AdminFundRequest>(data, [
     "fundRequests",
   ]);
   return {
     ...normalized,
-    data: normalized.data.map((item) => {
-      const raw = item as AdminFundRequest & Record<string, unknown>;
-      const createdAt =
-        (typeof raw.createdAt === "string" && raw.createdAt) ||
-        (typeof raw.requestedAt === "string" && raw.requestedAt) ||
-        (typeof raw.updatedAt === "string" && raw.updatedAt) ||
-        (typeof raw.date === "string" && raw.date) ||
-        undefined;
-      return {
-        ...raw,
-        id: String(raw.id ?? ""),
-        amount: Number(raw.amount) || 0,
-        status: String(raw.status ?? "PENDING"),
-        createdAt,
-      };
-    }),
+    data: normalized.data.map(normalizeAdminFundRequest),
   };
 }
 
