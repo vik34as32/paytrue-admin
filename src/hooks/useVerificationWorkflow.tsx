@@ -66,6 +66,7 @@ function toWalletUser(user: NetworkUserRecord): WalletUser {
     commissionWallet: 0,
     aepsWallet: 0,
     holdBalance: 0,
+    frozenBalance: 0,
     availableBalance: balance,
     totalBalance: balance,
     outlet: user.outlet
