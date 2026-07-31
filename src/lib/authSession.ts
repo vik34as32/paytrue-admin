@@ -1,4 +1,10 @@
 import { STORAGE_KEYS } from "@/constants/storage";
+import {
+  clearAllAuthCookies,
+  clearAuthTokenCookie,
+  clearSuperAdminTokenCookie,
+} from "@/lib/authCookie";
+import { clearLoginToken } from "@/lib/loginToken";
 
 /** Prevents 401 interceptors from clearing session during initial auth hydration. */
 let authHydrationComplete = false;
@@ -50,12 +56,14 @@ function clearAdminTokens() {
   localStorage.removeItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN);
   sessionStorage.removeItem(STORAGE_KEYS.ADMIN_TOKEN);
   sessionStorage.removeItem(STORAGE_KEYS.ADMIN_REFRESH_TOKEN);
+  clearAuthTokenCookie();
 }
 
 function clearSuperAdminTokens() {
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_USER);
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_REFRESH_TOKEN);
+  clearSuperAdminTokenCookie();
 }
 
 export function clearAdminAuthStorage() {
@@ -69,6 +77,8 @@ export function clearSuperAdminAuthStorage() {
 export function clearAllAuthStorage() {
   clearAdminTokens();
   clearSuperAdminTokens();
+  clearLoginToken();
+  clearAllAuthCookies();
   localStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.USER);

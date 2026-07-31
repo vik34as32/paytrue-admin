@@ -69,18 +69,27 @@ export function AdminNetworkUsersView({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
   const [filters, setFilters] = useState<AdminListFiltersValue>({
     sortBy: "createdAt",
     sortOrder: "desc",
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setPageIndex(0);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   const queryParams = useMemo(
     () =>
       mapAdminListFiltersToUsersParams(
         {
-          search: search || undefined,
+          search: debouncedSearch || undefined,
           status: filters.status,
           sortBy: filters.sortBy,
           sortOrder: filters.sortOrder,
@@ -89,7 +98,7 @@ export function AdminNetworkUsersView({
         },
         userKind
       ),
-    [search, filters, userKind]
+    [debouncedSearch, filters, userKind]
   );
 
   const loadData = useCallback(async () => {
@@ -126,15 +135,17 @@ export function AdminNetworkUsersView({
       void loadData();
     },
     {
+      pageIndex,
+      pageSize: PAGE_SIZE,
       enableVerification,
+      // Admin: no Edit/Delete (Super Admin only). No transfer/deduct in table actions.
+      showEditDelete: false,
       verification: enableVerification
         ? {
             onVerify: verification.openVerify,
             onReject: verification.openReject,
             onViewVerification: verification.openDetails,
             onViewRejectReason: verification.openReason,
-            onTransfer: verification.openTransfer,
-            onDeduct: verification.openDeduct,
             disabled: verification.isBusy,
           }
         : undefined,
@@ -317,64 +328,77 @@ export function AdminNetworkUsersView({
         </div>
       ) : null}
 
-      <Card className="space-y-4 border-[#E2E8F0] p-4 shadow-sm dark:border-border sm:p-5">
-        <AdminListFilters
-          value={filters}
-          onChange={(next) => {
-            setFilters(next);
-            setPageIndex(0);
-          }}
-          showSort
-          showDateRange
-          showVerificationStatus
-        />
-
-        <ReportExportBar
-          loading={exportLoading || isLoading}
-          onExportExcel={() => void handleExportExcel()}
-          onExportPdf={() => void handlePrintOrPdf("pdf")}
-          left={
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={exportLoading || isLoading}
-                onClick={() => void handleExportCsv()}
-              >
-                <Download className="h-4 w-4" />
-                CSV
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={exportLoading || isLoading}
-                onClick={() => void handlePrintOrPdf("print")}
-              >
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
+      <Card className="overflow-hidden border-[#D0D5DD] p-0 shadow-[0_8px_30px_rgba(15,23,42,0.06)] dark:border-border">
+        <div className="border-b border-[#E2E8F0] bg-gradient-to-r from-slate-50 via-white to-indigo-50/40 px-4 py-4 dark:border-border dark:from-card dark:via-card dark:to-card sm:px-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold tracking-wide text-slate-800 dark:text-foreground">
+                {ADMIN_NETWORK_USER_KIND_LABEL[userKind]} Directory
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Search, filter by date range, and export records
+              </p>
             </div>
-          }
-        />
+            <ReportExportBar
+              loading={exportLoading || isLoading}
+              onExportExcel={() => void handleExportExcel()}
+              onExportPdf={() => void handlePrintOrPdf("pdf")}
+              left={
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={exportLoading || isLoading}
+                    onClick={() => void handleExportCsv()}
+                  >
+                    <Download className="h-4 w-4" />
+                    CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={exportLoading || isLoading}
+                    onClick={() => void handlePrintOrPdf("print")}
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </Button>
+                </div>
+              }
+            />
+          </div>
 
-        <DataTable
-          data={tableData}
-          columns={columns}
-          isLoading={isLoading}
-          searchPlaceholder={searchPlaceholder}
-          onSearch={(value) => {
-            setSearch(value);
-            setPageIndex(0);
-          }}
-          manualPagination
-          pageCount={Math.max(1, Math.ceil((total || 0) / PAGE_SIZE))}
-          pageIndex={pageIndex}
-          onPageChange={setPageIndex}
-          pageSize={PAGE_SIZE}
-          totalRows={total}
-          tone="report"
-          minTableWidth={1300}
-        />
+          <AdminListFilters
+            value={filters}
+            onChange={(next) => {
+              setFilters(next);
+              setPageIndex(0);
+            }}
+            showSort
+            showDateRange
+            showVerificationStatus={enableVerification}
+          />
+        </div>
+
+        <div className="space-y-4 p-4 sm:p-5">
+          <DataTable
+            data={tableData}
+            columns={columns}
+            isLoading={isLoading}
+            searchPlaceholder={searchPlaceholder}
+            searchValue={searchInput}
+            onSearch={setSearchInput}
+            manualPagination
+            pageCount={Math.max(1, Math.ceil((total || 0) / PAGE_SIZE))}
+            pageIndex={pageIndex}
+            onPageChange={setPageIndex}
+            pageSize={PAGE_SIZE}
+            totalRows={total}
+            tone="report"
+            stickyHeader
+            minTableWidth={1480}
+          />
+        </div>
       </Card>
 
       <AdminUserCrudModals crud={crud} />

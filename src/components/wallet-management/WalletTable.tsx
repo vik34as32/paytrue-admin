@@ -91,9 +91,16 @@ export function WalletTable({
         accessorKey: "status",
         header: "Status",
         enableSorting: false,
-        cell: ({ row }) => (
-          <WalletStatusBadge status={row.original.status || ""} />
-        ),
+        cell: ({ row }) => {
+          const walletStatus = String(
+            row.original.walletStatus || row.original.wallet?.status || ""
+          ).toUpperCase();
+          const status =
+            walletStatus.includes("FROZEN") || walletStatus === "FREEZE"
+              ? "FROZEN"
+              : row.original.status || "";
+          return <WalletStatusBadge status={status} />;
+        },
       },
       {
         accessorKey: "mainWallet",
@@ -126,6 +133,26 @@ export function WalletTable({
         enableSorting: false,
         meta: { align: "right" as const },
         cell: ({ row }) => formatCurrency(row.original.holdBalance || 0),
+      },
+      {
+        accessorKey: "frozenBalance",
+        header: "Frozen",
+        enableSorting: false,
+        meta: { align: "right" as const },
+        cell: ({ row }) => {
+          const amount = row.original.frozenBalance || 0;
+          return (
+            <span
+              className={
+                amount > 0
+                  ? "font-semibold tabular-nums text-sky-700 dark:text-sky-400"
+                  : "tabular-nums"
+              }
+            >
+              {formatCurrency(amount)}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "availableBalance",

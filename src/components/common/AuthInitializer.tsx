@@ -11,6 +11,10 @@ import {
 } from "@/lib/authSession";
 import { STORAGE_KEYS } from "@/constants/storage";
 import { useIdleLogout } from "@/hooks/useIdleLogout";
+import {
+  setAuthTokenCookie,
+  setSuperAdminTokenCookie,
+} from "@/lib/authCookie";
 
 export default function AuthInitializer() {
   const dispatch = useAppDispatch();
@@ -31,7 +35,16 @@ export default function AuthInitializer() {
               sessionStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN)
             : null;
         if (token) {
+          const rememberMe = !!localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN);
+          setAuthTokenCookie(token, rememberMe);
           await dispatch(loadAdminSession());
+        }
+        const superAdminToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN)
+            : null;
+        if (superAdminToken) {
+          setSuperAdminTokenCookie(superAdminToken);
         }
       } finally {
         markAuthHydrationComplete();

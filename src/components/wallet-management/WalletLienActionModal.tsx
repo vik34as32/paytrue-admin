@@ -43,7 +43,7 @@ export function WalletLienActionModal({
     defaultValues: {
       mode: "hold",
       amount: undefined as unknown as number,
-      description: "",
+      reason: "",
     },
   });
 
@@ -54,7 +54,7 @@ export function WalletLienActionModal({
       reset({
         mode: "hold",
         amount: undefined as unknown as number,
-        description: "",
+        reason: "",
       });
     }
   }, [open, user?.userId, reset]);
@@ -141,15 +141,15 @@ export function WalletLienActionModal({
           {...register("amount", { valueAsNumber: true })}
         />
         <Textarea
-          label="Description"
+          label="Reason"
           rows={3}
           placeholder={
             mode === "release"
               ? "Reason for releasing hold"
               : "Reason for applying lien / hold"
           }
-          error={errors.description?.message}
-          {...register("description")}
+          error={errors.reason?.message}
+          {...register("reason")}
         />
       </form>
     </Modal>

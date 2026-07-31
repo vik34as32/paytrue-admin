@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -18,6 +19,7 @@ import { WalletFreezeActionModal } from "@/components/wallet-management/WalletFr
 import { WalletRowAction } from "@/components/wallet-management/WalletActionButtons";
 import { WalletLoadingSkeleton } from "@/components/wallet-management/WalletLoadingSkeleton";
 import { useWalletUsers, walletKeys } from "@/hooks/useWalletUsers";
+import { ROUTES } from "@/constants";
 import { WalletFilterValues } from "@/schemas/wallet-filter.schema";
 import {
   WalletActionAmountFormValues,
@@ -38,6 +40,7 @@ import {
   WalletUser,
   WalletUsersListParams,
 } from "@/types/wallet";
+import { WalletCategoryLedgerType } from "@/types/walletCategoryLedger";
 import {
   downloadReportExcel,
   downloadReportPdf,
@@ -60,15 +63,37 @@ type ActionModal = "transfer" | "deduct" | "lien" | "freeze" | null;
 
 interface WalletManagementViewProps {
   breadcrumb?: string;
+  scope?: "admin" | "super_admin";
 }
 
 export function WalletManagementView({
   breadcrumb = "Admin",
+  scope = "admin",
 }: WalletManagementViewProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const form = useForm<WalletFilterValues>({
     defaultValues: DEFAULT_FILTERS,
   });
+
+  const handleSummaryCardClick = useCallback(
+    (type: WalletCategoryLedgerType) => {
+      // Hold / freeze ledger API is Super Admin only
+      if (
+        scope !== "super_admin" &&
+        (type === "hold" || type === "frozen")
+      ) {
+        toast.error("Hold / Freeze ledger is available for Super Admin only");
+        return;
+      }
+      const base =
+        scope === "super_admin"
+          ? ROUTES.superAdminWalletCategoryLedger
+          : ROUTES.adminWalletCategoryLedger;
+      router.push(`${base}?type=${type}`);
+    },
+    [router, scope]
+  );
 
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -144,6 +169,7 @@ export function WalletManagementView({
     totalCommissionWalletBalance: 0,
     totalAepsWalletBalance: 0,
     totalHoldBalance: 0,
+    totalFrozenBalance: 0,
     totalAvailableBalance: 0,
     totalBalance: 0,
   };
@@ -246,14 +272,14 @@ export function WalletManagementView({
           await releaseWalletHold({
             userId: actionUser.userId,
             amount: values.amount,
-            description: values.description,
+            reason: values.reason,
           });
           toast.success("Hold amount released successfully");
         } else {
           await holdWalletBalance({
             userId: actionUser.userId,
             amount: values.amount,
-            description: values.description,
+            reason: values.reason,
           });
           toast.success("Lien / hold applied successfully");
         }
@@ -272,18 +298,58 @@ export function WalletManagementView({
 
   const handleFreeze = useCallback(async () => {
     if (!actionUser) return;
+    const status = String(
+      actionUser.walletStatus || actionUser.wallet?.status || ""
+    ).toUpperCase();
     const isFrozen =
-      String(
-        actionUser.walletStatus || actionUser.wallet?.status || ""
-      ).toUpperCase() === "FROZEN";
+      status.includes("FROZEN") ||
+      status === "FREEZE" ||
+      (actionUser.frozenBalance || 0) > 0;
+
+    // Freeze: full available (fallback main). Unfreeze: previously frozen amount.
+    const amountToFreeze = Math.round(
+      Number(
+        actionUser.availableBalance >= 1
+          ? actionUser.availableBalance
+          : actionUser.mainWallet || 0
+      )
+    );
+    const amountToUnfreeze = Math.round(
+      Number(
+        actionUser.frozenBalance > 0
+          ? actionUser.frozenBalance
+          : actionUser.mainWallet || 0
+      )
+    );
+
     setIsSubmitting(true);
     try {
       if (isFrozen) {
-        await unfreezeWallet(actionUser.userId);
-        toast.success("Wallet unfrozen successfully");
+        if (amountToUnfreeze < 1) {
+          toast.error("No frozen amount found to unfreeze");
+          return;
+        }
+        await unfreezeWallet({
+          userId: actionUser.userId,
+          amount: amountToUnfreeze,
+          reason: "Full wallet unfreeze",
+        });
+        toast.success(
+          `Wallet unfrozen successfully (₹${amountToUnfreeze.toLocaleString("en-IN")})`
+        );
       } else {
-        await freezeWallet(actionUser.userId);
-        toast.success("Wallet frozen successfully");
+        if (amountToFreeze < 1) {
+          toast.error("No available balance to freeze");
+          return;
+        }
+        await freezeWallet({
+          userId: actionUser.userId,
+          amount: amountToFreeze,
+          reason: "Full wallet freeze",
+        });
+        toast.success(
+          `Wallet frozen successfully (₹${amountToFreeze.toLocaleString("en-IN")})`
+        );
       }
       closeActionModal();
       await invalidateWallets();
@@ -310,6 +376,7 @@ export function WalletManagementView({
       "Commission Wallet": user.commissionWallet ?? 0,
       "AEPS Wallet": user.aepsWallet ?? 0,
       "Hold Balance": user.holdBalance ?? 0,
+      "Frozen Balance": user.frozenBalance ?? 0,
       "Available Balance": user.availableBalance ?? 0,
       "Total Balance": user.totalBalance ?? 0,
     }));
@@ -411,6 +478,7 @@ export function WalletManagementView({
           <WalletSummaryCards
             summary={summary}
             isLoading={isFetching && !data}
+            onCardClick={handleSummaryCardClick}
           />
 
           <WalletToolbar

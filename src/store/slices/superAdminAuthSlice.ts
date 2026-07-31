@@ -1,4 +1,4 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { SuperAdminProfile } from "@/types/superAdmin";
 import {
   superAdminLogin,
@@ -29,6 +29,20 @@ const superAdminAuthSlice = createSlice({
   initialState,
   reducers: {
     clearSuperAdminError: (state) => {
+      state.error = null;
+    },
+    setSuperAdminSession: (
+      state,
+      action: PayloadAction<{
+        accessToken: string;
+        user: SuperAdminProfile;
+      }>
+    ) => {
+      state.isLoading = false;
+      state.isInitialized = true;
+      state.isAuthenticated = true;
+      state.accessToken = action.payload.accessToken;
+      state.user = action.payload.user;
       state.error = null;
     },
   },
@@ -74,5 +88,6 @@ const superAdminAuthSlice = createSlice({
   },
 });
 
-export const { clearSuperAdminError } = superAdminAuthSlice.actions;
+export const { clearSuperAdminError, setSuperAdminSession } =
+  superAdminAuthSlice.actions;
 export default superAdminAuthSlice.reducer;

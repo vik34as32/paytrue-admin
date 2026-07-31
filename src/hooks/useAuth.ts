@@ -12,6 +12,8 @@ import { isAdminRole } from "@/lib/normalizeAuthRole";
 
 const PUBLIC_ROUTES = [
   ROUTES.login,
+  ROUTES.authLogin,
+  ROUTES.verifyLoginOtp,
   ROUTES.forgotPassword,
   ROUTES.resetPassword,
   ROUTES.superAdminLogin,

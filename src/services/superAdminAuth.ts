@@ -4,12 +4,22 @@ import {
   SuperAdminProfile,
 } from "@/types/superAdmin";
 import { login as superAdminLoginApi } from "@/services/superAdminApi";
+import {
+  clearSuperAdminTokenCookie,
+  setSuperAdminTokenCookie,
+} from "@/lib/authCookie";
+import { clearLoginToken } from "@/lib/loginToken";
 
 export async function superAdminLogin(credentials: SuperAdminLoginPayload) {
-  return superAdminLoginApi(credentials);
+  const result = await superAdminLoginApi(credentials);
+  setSuperAdminTokenCookie(result.accessToken);
+  clearLoginToken();
+  return result;
 }
 
 export function superAdminLogout() {
+  clearLoginToken();
+  clearSuperAdminTokenCookie();
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_USER);
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_REFRESH_TOKEN);

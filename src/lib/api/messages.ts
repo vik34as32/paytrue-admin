@@ -67,11 +67,16 @@ export function getErrorMessage(
 
   if (data?.error?.trim()) return data.error.trim();
 
+  if (status === 401) return "Unauthorized. Please sign in again";
   if (status === 409) return "This action conflicts with the current state";
   if (status === 400) return "Invalid request. Please check your input";
   if (status === 403) return "You do not have permission to perform this action";
   if (status === 404) return "The requested resource was not found";
   if (status === 422) return "Validation failed. Please check your input";
+  if (status === 423) {
+    return "Your account has been locked for 1 hour due to multiple invalid OTP attempts.";
+  }
+  if (status === 429) return "Too many requests. Please try again later";
   if (status === 500) return "Server error. Please try again later";
   if (!axiosError.response) return "Network error. Please check your connection";
 

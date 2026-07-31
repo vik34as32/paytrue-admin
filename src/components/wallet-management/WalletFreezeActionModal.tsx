@@ -5,6 +5,7 @@ import { Modal } from "@/components/modals/Modal";
 import { Button } from "@/components/common/Button";
 import { WalletUser } from "@/types/wallet";
 import { WalletUserSummaryCard } from "@/components/wallet-management/WalletUserSummaryCard";
+import { formatCurrency } from "@/lib/utils";
 
 interface WalletFreezeActionModalProps {
   open: boolean;
@@ -23,9 +24,20 @@ export function WalletFreezeActionModal({
 }: WalletFreezeActionModalProps) {
   if (!user) return null;
 
+  const status = String(
+    user.walletStatus || user.wallet?.status || ""
+  ).toUpperCase();
   const isFrozen =
-    String(user.walletStatus || user.wallet?.status || "").toUpperCase() ===
-    "FROZEN";
+    status.includes("FROZEN") ||
+    status === "FREEZE" ||
+    (user.frozenBalance || 0) > 0;
+
+  const freezeAmount =
+    user.availableBalance >= 1
+      ? user.availableBalance
+      : user.mainWallet || 0;
+  const unfreezeAmount =
+    user.frozenBalance > 0 ? user.frozenBalance : user.mainWallet || 0;
 
   return (
     <Modal
@@ -34,8 +46,8 @@ export function WalletFreezeActionModal({
       title={isFrozen ? "Unfreeze Wallet" : "Freeze Wallet"}
       subtitle={
         isFrozen
-          ? "Unfreeze this user wallet so transactions can resume."
-          : "Freeze this user wallet to block credits, debits, and transfers."
+          ? "Release the frozen amount so the wallet can be used again."
+          : "Freeze the full available wallet amount to block credits, debits, and transfers."
       }
       size="md"
       footer={
@@ -70,8 +82,8 @@ export function WalletFreezeActionModal({
           }
         >
           {isFrozen
-            ? "Wallet is currently frozen. Confirm to restore ACTIVE status."
-            : "This will set wallet status to FROZEN. User will not be able to move funds until unfrozen."}
+            ? `This will unfreeze ${formatCurrency(unfreezeAmount)} (full frozen amount) and restore ACTIVE status.`
+            : `This will freeze ${formatCurrency(freezeAmount)} (full available balance) and set wallet status to FROZEN.`}
         </div>
       </div>
     </Modal>

@@ -5,8 +5,12 @@ export const WALLET_API = {
   deduct: "/wallet/deduct",
   transfers: "/wallet/transfers",
   hold: "/wallet/hold",
+  /** GET `/wallet/hold/ledger` — Super Admin hold ledger */
+  holdLedger: "/wallet/hold/ledger",
   release: "/wallet/release",
   freeze: "/wallet/freeze",
+  /** GET `/wallet/freeze/ledger` — Super Admin freeze ledger */
+  freezeLedger: "/wallet/freeze/ledger",
   unfreeze: "/wallet/unfreeze",
   users: "/wallet/users",
   summaries: "/wallet/summaries",

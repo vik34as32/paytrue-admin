@@ -78,13 +78,66 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
         ? (raw.wallet as Record<string, unknown>).balance
         : 0)
   );
-  const holdBalance = toNumber(
+  const walletObj =
+    raw.wallet && typeof raw.wallet === "object"
+      ? (raw.wallet as Record<string, unknown>)
+      : null;
+
+  const holdBalanceRaw = toNumber(
     raw.holdBalance ??
       raw.holdAmount ??
-      (raw.wallet && typeof raw.wallet === "object"
-        ? (raw.wallet as Record<string, unknown>).holdAmount
-        : 0)
+      raw.lienAmount ??
+      raw.lienBalance ??
+      walletObj?.holdAmount ??
+      walletObj?.holdBalance ??
+      walletObj?.lienAmount
   );
+
+  const walletStatusRaw = String(
+    raw.walletStatus ?? walletObj?.status ?? ""
+  ).toUpperCase();
+  const walletIsFrozen =
+    walletStatusRaw.includes("FROZEN") || walletStatusRaw === "FREEZE";
+
+  const availableFromApi =
+    raw.availableBalance != null && raw.availableBalance !== ""
+      ? toNumber(raw.availableBalance)
+      : null;
+
+  // Freeze amount — API may use several field names after /wallet/freeze
+  let frozenBalance = toNumber(
+    raw.frozenBalance ??
+      raw.freezeBalance ??
+      raw.frozenAmount ??
+      raw.freezeAmount ??
+      raw.blockedAmount ??
+      raw.blockedBalance ??
+      walletObj?.frozenBalance ??
+      walletObj?.freezeBalance ??
+      walletObj?.frozenAmount ??
+      walletObj?.freezeAmount ??
+      walletObj?.blockedAmount
+  );
+
+  // Fallbacks when API marks wallet FROZEN but doesn't send a dedicated freeze field
+  if (frozenBalance <= 0 && walletIsFrozen) {
+    if (availableFromApi != null) {
+      frozenBalance = Math.max(0, mainWallet - availableFromApi);
+    }
+    if (frozenBalance <= 0) {
+      frozenBalance = holdBalanceRaw > 0 ? holdBalanceRaw : mainWallet;
+    }
+  }
+
+  // If freeze reused holdBalance field, don't double-count as lien
+  const holdBalance =
+    walletIsFrozen &&
+    frozenBalance > 0 &&
+    holdBalanceRaw > 0 &&
+    Math.abs(holdBalanceRaw - frozenBalance) < 0.01
+      ? 0
+      : holdBalanceRaw;
+
   const commissionWallet = toNumber(
     raw.commissionWallet ??
       raw.commissionWalletBalance ??
@@ -93,8 +146,9 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
   const aepsWallet = toNumber(
     raw.aepsWallet ?? raw.aepsWalletBalance ?? fromWalletsAeps
   );
+  const lockedTotal = holdBalance + frozenBalance;
   const availableBalance = toNumber(
-    raw.availableBalance ?? Math.max(0, mainWallet - holdBalance)
+    availableFromApi ?? Math.max(0, mainWallet - lockedTotal)
   );
   const totalBalance = toNumber(
     raw.totalBalance ?? mainWallet + commissionWallet + aepsWallet
@@ -119,6 +173,45 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
         null
       : rawName || nameFromParts || null;
 
+  const outletRaw =
+    raw.outlet && typeof raw.outlet === "object"
+      ? (raw.outlet as Record<string, unknown>)
+      : null;
+  const kycRaw =
+    raw.kyc && typeof raw.kyc === "object"
+      ? (raw.kyc as Record<string, unknown>)
+      : raw.kycDocument && typeof raw.kycDocument === "object"
+        ? (raw.kycDocument as Record<string, unknown>)
+        : null;
+
+  const pickStr = (
+    source: Record<string, unknown> | null,
+    ...keys: string[]
+  ): string | null => {
+    if (!source) return null;
+    for (const key of keys) {
+      const value = source[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+      }
+    }
+    return null;
+  };
+
+  const outletId =
+    pickStr(outletRaw, "instantpayOutletId", "outletId", "id") ||
+    pickStr(raw, "instantpayOutletId", "outletId") ||
+    null;
+
+  const panNumber =
+    pickStr(kycRaw, "panNumber", "pan", "pan_number") ||
+    pickStr(raw, "panNumber", "pan", "pan_number");
+
+  const aadhaarNumber =
+    pickStr(kycRaw, "aadhaarNumber", "aadhaar", "aadhaar_number") ||
+    pickStr(raw, "aadhaarNumber", "aadhaar", "aadhaar_number");
+
   return {
     userId: id,
     id,
@@ -135,6 +228,7 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
     commissionWallet,
     aepsWallet,
     holdBalance,
+    frozenBalance,
     availableBalance,
     totalBalance,
     createdAt: String(raw.createdAt ?? ""),
@@ -142,17 +236,28 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
       typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
     wallet: (raw.wallet as WalletUser["wallet"]) ?? null,
     outlet: (raw.outlet as WalletUser["outlet"]) ?? null,
+    outletId,
+    panNumber,
+    aadhaarNumber,
     kycVerifiedAt:
       typeof raw.kycVerifiedAt === "string" ? raw.kycVerifiedAt : null,
     walletStatus: (() => {
       if (typeof raw.walletStatus === "string" && raw.walletStatus.trim()) {
         return raw.walletStatus;
       }
-      if (raw.wallet && typeof raw.wallet === "object") {
-        const status = (raw.wallet as Record<string, unknown>).status;
+      if (walletObj) {
+        const status = walletObj.status;
         if (typeof status === "string" && status.trim()) return status;
       }
-      return "ACTIVE";
+      // Some list payloads put freeze flag at root
+      if (raw.isFrozen === true || raw.frozen === true) return "FROZEN";
+      if (
+        typeof raw.status === "string" &&
+        raw.status.toUpperCase().includes("FROZEN")
+      ) {
+        return raw.status;
+      }
+      return frozenBalance > 0 ? "FROZEN" : "ACTIVE";
     })(),
   };
 }
@@ -164,6 +269,7 @@ function emptySummary(): WalletListSummary {
     totalCommissionWalletBalance: 0,
     totalAepsWalletBalance: 0,
     totalHoldBalance: 0,
+    totalFrozenBalance: 0,
     totalAvailableBalance: 0,
     totalBalance: 0,
   };
@@ -199,6 +305,7 @@ function summarizeFromItems(
     totalCommissionWalletBalance,
     totalAepsWalletBalance,
     totalHoldBalance: items.reduce((s, i) => s + i.holdBalance, 0),
+    totalFrozenBalance: items.reduce((s, i) => s + (i.frozenBalance || 0), 0),
     totalAvailableBalance: items.reduce((s, i) => s + i.availableBalance, 0),
     totalBalance:
       totalMainWalletBalance +
@@ -212,6 +319,8 @@ function normalizeSummary(
   items: WalletUser[],
   totalUsers: number
 ): WalletListSummary {
+  const fromItems = summarizeFromItems(items, totalUsers);
+
   if (raw && typeof raw === "object") {
     const s = raw as Record<string, unknown>;
     const hasAny =
@@ -224,12 +333,23 @@ function normalizeSummary(
         s.totalCommissionWalletBalance
       );
       const totalAepsWalletBalance = toNumber(s.totalAepsWalletBalance);
+      const apiFrozen = toNumber(
+        s.totalFrozenBalance ??
+          s.totalFreezeBalance ??
+          s.totalFrozenAmount ??
+          s.frozenBalance
+      );
       return {
         totalUsers: toNumber(s.totalUsers ?? totalUsers),
         totalMainWalletBalance,
         totalCommissionWalletBalance,
         totalAepsWalletBalance,
         totalHoldBalance: toNumber(s.totalHoldBalance),
+        // Prefer API total; otherwise sum frozen from current page rows
+        totalFrozenBalance:
+          apiFrozen > 0 || s.totalFrozenBalance != null
+            ? apiFrozen
+            : fromItems.totalFrozenBalance,
         totalAvailableBalance: toNumber(s.totalAvailableBalance),
         totalBalance: toNumber(
           s.totalBalance ??
@@ -240,7 +360,7 @@ function normalizeSummary(
       };
     }
   }
-  return summarizeFromItems(items, totalUsers);
+  return fromItems;
 }
 
 function buildListQuery(
@@ -393,7 +513,8 @@ export async function fetchWalletUserBalances(params: {
       details.mainWallet ||
       details.commissionWallet ||
       details.aepsWallet ||
-      details.holdBalance
+      details.holdBalance ||
+      details.frozenBalance
     ) {
       return details;
     }
@@ -465,14 +586,21 @@ export async function deductWalletBalance(payload: {
 export async function holdWalletBalance(payload: {
   userId: string;
   amount: number;
+  reason: string;
   description?: string;
+  type?: string;
 }) {
   try {
     const client = getWalletUsersClient();
+    const reason = (payload.reason || payload.description || "").trim();
+    if (!reason) {
+      throw new Error("Reason is required");
+    }
     const { data } = await client.post<ApiResponse<unknown>>("/wallet/hold", {
       userId: payload.userId,
       amount: normalizeTransferAmount(payload.amount),
-      description: payload.description,
+      reason,
+      type: payload.type || "HOLD",
     });
     return data?.data ?? data;
   } catch (error) {
@@ -484,16 +612,21 @@ export async function holdWalletBalance(payload: {
 export async function releaseWalletHold(payload: {
   userId: string;
   amount: number;
+  reason?: string;
   description?: string;
+  type?: string;
 }) {
   try {
     const client = getWalletUsersClient();
+    const reason = (payload.reason || payload.description || "").trim();
     const { data } = await client.post<ApiResponse<unknown>>(
       "/wallet/release",
       {
         userId: payload.userId,
         amount: normalizeTransferAmount(payload.amount),
-        description: payload.description,
+        // Backend requires `type` — release of wallet hold / lien
+        type: payload.type || "HOLD",
+        ...(reason ? { reason } : {}),
       }
     );
     return data?.data ?? data;
@@ -502,12 +635,19 @@ export async function releaseWalletHold(payload: {
   }
 }
 
-/** POST /wallet/freeze */
-export async function freezeWallet(userId: string) {
+/** POST /wallet/freeze — freeze full available/main wallet amount */
+export async function freezeWallet(payload: {
+  userId: string;
+  amount: number;
+  reason?: string;
+}) {
   try {
     const client = getWalletUsersClient();
+    const amount = normalizeTransferAmount(payload.amount);
     const { data } = await client.post<ApiResponse<unknown>>("/wallet/freeze", {
-      userId,
+      userId: payload.userId,
+      amount,
+      ...(payload.reason?.trim() ? { reason: payload.reason.trim() } : {}),
     });
     return data?.data ?? data;
   } catch (error) {
@@ -515,13 +655,22 @@ export async function freezeWallet(userId: string) {
   }
 }
 
-/** POST /wallet/unfreeze */
-export async function unfreezeWallet(userId: string) {
+/** POST /wallet/unfreeze — release the previously frozen amount */
+export async function unfreezeWallet(payload: {
+  userId: string;
+  amount: number;
+  reason?: string;
+}) {
   try {
     const client = getWalletUsersClient();
+    const amount = normalizeTransferAmount(payload.amount);
     const { data } = await client.post<ApiResponse<unknown>>(
       "/wallet/unfreeze",
-      { userId }
+      {
+        userId: payload.userId,
+        amount,
+        ...(payload.reason?.trim() ? { reason: payload.reason.trim() } : {}),
+      }
     );
     return data?.data ?? data;
   } catch (error) {

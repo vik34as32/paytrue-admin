@@ -52,12 +52,22 @@ function extractList(payload: unknown): unknown[] {
     if (Array.isArray(value)) return value;
     // Nested object-map: { data: { "0": {...}, "1": {...} } }
     if (value && typeof value === "object" && !Array.isArray(value)) {
-      const nested = Object.values(value as Record<string, unknown>);
+      const nestedObj = value as Record<string, unknown>;
+      const nestedKeys = Object.keys(nestedObj).filter((k) => /^\d+$/.test(k));
+      const nested = (
+        nestedKeys.length
+          ? nestedKeys.sort((a, b) => Number(a) - Number(b)).map((k) => nestedObj[k])
+          : Object.values(nestedObj)
+      );
       if (
         nested.length &&
         nested.every(
           (item) => item && typeof item === "object" && !Array.isArray(item)
-        )
+        ) &&
+        nested.some((item) => {
+          const rec = asRecord(item);
+          return Boolean(rec.id || rec.email || rec.phone || rec.mobile);
+        })
       ) {
         return nested;
       }
@@ -65,19 +75,23 @@ function extractList(payload: unknown): unknown[] {
   }
 
   // API sometimes returns `{ "0": {...}, "1": {...} }` instead of an array
-  const values = Object.values(obj);
-  if (
-    values.length &&
-    values.every(
-      (item) => item && typeof item === "object" && !Array.isArray(item)
-    ) &&
-    // Avoid treating pagination meta objects as list items
-    values.some((item) => {
-      const rec = asRecord(item);
-      return Boolean(rec.id || rec.email || rec.phone || rec.mobile);
-    })
-  ) {
-    return values;
+  const keys = Object.keys(obj);
+  const numericKeys = keys.filter((key) => /^\d+$/.test(key));
+  if (numericKeys.length) {
+    const values = numericKeys
+      .sort((a, b) => Number(a) - Number(b))
+      .map((key) => obj[key]);
+    if (
+      values.every(
+        (item) => item && typeof item === "object" && !Array.isArray(item)
+      ) &&
+      values.some((item) => {
+        const rec = asRecord(item);
+        return Boolean(rec.id || rec.email || rec.phone || rec.mobile);
+      })
+    ) {
+      return values;
+    }
   }
 
   return [];
@@ -99,6 +113,9 @@ function toListQuery(params: AdminUsersListParams = {}) {
     if (status === "BLOCKED") status = "SUSPENDED";
   }
 
+  const fromDate = params.fromDate || undefined;
+  const toDate = params.toDate || undefined;
+
   return {
     page: params.page ?? 1,
     pageSize,
@@ -106,38 +123,87 @@ function toListQuery(params: AdminUsersListParams = {}) {
     search: params.search || undefined,
     sortBy,
     sortOrder: params.sortOrder || "desc",
-    fromDate: params.fromDate || undefined,
-    toDate: params.toDate || undefined,
+    fromDate,
+    toDate,
+    // Backend compatibility aliases
+    startDate: fromDate,
+    endDate: toDate,
     status: status || undefined,
     role: params.role,
   };
 }
 
+type AdminUsersApiBody = ApiResponse<unknown> & {
+  pagination?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  total?: number;
+  totalRecords?: number;
+  page?: number;
+  pageSize?: number;
+  limit?: number;
+  totalPages?: number;
+};
+
 /** GET /api/v1/admin/users */
 export async function listAdminUsers(
   params: AdminUsersListParams = {}
 ): Promise<PaginatedAdminData<NetworkUserRecord>> {
-  const { data } = await adminModuleClient.get<ApiResponse<unknown>>("/users", {
+  const { data } = await adminModuleClient.get<AdminUsersApiBody>("/users", {
     params: toListQuery(params),
   });
 
+  // Response shape:
+  // { success, message, data: { "0": user, "1": user }, pagination: { totalRecords, ... } }
   const payload = data.data;
   const items = extractList(payload).map(normalizeListItem);
-  const obj = asRecord(payload);
-  const meta = asRecord(obj.meta ?? obj.pagination);
+  const payloadObj = asRecord(payload);
+  const body = asRecord(data);
+  const meta = asRecord(
+    body.pagination ??
+      body.meta ??
+      payloadObj.pagination ??
+      payloadObj.meta
+  );
 
-  const total = Number(meta.total ?? obj.total ?? items.length) || items.length;
-  const page = Number(meta.page ?? obj.page ?? params.page ?? 1) || 1;
+  const total =
+    Number(
+      meta.totalRecords ??
+        meta.total ??
+        body.totalRecords ??
+        body.total ??
+        payloadObj.total ??
+        items.length
+    ) || items.length;
+  const page =
+    Number(
+      meta.currentPage ??
+        meta.page ??
+        body.page ??
+        payloadObj.page ??
+        params.page ??
+        1
+    ) || 1;
   const pageSize =
-    Number(meta.pageSize ?? meta.limit ?? obj.pageSize ?? obj.limit ?? params.pageSize ?? 10) ||
-    10;
+    Number(
+      meta.pageSize ??
+        meta.limit ??
+        body.pageSize ??
+        body.limit ??
+        payloadObj.pageSize ??
+        payloadObj.limit ??
+        params.pageSize ??
+        10
+    ) || 10;
+  const totalPages =
+    Number(meta.totalPages ?? body.totalPages ?? payloadObj.totalPages) ||
+    Math.max(1, Math.ceil(total / pageSize));
 
   return {
     data: items,
     total,
     page,
     pageSize,
-    totalPages: Number(meta.totalPages ?? obj.totalPages) || Math.max(1, Math.ceil(total / pageSize)),
+    totalPages,
   };
 }
 

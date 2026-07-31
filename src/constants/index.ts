@@ -36,6 +36,8 @@ export const REQUEST_APPROVAL_CHAIN: UserRole[] = [
 
 export const ROUTES = {
   login: "/login",
+  authLogin: "/auth/login",
+  verifyLoginOtp: "/auth/login/verify-otp",
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
   superAdminLogin: "/super-admin/login",
@@ -100,9 +102,11 @@ export const ROUTES = {
   adminServiceMaster: "/admin/service-master",
   adminWalletSummary: "/admin/wallet-summary",
   adminWalletManagement: "/admin/wallet-management",
+  adminWalletCategoryLedger: "/admin/wallet-management/ledger",
   adminWalletLedger: "/admin/wallet-ledger",
   adminWallets: "/admin/wallets",
   superAdminWalletManagement: "/super-admin/wallet-management",
+  superAdminWalletCategoryLedger: "/super-admin/wallet-management/ledger",
   superAdminWalletLedger: "/super-admin/wallet-ledger",
   superAdminWalletLien: "/super-admin/wallet-lien",
   unauthorized: "/unauthorized",

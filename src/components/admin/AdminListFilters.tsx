@@ -86,7 +86,7 @@ export function AdminListFilters({
       : STATUS_OPTIONS;
 
   return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       {(showStatus || showFundRequestStatus) && (
         <Select
           label="Status"
@@ -119,12 +119,14 @@ export function AdminListFilters({
             label="Start Date"
             type="date"
             value={value.startDate || ""}
+            max={value.endDate || undefined}
             onChange={(e) => update({ startDate: e.target.value || undefined })}
           />
           <Input
             label="End Date"
             type="date"
             value={value.endDate || ""}
+            min={value.startDate || undefined}
             onChange={(e) => update({ endDate: e.target.value || undefined })}
           />
         </>

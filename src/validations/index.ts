@@ -299,7 +299,16 @@ export const superAdminProfileSchema = z.object({
 });
 export type CreateAdminFormData = z.infer<typeof createAdminSchema>;
 export type SuperAdminLoginFormData = z.infer<typeof superAdminLoginSchema>;
+export const loginOtpSchema = z.object({
+  otp: z
+    .string()
+    .trim()
+    .length(6, "OTP must be exactly 6 digits")
+    .regex(/^\d{6}$/, "OTP must be exactly 6 digits"),
+});
+
 export type AdminEmailLoginFormData = z.infer<typeof adminEmailLoginSchema>;
+export type LoginOtpFormData = z.infer<typeof loginOtpSchema>;
 export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 export type AddBalanceFormData = z.infer<typeof addBalanceSchema>;

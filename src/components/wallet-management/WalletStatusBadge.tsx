@@ -19,6 +19,13 @@ function resolveStatus(status: string): {
         "bg-emerald-100 text-emerald-700 ring-emerald-200/70 dark:bg-emerald-900/30 dark:text-emerald-300",
     };
   }
+  if (key === "FROZEN" || key === "FREEZE") {
+    return {
+      label: "Frozen",
+      className:
+        "bg-sky-100 text-sky-700 ring-sky-200/70 dark:bg-sky-900/30 dark:text-sky-300",
+    };
+  }
   if (key === "SUSPENDED" || key === "BLOCKED") {
     return {
       label: key === "BLOCKED" ? "Blocked" : "Blocked",

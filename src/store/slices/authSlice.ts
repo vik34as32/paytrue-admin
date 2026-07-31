@@ -34,6 +34,17 @@ const authSlice = createSlice({
         state.user = { ...state.user, ...action.payload };
       }
     },
+    setAuthSession: (
+      state,
+      action: PayloadAction<{ user: AuthUser; accessToken: string }>
+    ) => {
+      state.isLoading = false;
+      state.isInitialized = true;
+      state.isAuthenticated = true;
+      state.user = action.payload.user;
+      state.accessToken = action.payload.accessToken;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -44,9 +55,11 @@ const authSlice = createSlice({
       .addCase(adminLoginUser.fulfilled, (state, action) => {
         state.isLoading = false;
         state.isInitialized = true;
-        state.isAuthenticated = true;
-        state.user = action.payload.user;
-        state.accessToken = action.payload.accessToken;
+        if (action.payload.type === "authenticated") {
+          state.isAuthenticated = true;
+          state.user = action.payload.user;
+          state.accessToken = action.payload.accessToken;
+        }
       })
       .addCase(adminLoginUser.rejected, (state, action) => {
         state.isLoading = false;
@@ -76,5 +89,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, updateUser } = authSlice.actions;
+export const { clearError, updateUser, setAuthSession } = authSlice.actions;
 export default authSlice.reducer;

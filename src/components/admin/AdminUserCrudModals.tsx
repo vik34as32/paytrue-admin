@@ -47,7 +47,11 @@ export function useAdminUserTableColumns(
   role: AdminManagedUserRole,
   onRefresh: () => void,
   options?: {
+    pageIndex?: number;
+    pageSize?: number;
     enableVerification?: boolean;
+    /** Edit/Delete only for Super Admin — Admin panel must keep this false */
+    showEditDelete?: boolean;
     verification?: {
       onVerify: (user: NetworkUserRecord) => void;
       onReject: (user: NetworkUserRecord) => void;
@@ -60,6 +64,9 @@ export function useAdminUserTableColumns(
   }
 ) {
   const crud = useAdminUserCrud(role, onRefresh);
+  const pageIndex = options?.pageIndex ?? 0;
+  const pageSize = options?.pageSize ?? 10;
+  const showEditDelete = options?.showEditDelete === true;
 
   const columns = useMemo(
     () =>
@@ -68,6 +75,7 @@ export function useAdminUserTableColumns(
           onView: (user) => void crud.openView(user),
           onEdit: (user) => void crud.openEdit(user),
           onDelete: crud.openDelete,
+          showEditDelete,
           showVerificationActions: options?.enableVerification,
           onVerify: options?.verification?.onVerify,
           onReject: options?.verification?.onReject,
@@ -81,10 +89,13 @@ export function useAdminUserTableColumns(
             crud.isDeleting ||
             options?.verification?.disabled,
         },
-        { userKind: role }
+        { userKind: role, pageIndex, pageSize }
       ),
     [
       role,
+      pageIndex,
+      pageSize,
+      showEditDelete,
       crud.openView,
       crud.openEdit,
       crud.openDelete,

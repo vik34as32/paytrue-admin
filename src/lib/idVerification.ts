@@ -103,22 +103,57 @@ function normalizeHistory(raw: unknown): VerificationHistoryItem[] {
   });
 }
 
-/** Extract verification status from a list/detail user payload. */
-export function getUserVerificationStatus(user: unknown): IdVerificationStatus {
+/** Raw verification status string from API payload (if present). */
+export function getUserVerificationStatusRaw(user: unknown): string | null {
   const obj = asRecord(user);
-  if (!obj) return "PENDING";
+  if (!obj) return null;
 
   const verification = asRecord(obj.verification);
   const idVerification = asRecord(obj.idVerification);
+  const kyc = asRecord(obj.kyc);
 
-  return normalizeVerificationStatus(
-    obj.verificationStatus ??
-      obj.idVerificationStatus ??
-      obj.verification_status ??
-      verification?.status ??
-      idVerification?.status ??
-      obj.identityVerificationStatus
-  );
+  const raw =
+    pickString(
+      obj,
+      "verificationStatus",
+      "idVerificationStatus",
+      "verification_status",
+      "identityVerificationStatus",
+      "kycStatus"
+    ) ||
+    pickString(verification, "status") ||
+    pickString(idVerification, "status") ||
+    pickString(kyc, "kycStatus", "status");
+
+  if (raw) return raw;
+
+  if (obj.isVerified === true || obj.verified === true) return "VERIFIED";
+  if (obj.isVerified === false || obj.verified === false) return "PENDING";
+
+  return null;
+}
+
+/** Extract verification status from a list/detail user payload. */
+export function getUserVerificationStatus(user: unknown): IdVerificationStatus {
+  return normalizeVerificationStatus(getUserVerificationStatusRaw(user));
+}
+
+/** Display label — prefer exact API status text when available. */
+export function getUserVerificationDisplayLabel(user: unknown): string {
+  const raw = getUserVerificationStatusRaw(user);
+  if (raw) {
+    const normalized = normalizeVerificationStatus(raw);
+    // Keep known statuses as friendly labels; otherwise show API value as-is.
+    if (
+      ["VERIFIED", "APPROVED", "SUCCESS", "REJECTED", "REJECT", "FAILED", "DECLINED", "PENDING"].includes(
+        raw.trim().toUpperCase().replace(/\s+/g, "_")
+      )
+    ) {
+      return verificationStatusLabel(normalized);
+    }
+    return raw.trim();
+  }
+  return verificationStatusLabel(getUserVerificationStatus(user));
 }
 
 export function normalizeUserVerification(

@@ -18,10 +18,11 @@ export function WalletUserSummaryCard({ user }: { user: WalletUser }) {
         </div>
         <WalletRoleBadge role={user.role} />
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
         <Metric label="Main" value={user.mainWallet} />
         <Metric label="Commission" value={user.commissionWallet} />
         <Metric label="Hold" value={user.holdBalance} />
+        <Metric label="Frozen" value={user.frozenBalance} />
         <Metric label="Available" value={user.availableBalance} />
       </div>
     </div>

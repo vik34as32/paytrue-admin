@@ -10,7 +10,10 @@ import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { VerificationActions } from "@/components/verification/VerificationActions";
 import { DocumentThumbStack } from "@/components/verification/DocumentThumbStack";
 import { NetworkUserRecord } from "@/types/superAdmin";
-import { getUserVerificationStatus } from "@/lib/idVerification";
+import {
+  getUserVerificationDisplayLabel,
+  getUserVerificationStatus,
+} from "@/lib/idVerification";
 import {
   formatUserTypeLabel,
   getNetworkUserName,
@@ -21,6 +24,7 @@ import {
   getUserOutletName,
   getUserPanNumber,
 } from "@/lib/normalizeUser";
+import { formatDate } from "@/lib/utils";
 
 import {
   SuperAdminUserActions,
@@ -38,6 +42,8 @@ interface NetworkUserColumnActions {
   onTransfer?: (user: NetworkUserRecord) => void;
   onDeduct?: (user: NetworkUserRecord) => void;
   showVerificationActions?: boolean;
+  /** Edit / Delete — Super Admin only */
+  showEditDelete?: boolean;
   disabled?: boolean;
 }
 
@@ -70,8 +76,11 @@ function ActionsCell({
   actions: NetworkUserColumnActions;
 }) {
   const status = getUserVerificationStatus(user);
+  // Edit / Delete only when explicitly enabled (Super Admin).
+  const showEditDelete = actions.showEditDelete === true;
+
   return (
-    <div className="flex min-w-[160px] flex-wrap items-center gap-1.5">
+    <div className="inline-flex w-max flex-nowrap items-center gap-1 whitespace-nowrap">
       {actions.showVerificationActions ? (
         <VerificationActions
           status={status}
@@ -82,37 +91,42 @@ function ActionsCell({
           onReject={() => actions.onReject?.(user)}
           onViewDetails={() => actions.onViewVerification?.(user)}
           onViewReason={() => actions.onViewRejectReason?.(user)}
-          onTransfer={() => actions.onTransfer?.(user)}
-          onDeduct={() => actions.onDeduct?.(user)}
         />
       ) : null}
       <Button
         variant="ghost"
         size="sm"
+        className="!h-8 !w-8 shrink-0 !p-0"
         aria-label="View user"
         disabled={actions.disabled}
         onClick={() => actions.onView(user)}
       >
         <Eye className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label="Edit user"
-        disabled={actions.disabled}
-        onClick={() => actions.onEdit(user)}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label="Delete user"
-        disabled={actions.disabled}
-        onClick={() => actions.onDelete(user)}
-      >
-        <Trash2 className="h-4 w-4 text-accent-red" />
-      </Button>
+      {showEditDelete ? (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="!h-8 !w-8 shrink-0 !p-0"
+            aria-label="Edit user"
+            disabled={actions.disabled}
+            onClick={() => actions.onEdit(user)}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="!h-8 !w-8 shrink-0 !p-0"
+            aria-label="Delete user"
+            disabled={actions.disabled}
+            onClick={() => actions.onDelete(user)}
+          >
+            <Trash2 className="h-4 w-4 text-accent-red" />
+          </Button>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -132,29 +146,47 @@ function statusBadge(statusRaw?: string) {
   return <Badge variant={variant}>{status || "—"}</Badge>;
 }
 
-/** Compact columns matched to GET /admin/users list payload */
+/** Admin panel columns for MD / Distributor / Retailer lists (not Super Admin). */
 export function createAdminNetworkUserColumns(
   actions: NetworkUserColumnActions,
-  options?: { userKind?: NetworkUserListKind }
+  options?: {
+    userKind?: NetworkUserListKind;
+    pageIndex?: number;
+    pageSize?: number;
+  }
 ): ColumnDef<NetworkUserRecord, unknown>[] {
   const kind = options?.userKind;
   const isRetailer = kind === "RETAILER";
+  const pageIndex = options?.pageIndex ?? 0;
+  const pageSize = options?.pageSize ?? 10;
 
   const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
     {
+      id: "srNo",
+      header: "Sr No.",
+      enableSorting: false,
+      size: 72,
+      cell: ({ row }) => (
+        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-slate-100 px-1.5 text-xs font-bold text-slate-700 dark:bg-muted dark:text-foreground">
+          {pageIndex * pageSize + row.index + 1}
+        </span>
+      ),
+    },
+    {
       id: "profileImage",
       header: "Profile",
+      enableSorting: false,
       cell: ({ row }) => <NetworkUserAvatar user={row.original} size="sm" />,
     },
     {
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => (
-        <div className="min-w-[140px]">
-          <p className="font-semibold text-foreground">
+        <div className="min-w-[150px]">
+          <p className="font-semibold text-slate-900 dark:text-foreground">
             {displayName(row.original, kind)}
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
             {formatUserTypeLabel(row.original.userType || row.original.role)}
           </p>
         </div>
@@ -164,7 +196,7 @@ export function createAdminNetworkUserColumns(
       accessorKey: "userCode",
       header: "User Code",
       cell: ({ row }) => (
-        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+        <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:border-primary/30 dark:bg-primary/10 dark:text-primary">
           {row.original.userCode || "—"}
         </span>
       ),
@@ -176,7 +208,7 @@ export function createAdminNetworkUserColumns(
       id: "outletId",
       header: "Outlet ID",
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-foreground">
+        <span className="font-mono text-xs font-semibold text-slate-800 dark:text-foreground">
           {getUserOutletId(row.original)}
         </span>
       ),
@@ -192,11 +224,16 @@ export function createAdminNetworkUserColumns(
     {
       id: "phone",
       header: "Phone",
-      cell: ({ row }) => getPhone(row.original),
+      cell: ({ row }) => (
+        <span className="font-medium tabular-nums text-slate-800 dark:text-foreground">
+          {getPhone(row.original)}
+        </span>
+      ),
     },
     {
       id: "documents",
       header: "Documents",
+      enableSorting: false,
       cell: ({ row }) => <DocumentThumbStack user={row.original} />,
     },
     {
@@ -206,14 +243,28 @@ export function createAdminNetworkUserColumns(
     },
     {
       id: "verificationStatus",
-      header: "Verification Status",
+      header: "Verification",
       cell: ({ row }) => (
-        <VerificationBadge status={getUserVerificationStatus(row.original)} />
+        <VerificationBadge
+          status={getUserVerificationStatus(row.original)}
+          label={getUserVerificationDisplayLabel(row.original)}
+        />
+      ),
+    },
+    {
+      id: "createdAt",
+      header: "Created",
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap text-xs text-slate-600 dark:text-muted">
+          {formatDate(row.original.createdAt, "dd MMM yyyy")}
+        </span>
       ),
     },
     {
       id: "actions",
       header: "Actions",
+      enableSorting: false,
+      size: 220,
       cell: ({ row }) => (
         <ActionsCell user={row.original} actions={actions} />
       ),
@@ -397,7 +448,10 @@ export function createSuperAdminNetworkUserColumns(
       header: "Verification Status",
       enableSorting: false,
       cell: ({ row }) => (
-        <VerificationBadge status={getUserVerificationStatus(row.original)} />
+        <VerificationBadge
+          status={getUserVerificationStatus(row.original)}
+          label={getUserVerificationDisplayLabel(row.original)}
+        />
       ),
     },
     {
@@ -416,7 +470,7 @@ export function createSuperAdminNetworkUserColumns(
           accountStatus === "SUSPENDED";
 
         return (
-          <div className="flex min-w-[180px] flex-wrap items-center gap-2">
+          <div className="inline-flex w-max flex-nowrap items-center gap-1.5 whitespace-nowrap">
             {actions.showVerificationActions ? (
               <VerificationActions
                 status={status}

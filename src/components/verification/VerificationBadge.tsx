@@ -9,16 +9,21 @@ import { IdVerificationStatus } from "@/types/idVerification";
 
 interface VerificationBadgeProps {
   status?: IdVerificationStatus | string | null;
+  /** Override label — use API status text when available */
+  label?: string | null;
   className?: string;
 }
 
 /** Pending = yellow outline; Verified = green solid; Rejected = red solid */
 export function VerificationBadge({
   status,
+  label: labelOverride,
   className,
 }: VerificationBadgeProps) {
   const normalized = normalizeVerificationStatus(status);
-  const label = verificationStatusLabel(normalized);
+  const label =
+    (labelOverride && labelOverride.trim()) ||
+    verificationStatusLabel(normalized);
 
   const styles: Record<IdVerificationStatus, string> = {
     PENDING:

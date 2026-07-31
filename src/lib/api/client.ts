@@ -2,6 +2,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import { STORAGE_KEYS, AuthTokenKey } from "@/constants/storage";
 import { handleUnauthorizedRedirect } from "@/lib/authSession";
 import { getErrorMessage } from "@/lib/api/messages";
+import { ApiClientError } from "@/lib/api/errors";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://apis.paytrue.co.in/api/v1";
@@ -17,7 +18,14 @@ export const publicClient = axios.create({
 
 publicClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => Promise.reject(new Error(getErrorMessage(error)))
+  (error: AxiosError) =>
+    Promise.reject(
+      new ApiClientError(
+        getErrorMessage(error),
+        error.response?.status,
+        error.response?.data
+      )
+    )
 );
 
 export const superAdminPublicClient = axios.create({
@@ -28,7 +36,14 @@ export const superAdminPublicClient = axios.create({
 
 superAdminPublicClient.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => Promise.reject(new Error(getErrorMessage(error)))
+  (error: AxiosError) =>
+    Promise.reject(
+      new ApiClientError(
+        getErrorMessage(error),
+        error.response?.status,
+        error.response?.data
+      )
+    )
 );
 
 export function createAuthenticatedClient(

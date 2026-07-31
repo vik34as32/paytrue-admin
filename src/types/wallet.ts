@@ -64,6 +64,8 @@ export interface WalletBalances {
   commissionWallet: number;
   aepsWallet: number;
   holdBalance: number;
+  /** Amount locked via /wallet/freeze */
+  frozenBalance: number;
   availableBalance: number;
   totalBalance: number;
 }
@@ -90,11 +92,17 @@ export interface WalletUser extends WalletBalances {
     updatedAt?: string;
   } | null;
   outlet?: {
+    id?: string | null;
+    instantpayOutletId?: string | number | null;
     shopName?: string | null;
     shopAddress?: string | null;
     outletName?: string | null;
     address?: string | null;
   } | null;
+  /** InstantPay / outlet identifier for display */
+  outletId?: string | null;
+  panNumber?: string | null;
+  aadhaarNumber?: string | null;
   kycVerifiedAt?: string | null;
   /** Wallet row status (ACTIVE / FROZEN) when API provides it */
   walletStatus?: string;
@@ -106,6 +114,7 @@ export interface WalletListSummary {
   totalCommissionWalletBalance: number;
   totalAepsWalletBalance: number;
   totalHoldBalance: number;
+  totalFrozenBalance: number;
   totalAvailableBalance: number;
   /** Main + commission + AEPS */
   totalBalance: number;

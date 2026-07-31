@@ -3,8 +3,6 @@
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2, Lock, Mail, Phone } from "lucide-react";
 import {
@@ -12,8 +10,8 @@ import {
   AdminEmailLoginFormData,
   toAdminLoginPayload,
 } from "@/validations";
-import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
-import { adminLoginUser } from "@/store/api/authApi";
+import { useAdminLoginMutation } from "@/hooks/useLoginAuth";
+import { isAccountLockedError } from "@/lib/api/errors";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/constants";
@@ -21,9 +19,8 @@ import Link from "next/link";
 
 export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const dispatch = useAppDispatch();
-  const router = useRouter();
-  const { isLoading } = useAppSelector((state) => state.auth);
+  const [lockedMessage, setLockedMessage] = useState<string | null>(null);
+  const loginMutation = useAdminLoginMutation();
 
   const {
     register,
@@ -42,20 +39,37 @@ export default function LoginForm() {
   );
 
   const onSubmit = async (data: AdminEmailLoginFormData) => {
+    setLockedMessage(null);
     const credentials = toAdminLoginPayload(data);
-    const result = await dispatch(
-      adminLoginUser({ ...credentials, rememberMe: data.rememberMe })
-    );
-    if (adminLoginUser.fulfilled.match(result)) {
-      toast.success("Welcome back!");
-      router.replace(ROUTES.adminDashboard);
-    } else {
-      toast.error((result.payload as string) || "Login failed");
+    try {
+      await loginMutation.mutateAsync({
+        ...credentials,
+        rememberMe: data.rememberMe,
+      });
+    } catch (error) {
+      if (isAccountLockedError(error)) {
+        setLockedMessage(
+          error instanceof Error
+            ? error.message
+            : "Your account has been locked for 1 hour due to multiple invalid OTP attempts."
+        );
+      }
     }
   };
 
+  const isLoading = loginMutation.isPending;
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {lockedMessage && (
+        <div
+          role="alert"
+          className="w-full rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+        >
+          {lockedMessage}
+        </div>
+      )}
+
       <Input
         label="Email or Mobile"
         variant="dark"
@@ -71,6 +85,7 @@ export default function LoginForm() {
           )
         }
         error={errors.identifier?.message}
+        disabled={isLoading}
         {...register("identifier")}
       />
       <div>
@@ -81,6 +96,7 @@ export default function LoginForm() {
           placeholder="Enter your password"
           icon={<Lock className="h-4 w-4" />}
           error={errors.password?.message}
+          disabled={isLoading}
           {...register("password")}
         />
         <button
@@ -102,6 +118,7 @@ export default function LoginForm() {
           <input
             type="checkbox"
             className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500"
+            disabled={isLoading}
             {...register("rememberMe")}
           />
           Remember me

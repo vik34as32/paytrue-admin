@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { WalletManagementView } from "@/components/wallet-management/WalletManagementView";
+import { WalletCategoryLedgerView } from "@/components/wallet-management/WalletCategoryLedgerView";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { ROUTES } from "@/constants";
 
-export default function SuperAdminWalletManagementPage() {
+function SuperAdminWalletCategoryLedgerContent() {
   const router = useRouter();
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
 
@@ -19,6 +19,14 @@ export default function SuperAdminWalletManagementPage() {
   if (!hasSuperAdminWalletAccess) return null;
 
   return (
-    <WalletManagementView breadcrumb="Super Admin" scope="super_admin" />
+    <WalletCategoryLedgerView scope="super_admin" breadcrumb="Super Admin" />
+  );
+}
+
+export default function SuperAdminWalletCategoryLedgerPage() {
+  return (
+    <Suspense fallback={null}>
+      <SuperAdminWalletCategoryLedgerContent />
+    </Suspense>
   );
 }

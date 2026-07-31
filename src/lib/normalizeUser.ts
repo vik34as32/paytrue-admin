@@ -228,7 +228,23 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     alternateMobileNumber,
     profileImage,
     status: obj.status as string | undefined,
-    verificationStatus: obj.verificationStatus as string | undefined,
+    verificationStatus:
+      (obj.verificationStatus as string | undefined) ||
+      (obj.verification && typeof obj.verification === "object"
+        ? ((obj.verification as Record<string, unknown>).status as
+            | string
+            | undefined)
+        : undefined) ||
+      (obj.idVerification && typeof obj.idVerification === "object"
+        ? ((obj.idVerification as Record<string, unknown>).status as
+            | string
+            | undefined)
+        : undefined) ||
+      (obj.isVerified === true
+        ? "VERIFIED"
+        : obj.isVerified === false
+          ? "PENDING"
+          : undefined),
     idVerificationStatus: obj.idVerificationStatus as string | undefined,
     verificationRemark: obj.verificationRemark as string | undefined,
     rejectionReason: obj.rejectionReason as string | undefined,
