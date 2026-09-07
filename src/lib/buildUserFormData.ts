@@ -4,10 +4,16 @@ import { UserFormValues } from "@/validations/userStepSchemas";
 export interface ApiUserRecord {
   firstName?: string;
   lastName?: string;
+  fullName?: string;
+  name?: string;
   email?: string;
   mobile?: string;
   phone?: string;
   alternateMobileNumber?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  masterDistributorId?: string;
+  parentId?: string;
   profileImage?: string;
   state?: string;
   city?: string;
@@ -20,6 +26,8 @@ export interface ApiUserRecord {
   profile?: {
     alternateMobileNumber?: string;
     profileImage?: string;
+    gender?: string;
+    dateOfBirth?: string;
   };
   outlet?: {
     outletName?: string;
@@ -76,6 +84,20 @@ function appendIfPresent(formData: FormData, key: string, value: unknown) {
   }
 }
 
+/** Split "Full Name" into first + last for APIs that still expect both. */
+export function splitFullName(fullName: string): {
+  firstName: string;
+  lastName: string;
+} {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
 function appendFileIfPresent(formData: FormData, key: string, file: File | undefined) {
   if (file instanceof File) {
     formData.append(key, file);
@@ -104,12 +126,27 @@ export function buildUserFormData(
   const { userType, includePassword = true } = options;
   const formData = new FormData();
 
-  appendIfPresent(formData, "firstName", values.firstName);
-  appendIfPresent(formData, "lastName", values.lastName);
+  const fullName =
+    (values.fullName || "").trim() ||
+    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
+  const derived = splitFullName(fullName);
+  const firstName = (values.firstName || "").trim() || derived.firstName;
+  const lastName = (values.lastName || "").trim() || derived.lastName;
+
+  appendIfPresent(formData, "firstName", firstName);
+  appendIfPresent(formData, "lastName", lastName);
+  appendIfPresent(formData, "fullName", fullName);
+  appendIfPresent(formData, "name", fullName);
   appendIfPresent(formData, "email", values.email);
   appendIfPresent(formData, "mobile", values.mobile);
   appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);
+  appendIfPresent(formData, "gender", values.gender);
+  appendIfPresent(formData, "dateOfBirth", values.dateOfBirth);
   appendIfPresent(formData, "userType", userType);
+  // Retailer hierarchy: form parentId = API distributorId
+  appendIfPresent(formData, "parentId", values.parentId);
+  appendIfPresent(formData, "distributorId", values.parentId);
+  appendIfPresent(formData, "masterDistributorId", values.masterDistributorId);
 
   if (includePassword && values.password) {
     appendIfPresent(formData, "password", values.password);
@@ -180,11 +217,20 @@ export function mapApiUserToFormValues(
   return {
     firstName: user.firstName || "",
     lastName: user.lastName || "",
+    fullName:
+      user.fullName ||
+      user.name ||
+      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+      "",
     email: user.email || "",
     mobile: user.mobile || user.phone || "",
     password: "",
     alternateMobileNumber:
       user.alternateMobileNumber || profile.alternateMobileNumber || "",
+    gender: user.gender || profile.gender || "",
+    dateOfBirth: user.dateOfBirth || profile.dateOfBirth || "",
+    masterDistributorId: user.masterDistributorId || "",
+    parentId: user.parentId || "",
     outletName: outlet.outletName || "",
     businessType: outlet.businessType || "",
     gstNumber: outlet.gstNumber || "",

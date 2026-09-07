@@ -228,14 +228,19 @@ export const registerUser = createAsyncThunk(
   async (payload: RegisterUserPayload, { dispatch, rejectWithValue }) => {
     try {
       const result = await createUser(payload.data, payload.userType);
-      if (payload.userType === "MASTER_DISTRIBUTOR") {
-        await dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 10 }));
-      } else if (payload.userType === "DISTRIBUTOR") {
-        await dispatch(fetchAdminDistributors({ page: 1, pageSize: 10 }));
-      } else {
-        await dispatch(fetchAdminRetailers({ page: 1, pageSize: 10 }));
+      // Best-effort list refresh (Admin module only — Super Admin refreshes via onCreated)
+      try {
+        if (payload.userType === "MASTER_DISTRIBUTOR") {
+          await dispatch(fetchAdminMasterDistributors({ page: 1, pageSize: 10 }));
+        } else if (payload.userType === "DISTRIBUTOR") {
+          await dispatch(fetchAdminDistributors({ page: 1, pageSize: 10 }));
+        } else {
+          await dispatch(fetchAdminRetailers({ page: 1, pageSize: 10 }));
+        }
+        await dispatch(fetchAdminDashboard({ force: true }));
+      } catch {
+        // ignore refresh errors for Super Admin sessions
       }
-      await dispatch(fetchAdminDashboard({ force: true }));
       return result;
     } catch (error) {
       return rejectWithValue(

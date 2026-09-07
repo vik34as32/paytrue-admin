@@ -15,7 +15,7 @@ interface NetworkUserAvatarProps {
 
 const sizeClasses = {
   sm: "h-8 w-8 text-xs",
-  md: "h-10 w-10 text-sm",
+  md: "h-11 w-11 text-[11px]",
   lg: "h-16 w-16 text-lg",
 };
 

@@ -13,7 +13,7 @@ import {
 } from "react-hook-form";
 import { toast } from "sonner";
 import { ZodIssue } from "zod";
-import { ChevronLeft, ChevronRight, Check, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
 import { Card, CardHeader } from "@/components/common/Card";
@@ -21,8 +21,8 @@ import { ImageUpload } from "@/components/common/ImageUpload";
 import { VideoUpload } from "@/components/common/VideoUpload";
 import { BankLogoGrid } from "@/components/common/BankLogoGrid";
 import { ImagePreviewModal } from "@/components/common/ImagePreviewModal";
-import { PasswordStrengthMeter } from "@/components/common/PasswordStrengthMeter";
 import { generateSecurePassword } from "@/lib/generatePassword";
+import { splitFullName } from "@/lib/buildUserFormData";
 import {
   clearUserFormDraft,
   loadUserFormDraft,
@@ -34,6 +34,7 @@ import {
   USER_FORM_STEPS,
   userFormEmptyDefaults,
   UserFormValues,
+  distributorPersonalStepSchema,
 } from "@/validations/userStepSchemas";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
@@ -49,6 +50,13 @@ import {
   useMobileVerification,
 } from "@/hooks/useMobileVerification";
 import { registerUser } from "@/store/api/adminModuleApi";
+import {
+  RetailerHierarchyFields,
+  RetailerHierarchyScope,
+} from "@/components/forms/RetailerHierarchyFields";
+import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
+import { GENDER_OPTIONS, getGenderLabel } from "@/constants/gender";
+import { resolveBankNameFromIfsc } from "@/constants/indianBanks";
 
 function FormField<T extends FieldValues>({
   name,
@@ -173,10 +181,17 @@ export interface UserMultiStepFormProps {
   submitLabel: string;
   successTitle: string;
   successMessage: string;
-  successRedirect: string;
+  successRedirect?: string;
   successToast?: string;
   requireEmailVerification?: boolean;
   requireMobileVerification?: boolean;
+  /** Require hierarchy linking (RETAILER: MD+DD, DISTRIBUTOR: MD only) */
+  requireHierarchyLinking?: boolean;
+  hierarchyScope?: RetailerHierarchyScope;
+  /** Compact layout for modal embedding */
+  variant?: "page" | "modal";
+  onCreated?: () => void;
+  onCancel?: () => void;
 }
 
 export function UserMultiStepForm({
@@ -188,15 +203,28 @@ export function UserMultiStepForm({
   successToast,
   requireEmailVerification = false,
   requireMobileVerification = false,
+  requireHierarchyLinking = false,
+  hierarchyScope = "admin",
+  variant = "page",
+  onCreated,
+  onCancel,
 }: UserMultiStepFormProps) {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { isAdminApiAuth } = useRoleAccess();
+  const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
   const { createUserLoading } = useAppSelector((state) => state.adminModule);
+  const canSubmitApi = isAdminApiAuth || hasSuperAdminWalletAccess;
+  const needsRetailerHierarchy =
+    requireHierarchyLinking && userType === "RETAILER";
+  const needsDistributorHierarchy =
+    requireHierarchyLinking && userType === "DISTRIBUTOR";
+  const needsHierarchy = needsRetailerHierarchy || needsDistributorHierarchy;
+  const isDistributorCreate = userType === "DISTRIBUTOR";
+  const isModal = variant === "modal";
 
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
-  const [showPassword, setShowPassword] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const draftReadyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,10 +248,44 @@ export function UserMultiStepForm({
   const password = watch("password");
   const email = watch("email") || "";
   const mobile = watch("mobile") || "";
+  const fullName = watch("fullName") || "";
+  const firstName = watch("firstName") || "";
+  const lastName = watch("lastName") || "";
+  const ifscCode = watch("ifscCode") || "";
   const values = watch();
   const selectedState = methods.watch("state");
   const states = State.getStatesOfCountry("IN");
   const pincode = methods.watch("pincode");
+
+  // Retailer: derive first/last from full name
+  useEffect(() => {
+    if (isDistributorCreate) return;
+    const split = splitFullName(fullName);
+    setValue("firstName", split.firstName, { shouldDirty: false });
+    setValue("lastName", split.lastName, { shouldDirty: false });
+  }, [fullName, isDistributorCreate, setValue]);
+
+  // Distributor: keep fullName in sync from first + last
+  useEffect(() => {
+    if (!isDistributorCreate) return;
+    const nextFullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    setValue("fullName", nextFullName, { shouldDirty: false });
+  }, [firstName, lastName, isDistributorCreate, setValue]);
+
+  // Ensure a strong 8-char password always exists (hidden from UI)
+  useEffect(() => {
+    if (!password || password.length < 8) {
+      setValue("password", generateSecurePassword(8), { shouldValidate: true });
+    }
+  }, [password, setValue]);
+
+  // Auto-select bank when IFSC prefix matches a known bank
+  useEffect(() => {
+    const bankName = resolveBankNameFromIfsc(ifscCode);
+    if (!bankName) return;
+    if ((getValues("bankName") || "") === bankName) return;
+    setValue("bankName", bankName, { shouldValidate: true, shouldDirty: true });
+  }, [ifscCode, getValues, setValue]);
 
   const cities = selectedState
     ? City.getCitiesOfState("IN", selectedState)
@@ -255,7 +317,28 @@ export function UserMultiStepForm({
   };
 
   const goNext = async () => {
-    const currentSchema = USER_FORM_STEPS[step - 1]?.schema;
+    if (needsHierarchy && step === 1) {
+      const mdId = (getValues("masterDistributorId") || "").trim();
+      const ddId = (getValues("parentId") || "").trim();
+      if (!mdId) {
+        setError("masterDistributorId", {
+          message: "Master Distributor is required",
+        });
+        toast.error("Select Master Distributor first");
+        return;
+      }
+      if (needsRetailerHierarchy && !ddId) {
+        setError("parentId", { message: "Distributor is required" });
+        toast.error("Select Distributor to link this retailer");
+        return;
+      }
+      clearErrors(["masterDistributorId", "parentId"]);
+    }
+
+    const currentSchema =
+      step === 1 && isDistributorCreate
+        ? distributorPersonalStepSchema
+        : USER_FORM_STEPS[step - 1]?.schema;
     if (currentSchema) {
       const result = currentSchema.safeParse(getValues());
       if (!result.success) {
@@ -291,6 +374,23 @@ export function UserMultiStepForm({
   const onSubmit = async () => {
     const data = getValues();
 
+    if (needsHierarchy) {
+      if (!(data.masterDistributorId || "").trim()) {
+        setError("masterDistributorId", {
+          message: "Master Distributor is required",
+        });
+        toast.error("Select Master Distributor first");
+        setStep(1);
+        return;
+      }
+      if (needsRetailerHierarchy && !(data.parentId || "").trim()) {
+        setError("parentId", { message: "Distributor is required" });
+        toast.error("Select Distributor to link this retailer");
+        setStep(1);
+        return;
+      }
+    }
+
     if (needsEmailVerification && !emailVerification.isVerified) {
       toast.error(EMAIL_VERIFICATION_REQUIRED_MESSAGE);
       return;
@@ -301,7 +401,7 @@ export function UserMultiStepForm({
       return;
     }
 
-    if (isAdminApiAuth) {
+    if (canSubmitApi) {
       const result = await dispatch(registerUser({ data, userType }));
       if (registerUser.fulfilled.match(result)) {
         toast.success(
@@ -312,11 +412,12 @@ export function UserMultiStepForm({
         setSuccessOpen(true);
         clearUserFormDraft(userType);
         reset(userFormEmptyDefaults);
-        setValue("password", generateSecurePassword(), { shouldValidate: true });
+        setValue("password", generateSecurePassword(8), { shouldValidate: true });
         emailVerification.resetVerification();
         mobileVerification.resetVerification();
         setStep(1);
         setMaxStepReached(1);
+        onCreated?.();
       } else {
         toast.error((result.payload as string) || "Failed to create user");
       }
@@ -327,11 +428,12 @@ export function UserMultiStepForm({
     setSuccessOpen(true);
     clearUserFormDraft(userType);
     reset(userFormEmptyDefaults);
-    setValue("password", generateSecurePassword(), { shouldValidate: true });
+    setValue("password", generateSecurePassword(8), { shouldValidate: true });
     emailVerification.resetVerification();
     mobileVerification.resetVerification();
     setStep(1);
     setMaxStepReached(1);
+    onCreated?.();
   };
   const persistDraft = useCallback(() => {
     if (!draftReadyRef.current) return;
@@ -361,7 +463,7 @@ export function UserMultiStepForm({
         setStep(draft.step);
         setMaxStepReached(draft.maxStepReached);
       } else {
-        setValue("password", generateSecurePassword(), { shouldValidate: true });
+        setValue("password", generateSecurePassword(8), { shouldValidate: true });
       }
 
       draftReadyRef.current = true;
@@ -386,21 +488,6 @@ export function UserMultiStepForm({
   useEffect(() => {
     persistDraft();
   }, [step, maxStepReached, persistDraft]);
-
-  const regeneratePassword = () => {
-    const nextPassword = generateSecurePassword();
-    setValue("password", nextPassword, { shouldValidate: true });
-  };
-
-  const copyPassword = async () => {
-    if (!password) return;
-    try {
-      await navigator.clipboard.writeText(password);
-      toast.success("Password copied to clipboard");
-    } catch {
-      toast.error("Unable to copy password");
-    }
-  };
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -505,18 +592,58 @@ export function UserMultiStepForm({
             <div className="space-y-6">
               {step === 1 && (
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <FormField
-                    name="firstName"
-                    label="First Name"
-                    placeholder="Enter first name"
-                    methods={methods}
-                  />
-                  <FormField
-                    name="lastName"
-                    label="Last Name"
-                    placeholder="Enter last name"
-                    methods={methods}
-                  />
+                  {needsHierarchy ? (
+                    <RetailerHierarchyFields
+                      methods={methods}
+                      scope={hierarchyScope}
+                      mode={
+                        needsDistributorHierarchy ? "distributor" : "retailer"
+                      }
+                    />
+                  ) : null}
+                  {isDistributorCreate ? (
+                    <>
+                      <FormField
+                        name="firstName"
+                        label="First Name"
+                        placeholder="Enter first name"
+                        methods={methods}
+                      />
+                      <FormField
+                        name="lastName"
+                        label="Last Name"
+                        placeholder="Enter last name"
+                        methods={methods}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <FormField
+                        name="fullName"
+                        label="Full Name"
+                        placeholder="Enter full name"
+                        methods={methods}
+                      />
+                      <Select
+                        label="Gender"
+                        value={values.gender || ""}
+                        onChange={(e) =>
+                          setValue("gender", e.target.value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          })
+                        }
+                        error={errors.gender?.message as string | undefined}
+                        options={[...GENDER_OPTIONS]}
+                      />
+                      <FormField
+                        name="dateOfBirth"
+                        label="Date of Birth"
+                        type="date"
+                        methods={methods}
+                      />
+                    </>
+                  )}
                   {needsEmailVerification ? (
                     <EmailVerificationField
                       email={email}
@@ -563,56 +690,6 @@ export function UserMultiStepForm({
                       methods={methods}
                     />
                   )}
-                  <div className="space-y-2 lg:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-foreground">
-                      Auto-generated Password
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      <div className="relative min-w-[200px] flex-1">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          autoComplete="new-password"
-                          readOnly
-                          value={password}
-                          className="w-full rounded-xl border border-border bg-card py-2.5 pl-4 pr-11 font-mono text-sm text-foreground shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((prev) => !prev)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-colors hover:bg-primary/10 hover:text-primary"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={regeneratePassword}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        Regenerate
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void copyPassword()}
-                      >
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </Button>
-                    </div>
-                    {errors.password?.message ? (
-                      <p className="text-xs text-accent-red">{errors.password.message}</p>
-                    ) : null}
-                    <PasswordStrengthMeter password={password} />
-                  </div>
                   <div className="lg:col-span-2">
                     <ImageUpload
                       label="Profile Image"
@@ -823,6 +900,29 @@ export function UserMultiStepForm({
                     placeholder="As per bank"
                     methods={methods}
                   />
+                  <div className="space-y-1.5">
+                    <Input
+                      label="IFSC Code"
+                      placeholder="e.g. HDFC0001234"
+                      value={ifscCode}
+                      maxLength={11}
+                      autoCapitalize="characters"
+                      error={errors.ifscCode?.message as string | undefined}
+                      onChange={(e) => {
+                        const next = e.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9]/g, "")
+                          .slice(0, 11);
+                        setValue("ifscCode", next, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                    />
+                    <p className="text-[11px] text-muted">
+                      Bank selects automatically from IFSC
+                    </p>
+                  </div>
                   <BankLogoGrid
                     value={values.bankName}
                     onChange={(bankName) => {
@@ -834,12 +934,6 @@ export function UserMultiStepForm({
                     name="accountNumber"
                     label="Account Number"
                     placeholder="Account number"
-                    methods={methods}
-                  />
-                  <FormField
-                    name="ifscCode"
-                    label="IFSC Code"
-                    placeholder="IFSC code"
                     methods={methods}
                   />
                   <ImageUpload
@@ -863,14 +957,57 @@ export function UserMultiStepForm({
 
               {step === 5 && (
                 <div className="space-y-4">
+                  {needsHierarchy ? (
+                    <PreviewSection
+                      title="Hierarchy Linking"
+                      items={
+                        needsRetailerHierarchy
+                          ? [
+                              [
+                                "Master Distributor ID",
+                                values.masterDistributorId || "—",
+                              ],
+                              ["Distributor ID", values.parentId || "—"],
+                            ]
+                          : [
+                              [
+                                "Master Distributor ID",
+                                values.masterDistributorId || "—",
+                              ],
+                            ]
+                      }
+                    />
+                  ) : null}
                   <PreviewSection
                     title="Personal Details"
-                    items={[
-                      ["Name", `${values.firstName} ${values.lastName}`.trim()],
-                      ["Email", values.email],
-                      ["Mobile", values.mobile],
-                      ["Alternate Mobile", values.alternateMobileNumber],
-                    ]}
+                    items={
+                      isDistributorCreate
+                        ? [
+                            ["First Name", values.firstName],
+                            ["Last Name", values.lastName],
+                            ["Email", values.email],
+                            ["Mobile", values.mobile],
+                            [
+                              "Alternate Mobile",
+                              values.alternateMobileNumber,
+                            ],
+                          ]
+                        : [
+                            [
+                              "Full Name",
+                              values.fullName ||
+                                `${values.firstName} ${values.lastName}`.trim(),
+                            ],
+                            ["Gender", getGenderLabel(values.gender)],
+                            ["Date of Birth", values.dateOfBirth || "—"],
+                            ["Email", values.email],
+                            ["Mobile", values.mobile],
+                            [
+                              "Alternate Mobile",
+                              values.alternateMobileNumber,
+                            ],
+                          ]
+                    }
                   />
                   <PreviewSection
                     title="Outlet Information"
@@ -948,16 +1085,28 @@ export function UserMultiStepForm({
                 </div>
               )}
 
-              <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={goBack}
-                  disabled={step === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Back
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                <div className="flex flex-wrap gap-2">
+                  {isModal && onCancel ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={onCancel}
+                      disabled={createUserLoading}
+                    >
+                      Cancel
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={goBack}
+                    disabled={step === 1 || createUserLoading}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Back
+                  </Button>
+                </div>
                 {step < 5 ? (
                   <Button type="button" onClick={() => void goNext()}>
                     Next
@@ -966,9 +1115,9 @@ export function UserMultiStepForm({
                 ) : (
                   <Button
                     type="submit"
-                    isLoading={isAdminApiAuth && createUserLoading}
+                    isLoading={canSubmitApi && createUserLoading}
                     disabled={
-                      (isAdminApiAuth && createUserLoading) ||
+                      (canSubmitApi && createUserLoading) ||
                       (needsEmailVerification && !emailVerification.isVerified) ||
                       (needsMobileVerification && !mobileVerification.isVerified)
                     }
@@ -986,7 +1135,13 @@ export function UserMultiStepForm({
         open={successOpen}
         onOpenChange={(open) => {
           setSuccessOpen(open);
-          if (!open) router.push(successRedirect);
+          if (!open) {
+            if (isModal) {
+              onCancel?.();
+            } else if (successRedirect) {
+              router.push(successRedirect);
+            }
+          }
         }}
         title={successTitle}
         message={successMessage}

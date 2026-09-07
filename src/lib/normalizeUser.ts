@@ -1,6 +1,7 @@
 import { ApiUserRecord } from "@/lib/buildUserFormData";
 import { UserDetailRecord, NetworkUserRecord, UserOutletRecord } from "@/types/superAdmin";
 import { getNetworkUserName } from "@/store/selectors/superAdminSelectors";
+import { resolveMediaUrl } from "@/lib/utils";
 
 function parseAmount(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
@@ -389,6 +390,60 @@ export function getUserPanNumber(user: NetworkUserRecord): string {
   return "—";
 }
 
+function pickKycImage(
+  user: NetworkUserRecord,
+  keys: string[]
+): string | null {
+  const kyc =
+    user.kyc && typeof user.kyc === "object"
+      ? (user.kyc as Record<string, unknown>)
+      : {};
+  for (const key of keys) {
+    const value = kyc[key];
+    if (typeof value === "string" && value.trim()) {
+      return resolveMediaUrl(value.trim());
+    }
+  }
+  for (const key of keys) {
+    const value = (user as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) {
+      return resolveMediaUrl(value.trim());
+    }
+  }
+  return null;
+}
+
+export function getUserAadhaarFrontImage(
+  user: NetworkUserRecord
+): string | null {
+  return pickKycImage(user, [
+    "aadhaarFrontUrl",
+    "aadhaarFrontImage",
+    "aadhaarFront",
+    "aadhaar_front",
+  ]);
+}
+
+export function getUserAadhaarBackImage(
+  user: NetworkUserRecord
+): string | null {
+  return pickKycImage(user, [
+    "aadhaarBackUrl",
+    "aadhaarBackImage",
+    "aadhaarBack",
+    "aadhaar_back",
+  ]);
+}
+
+export function getUserPanCardImage(user: NetworkUserRecord): string | null {
+  return pickKycImage(user, [
+    "panCardUrl",
+    "panCardImage",
+    "panCard",
+    "pan_card",
+  ]);
+}
+
 export function getHierarchyLabel(user: UserDetailRecord): {
   parentUser?: string;
   distributor?: string;
@@ -423,6 +478,67 @@ export function formatBooleanLabel(value?: boolean): string {
 
 export function getWalletBalance(user: UserDetailRecord): number {
   return user.walletBalance ?? parseAmount(user.wallet?.balance) ?? 0;
+}
+
+export function getUserDateOfBirth(user: NetworkUserRecord): string {
+  const profile = user.profile;
+  const fromProfile =
+    profile && typeof profile === "object"
+      ? profile.dateOfBirth || profile.dob
+      : undefined;
+  const top = (user as Record<string, unknown>).dateOfBirth;
+  const value =
+    (typeof fromProfile === "string" && fromProfile) ||
+    (typeof top === "string" && top) ||
+    "";
+  return value.trim() || "—";
+}
+
+export function getUserMiniKycStatus(user: NetworkUserRecord): string {
+  const outlet = user.outlet;
+  if (outlet && typeof outlet === "object" && outlet.miniKycStatus) {
+    return String(outlet.miniKycStatus);
+  }
+  const top = (user as Record<string, unknown>).miniKycStatus;
+  if (typeof top === "string" && top.trim()) return top.trim();
+  return "—";
+}
+
+export function getUserKycCompletedAt(user: NetworkUserRecord): string {
+  const outlet = user.outlet;
+  if (outlet && typeof outlet === "object" && outlet.kycCompletedAt) {
+    return String(outlet.kycCompletedAt);
+  }
+  const top = (user as Record<string, unknown>).kycCompletedAt;
+  if (typeof top === "string" && top.trim()) return top.trim();
+  return "";
+}
+
+export function getUserPassbookImage(user: NetworkUserRecord): string | null {
+  const bank =
+    user.bankAccount && typeof user.bankAccount === "object"
+      ? (user.bankAccount as Record<string, unknown>)
+      : {};
+  const raw =
+    (typeof bank.passbookImage === "string" && bank.passbookImage) ||
+    (typeof bank.passbookUrl === "string" && bank.passbookUrl) ||
+    null;
+  return resolveMediaUrl(raw);
+}
+
+export function getUserCancelledChequeImage(
+  user: NetworkUserRecord
+): string | null {
+  const bank =
+    user.bankAccount && typeof user.bankAccount === "object"
+      ? (user.bankAccount as Record<string, unknown>)
+      : {};
+  const raw =
+    (typeof bank.cancelledChequeImage === "string" &&
+      bank.cancelledChequeImage) ||
+    (typeof bank.cancelledChequeUrl === "string" && bank.cancelledChequeUrl) ||
+    null;
+  return resolveMediaUrl(raw);
 }
 
 export function userDetailToApiRecord(user: UserDetailRecord): ApiUserRecord {

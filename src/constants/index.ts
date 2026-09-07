@@ -109,6 +109,7 @@ export const ROUTES = {
   superAdminWalletCategoryLedger: "/super-admin/wallet-management/ledger",
   superAdminWalletLedger: "/super-admin/wallet-ledger",
   superAdminWalletLien: "/super-admin/wallet-lien",
+  superAdminLogs: "/super-admin/logs",
   unauthorized: "/unauthorized",
   wallets: "/wallets",
   masterDistributor: "/master-distributor",
@@ -128,6 +129,7 @@ export const SIDEBAR_ITEMS = [
   { label: "Retailers", href: ROUTES.superAdminRetailers, icon: "retailer", roles: ["super_admin"] as const },
 
   { label: "Fund Requests", href: ROUTES.superAdminFundRequests, icon: "requests", roles: ["super_admin"] as const },
+  { label: "Logs", href: ROUTES.superAdminLogs, icon: "logs", roles: ["super_admin"] as const },
   { label: "Bank Accounts", href: ROUTES.superAdminBankAccounts, icon: "ledger", roles: ["super_admin"] as const },
   {
     label: "Service Charges",

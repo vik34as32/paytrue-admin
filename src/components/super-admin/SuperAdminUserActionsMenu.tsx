@@ -5,16 +5,16 @@ import {
   Copy,
   Eye,
   KeyRound,
-  MoreHorizontal,
+  MoreVertical,
   Pencil,
   Power,
   PowerOff,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/common/Button";
 import { NetworkUserRecord } from "@/types/superAdmin";
 import { cn } from "@/lib/utils";
+import { getNetworkUserName } from "@/lib/normalizeUser";
 
 export interface SuperAdminUserActions {
   onView: (user: NetworkUserRecord) => void;
@@ -47,14 +47,17 @@ function copyText(label: string, value?: string | null) {
 export function SuperAdminUserActionsMenu({
   user,
   actions,
+  ariaLabel,
 }: {
   user: NetworkUserRecord;
   actions: SuperAdminUserActions;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const status = String(user.status || "").toUpperCase();
   const isActive = status === "ACTIVE";
+  const name = getNetworkUserName(user);
 
   useEffect(() => {
     if (!open) return;
@@ -63,57 +66,75 @@ export function SuperAdminUserActionsMenu({
         setOpen(false);
       }
     };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const phone =
     user.mobile || (typeof user.phone === "string" ? user.phone : "") || "";
 
   const itemClass =
-    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-primary/10 disabled:opacity-50";
+    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 disabled:opacity-50 dark:text-foreground dark:hover:bg-muted/40";
 
   return (
     <div className="relative" ref={rootRef}>
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label="User actions"
+      <button
+        type="button"
+        aria-label={ariaLabel || `More actions for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
         disabled={actions.disabled}
         onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors duration-150",
+          "hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          "dark:border-border dark:bg-card dark:text-foreground dark:hover:bg-muted/40"
+        )}
       >
-        <MoreHorizontal className="h-4 w-4" />
-      </Button>
+        <MoreVertical className="h-4 w-4" />
+      </button>
 
       {open ? (
         <div
+          role="menu"
           className={cn(
-            "absolute right-0 z-30 mt-1 w-56 rounded-xl border border-border bg-card p-1.5 shadow-xl",
-            "animate-in fade-in-0 zoom-in-95"
+            "absolute right-0 z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-border dark:bg-card"
           )}
         >
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             onClick={() => {
               setOpen(false);
               actions.onView(user);
             }}
           >
-            <Eye className="h-4 w-4 text-muted" /> View
+            <Eye className="h-4 w-4 text-slate-400" /> View Profile
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             onClick={() => {
               setOpen(false);
               actions.onEdit(user);
             }}
           >
-            <Pencil className="h-4 w-4 text-muted" /> Edit
+            <Pencil className="h-4 w-4 text-slate-400" /> Edit User
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             disabled={actions.disabled || isActive}
             onClick={() => {
@@ -125,6 +146,7 @@ export function SuperAdminUserActionsMenu({
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             disabled={actions.disabled || !isActive}
             onClick={() => {
@@ -136,38 +158,45 @@ export function SuperAdminUserActionsMenu({
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             onClick={() => {
               setOpen(false);
               actions.onResetPassword(user);
             }}
           >
-            <KeyRound className="h-4 w-4 text-muted" /> Reset Password
+            <KeyRound className="h-4 w-4 text-slate-400" /> Reset Password
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             onClick={() => {
               setOpen(false);
               copyText("User ID", user.id);
             }}
           >
-            <Copy className="h-4 w-4 text-muted" /> Copy User ID
+            <Copy className="h-4 w-4 text-slate-400" /> Copy User ID
           </button>
           <button
             type="button"
+            role="menuitem"
             className={itemClass}
             onClick={() => {
               setOpen(false);
               copyText("Phone", phone);
             }}
           >
-            <Copy className="h-4 w-4 text-muted" /> Copy Phone
+            <Copy className="h-4 w-4 text-slate-400" /> Copy Phone
           </button>
-          <div className="my-1 border-t border-border" />
+          <div className="my-1 border-t border-slate-100 dark:border-border" />
           <button
             type="button"
-            className={cn(itemClass, "text-accent-red hover:bg-accent-red/10")}
+            role="menuitem"
+            className={cn(
+              itemClass,
+              "text-rose-600 hover:bg-rose-50 dark:text-accent-red dark:hover:bg-accent-red/10"
+            )}
             onClick={() => {
               setOpen(false);
               actions.onDelete(user);

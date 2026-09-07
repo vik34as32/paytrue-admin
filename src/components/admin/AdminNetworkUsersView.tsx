@@ -396,7 +396,7 @@ export function AdminNetworkUsersView({
             totalRows={total}
             tone="report"
             stickyHeader
-            minTableWidth={1480}
+            minTableWidth={2200}
           />
         </div>
       </Card>

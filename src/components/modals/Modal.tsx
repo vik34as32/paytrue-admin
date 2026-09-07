@@ -15,6 +15,10 @@ interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
+  /** Richer gradient header for showcase modals */
+  headerVariant?: "default" | "brand";
+  headerIcon?: React.ReactNode;
+  headerBadge?: string;
 }
 
 const sizes = {
@@ -34,6 +38,9 @@ export function Modal({
   children,
   footer,
   size = "md",
+  headerVariant = "default",
+  headerIcon,
+  headerBadge,
 }: ModalProps) {
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return;
@@ -85,16 +92,82 @@ export function Modal({
             )}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex shrink-0 items-start justify-between border-b border-border px-6 py-4">
-              <div className="min-w-0 pr-4">
-                <h2 id="modal-title" className="text-lg font-bold text-foreground">
-                  {title}
-                </h2>
-                {subtitle && (
-                  <p className="mt-0.5 text-sm text-muted">{subtitle}</p>
-                )}
+            <div
+              className={cn(
+                "flex shrink-0 items-start justify-between border-b px-6 py-4",
+                headerVariant === "brand"
+                  ? "relative overflow-hidden border-emerald-500/20 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white"
+                  : "border-border"
+              )}
+            >
+              {headerVariant === "brand" ? (
+                <>
+                  <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
+                  <div className="pointer-events-none absolute -bottom-12 left-1/3 h-28 w-28 rounded-full bg-sky-300/20 blur-2xl" />
+                </>
+              ) : null}
+              <div className="relative z-10 flex min-w-0 items-start gap-3 pr-4">
+                {headerIcon ? (
+                  <div
+                    className={cn(
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg",
+                      headerVariant === "brand"
+                        ? "bg-white/15 text-white ring-1 ring-white/25"
+                        : "bg-primary/10 text-primary"
+                    )}
+                  >
+                    {headerIcon}
+                  </div>
+                ) : null}
+                <div className="min-w-0">
+                  {headerBadge ? (
+                    <span
+                      className={cn(
+                        "mb-1.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                        headerVariant === "brand"
+                          ? "bg-white/15 text-white"
+                          : "bg-primary/10 text-primary"
+                      )}
+                    >
+                      {headerBadge}
+                    </span>
+                  ) : null}
+                  <h2
+                    id="modal-title"
+                    className={cn(
+                      "text-lg font-bold",
+                      headerVariant === "brand"
+                        ? "text-white"
+                        : "text-foreground"
+                    )}
+                  >
+                    {title}
+                  </h2>
+                  {subtitle && (
+                    <p
+                      className={cn(
+                        "mt-0.5 text-sm",
+                        headerVariant === "brand"
+                          ? "text-white/85"
+                          : "text-muted"
+                      )}
+                    >
+                      {subtitle}
+                    </p>
+                  )}
+                </div>
               </div>
-              <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close modal">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                aria-label="Close modal"
+                className={cn(
+                  "relative z-10",
+                  headerVariant === "brand" &&
+                    "text-white hover:bg-white/15 hover:text-white"
+                )}
+              >
                 <X className="h-5 w-5" />
               </Button>
             </div>

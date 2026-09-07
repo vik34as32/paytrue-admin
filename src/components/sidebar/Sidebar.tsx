@@ -30,6 +30,7 @@ import {
   Lock,
   Receipt,
   Landmark,
+  ScrollText,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { logoutUser } from "@/store/api/authApi";
@@ -61,6 +62,7 @@ const iconMap: Record<string, React.ReactNode> = {
   lien: <Lock className="h-5 w-5" />,
   serviceCharges: <Receipt className="h-5 w-5" />,
   aepsLedger: <Landmark className="h-5 w-5" />,
+  logs: <ScrollText className="h-5 w-5" />,
 };
 
 interface SidebarProps {

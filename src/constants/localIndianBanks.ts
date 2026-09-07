@@ -69,6 +69,17 @@ export function findLocalBankByName(name: string): LocalIndianBank | undefined {
   );
 }
 
+/** Resolve bank from IFSC (first 4 letters = bank code). */
+export function findLocalBankByIfsc(
+  ifscOrCode: string
+): LocalIndianBank | undefined {
+  const prefix = ifscOrCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 4);
+  if (prefix.length < 4) return undefined;
+  return LOCAL_INDIAN_BANKS.find(
+    (bank) => (bank.ifscPrefix || "").toUpperCase() === prefix
+  );
+}
+
 export function searchLocalIndianBanks(query: string): LocalIndianBank[] {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return LOCAL_INDIAN_BANKS;

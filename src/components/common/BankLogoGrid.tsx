@@ -69,8 +69,10 @@ export function BankLogoGrid({ value, onChange, error }: BankLogoGridProps) {
   const filteredBanks = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return LOCAL_INDIAN_BANKS;
-    return LOCAL_INDIAN_BANKS.filter((bank) =>
-      bank.name.toLowerCase().includes(normalized)
+    return LOCAL_INDIAN_BANKS.filter(
+      (bank) =>
+        bank.name.toLowerCase().includes(normalized) ||
+        (bank.ifscPrefix || "").toLowerCase().includes(normalized)
     );
   }, [query]);
 
@@ -125,6 +127,32 @@ export function BankLogoGrid({ value, onChange, error }: BankLogoGridProps) {
             <BankLogo bank={selectedBank} className="h-7 w-7" />
             <span className="min-w-0 flex-1 truncate text-sm text-foreground">
               {selectedBank.name}
+            </span>
+            <button
+              type="button"
+              aria-label="Clear bank selection"
+              className="rounded-md p-1 text-muted hover:bg-muted/20 hover:text-foreground"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleClear();
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+          </>
+        ) : value && !open ? (
+          <>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary">
+              {value
+                .split(" ")
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+              {value}
             </span>
             <button
               type="button"

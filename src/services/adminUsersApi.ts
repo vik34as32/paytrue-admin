@@ -1,11 +1,14 @@
 import { adminModuleClient } from "@/lib/api/client";
+import { commissionAdminModuleClient } from "@/lib/api/commissionClient";
 import { normalizeUserDetail } from "@/lib/normalizeUser";
+import { splitFullName } from "@/lib/buildUserFormData";
 import { ApiResponse } from "@/types";
 import {
   AdminListQueryParams,
   PaginatedAdminData,
 } from "@/types/admin";
 import { NetworkUserRecord, UserDetailRecord } from "@/types/superAdmin";
+import { UserFormValues } from "@/validations/userStepSchemas";
 
 export type AdminManagedUserRole =
   | "MASTER_DISTRIBUTOR"
@@ -34,6 +37,81 @@ export interface AdminUserUpdatePayload {
   phone?: string;
   mobile?: string;
   status?: AdminUserStatus;
+}
+
+/**
+ * POST /api/v1/admin/users body (adminCreateUserSchema).
+ * additionalProperties: false — only these fields are allowed.
+ */
+export interface AdminCreateUserPayload {
+  email: string;
+  mobile: string;
+  password: string;
+  firstName: string;
+  lastName?: string;
+  userType: AdminManagedUserRole;
+  masterDistributorId?: string;
+  distributorId?: string;
+}
+
+/** Build create payload from the multi-step form (RETAILER / MD / Distributor). */
+export function buildAdminCreateUserPayload(
+  values: UserFormValues,
+  userType: AdminManagedUserRole
+): AdminCreateUserPayload {
+  const fullName =
+    (values.fullName || "").trim() ||
+    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
+  const derived = splitFullName(fullName);
+  const firstName = (values.firstName || "").trim() || derived.firstName;
+  const lastName = (values.lastName || "").trim() || derived.lastName;
+
+  const payload: AdminCreateUserPayload = {
+    email: values.email.trim(),
+    mobile: values.mobile.trim(),
+    password: values.password,
+    firstName,
+    userType,
+  };
+
+  if (lastName) {
+    payload.lastName = lastName;
+  }
+
+  const masterDistributorId = (values.masterDistributorId || "").trim();
+  // Form stores selected distributor as parentId; API expects distributorId
+  const distributorId = (values.parentId || "").trim();
+
+  if (userType === "DISTRIBUTOR") {
+    if (masterDistributorId) {
+      payload.masterDistributorId = masterDistributorId;
+    }
+  }
+
+  if (userType === "RETAILER") {
+    if (masterDistributorId) {
+      payload.masterDistributorId = masterDistributorId;
+    }
+    if (distributorId) {
+      payload.distributorId = distributorId;
+    }
+  }
+
+  return payload;
+}
+
+/**
+ * POST /api/v1/admin/users
+ * ADMIN + SUPER_ADMIN. Creates MD / Distributor / Retailer (JSON, not multipart).
+ */
+export async function createAdminManagedUser(
+  payload: AdminCreateUserPayload
+): Promise<NetworkUserRecord> {
+  const { data } = await commissionAdminModuleClient.post<ApiResponse<unknown>>(
+    "/users",
+    payload
+  );
+  return normalizeUserDetail(data.data);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

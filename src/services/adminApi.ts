@@ -1,8 +1,8 @@
-import { adminModuleClient, adminClient } from "@/lib/api/client";
+import { adminModuleClient, adminClient, superAdminClient } from "@/lib/api/client";
+import { STORAGE_KEYS } from "@/constants/storage";
 import { WALLET_API } from "@/constants/walletApi";
 import { buildWalletTransferPayload, buildWalletDeductPayload } from "@/lib/walletAmount";
 import { normalizeWalletBalanceData } from "@/lib/walletBalance";
-import { STORAGE_KEYS } from "@/constants/storage";
 import {
   AdminDashboardData,
   AdminWalletBalanceData,
@@ -28,6 +28,11 @@ import {
   buildUserFormData,
   extractUserFiles,
 } from "@/lib/buildUserFormData";
+import {
+  buildAdminCreateUserPayload,
+  createAdminManagedUser,
+  type AdminManagedUserRole,
+} from "@/services/adminUsersApi";
 import { ApiResponse } from "@/types";
 
 function readPaginationMeta(
@@ -274,18 +279,61 @@ function normalizeTransferRecord(raw: unknown): AdminWalletHistoryRecord {
   };
 }
 
+function getCreateUserClient() {
+  if (typeof window === "undefined") return adminClient;
+  const adminToken =
+    localStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN) ||
+    sessionStorage.getItem(STORAGE_KEYS.ADMIN_TOKEN);
+  if (adminToken) return adminClient;
+  const saToken =
+    localStorage.getItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN) ||
+    sessionStorage.getItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN);
+  if (saToken) return superAdminClient;
+  return adminClient;
+}
+
+/**
+ * Create hierarchy user via POST /api/v1/admin/users (adminCreateUserSchema JSON).
+ * RETAILER requires masterDistributorId + distributorId.
+ * DISTRIBUTOR requires masterDistributorId only.
+ */
 export async function createUser(data: UserFormValues, userType: string) {
+  const role = String(userType || "").toUpperCase() as AdminManagedUserRole;
+
+  if (role === "RETAILER" || role === "DISTRIBUTOR") {
+    const payload = buildAdminCreateUserPayload(data, role);
+
+    if (!payload.masterDistributorId) {
+      throw new Error("Master Distributor is required");
+    }
+    if (role === "RETAILER" && !payload.distributorId) {
+      throw new Error("Distributor is required");
+    }
+
+    // DISTRIBUTOR must not send distributorId (backend rejects it)
+    if (role === "DISTRIBUTOR") {
+      delete payload.distributorId;
+    }
+
+    const created = await createAdminManagedUser(payload);
+    return normalizeNetworkUser(created);
+  }
+
+  // Legacy multipart path (MASTER_DISTRIBUTOR)
   const files = extractUserFiles(data);
   const formData = buildUserFormData(data, files, {
     userType,
     includePassword: true,
   });
 
-  const { data: response } = await adminClient.post<
-    ApiResponse<AdminNetworkUser>
-  >("/users", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const client = getCreateUserClient();
+  const { data: response } = await client.post<ApiResponse<AdminNetworkUser>>(
+    "/users",
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+    }
+  );
   return normalizeNetworkUser(response.data);
 }
 

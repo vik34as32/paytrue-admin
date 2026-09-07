@@ -4,8 +4,9 @@ const mobileRegex = /^[6-9]\d{9}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export const personalStepSchema = z.object({
-  firstName: z.string().min(2, "First name is required"),
-  lastName: z.string().min(2, "Last name is required"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  fullName: z.string().min(2, "Full name is required"),
   email: z.string().email("Enter a valid email"),
   mobile: z.string().regex(mobileRegex, "Enter a valid 10-digit mobile number"),
   password: z
@@ -16,6 +17,41 @@ export const personalStepSchema = z.object({
       "Password must contain uppercase, lowercase and number"
     ),
   alternateMobileNumber: z.string().optional(),
+  gender: z.string().min(1, "Gender is required"),
+  dateOfBirth: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine((value) => {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return false;
+      const today = new Date();
+      const age =
+        (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      return age >= 18 && age <= 100;
+    }, "Enter a valid date of birth (18+ years)"),
+  profileImage: z
+    .custom<File | null>((value) => value instanceof File, {
+      message: "Profile image is required",
+    }),
+});
+
+/** Distributor create: first + last name required; gender / DOB not collected. */
+export const distributorPersonalStepSchema = z.object({
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().min(2, "Last name is required"),
+  fullName: z.string().optional(),
+  email: z.string().email("Enter a valid email"),
+  mobile: z.string().regex(mobileRegex, "Enter a valid 10-digit mobile number"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      passwordRegex,
+      "Password must contain uppercase, lowercase and number"
+    ),
+  alternateMobileNumber: z.string().optional(),
+  gender: z.string().optional(),
+  dateOfBirth: z.string().optional(),
   profileImage: z
     .custom<File | null>((value) => value instanceof File, {
       message: "Profile image is required",
@@ -74,11 +110,18 @@ export const bankStepSchema = z.object({
 export type UserFormValues = {
   firstName: string;
   lastName: string;
+  fullName?: string;
   email: string;
   mobile: string;
   password: string;
   alternateMobileNumber?: string;
+  gender: string;
+  dateOfBirth: string;
   profileImage: File | null;
+  /** Selected Master Distributor (UI linking for retailer create) */
+  masterDistributorId?: string;
+  /** Retailer's parent = Distributor id */
+  parentId?: string;
   outletName: string;
   businessType?: string;
   gstNumber?: string;
@@ -108,11 +151,16 @@ export type UserFormValues = {
 export const userFormEmptyDefaults: UserFormValues = {
   firstName: "",
   lastName: "",
+  fullName: "",
   email: "",
   mobile: "",
   password: "",
   alternateMobileNumber: "",
+  gender: "",
+  dateOfBirth: "",
   profileImage: null,
+  masterDistributorId: "",
+  parentId: "",
   outletName: "",
   businessType: "",
   gstNumber: "",

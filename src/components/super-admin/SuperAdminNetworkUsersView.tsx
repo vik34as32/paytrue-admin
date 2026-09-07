@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Users,
   UserCheck,
+  UserPlus,
   UserX,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -45,6 +46,9 @@ import {
   openNetworkUsersStatement,
 } from "@/lib/networkUserExport";
 import { ROUTES } from "@/constants";
+import { CreateRetailerModal } from "@/components/forms/CreateRetailerModal";
+import { CreateDistributorModal } from "@/components/forms/CreateDistributorModal";
+import { clearUserFormDraft } from "@/lib/userFormDraftStorage";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
@@ -103,6 +107,8 @@ export function SuperAdminNetworkUsersView({
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [createRetailerOpen, setCreateRetailerOpen] = useState(false);
+  const [createDistributorOpen, setCreateDistributorOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [searchInput, setSearchInput] = useState(
@@ -437,6 +443,29 @@ export function SuperAdminNetworkUsersView({
         breadcrumb={meta.breadcrumb}
         title={meta.title}
         subtitle={`Manage ${ADMIN_NETWORK_USER_KIND_LABEL[kind].toLowerCase()}s · Total Records: ${total}`}
+        action={
+          kind === "RETAILER" ? (
+            <Button
+              onClick={() => {
+                clearUserFormDraft("RETAILER");
+                setCreateRetailerOpen(true);
+              }}
+            >
+              <UserPlus className="h-4 w-4" />
+              Create Retailer
+            </Button>
+          ) : kind === "DISTRIBUTOR" ? (
+            <Button
+              onClick={() => {
+                clearUserFormDraft("DISTRIBUTOR");
+                setCreateDistributorOpen(true);
+              }}
+            >
+              <UserPlus className="h-4 w-4" />
+              Create Distributor
+            </Button>
+          ) : null
+        }
       />
 
       {enableVerification ? (
@@ -571,12 +600,34 @@ export function SuperAdminNetworkUsersView({
           manualSorting
           sorting={sorting}
           onSortingChange={onSortingChange}
-          minTableWidth={1480}
+          minTableWidth={2200}
         />
       </Card>
 
       <NetworkUserCrudModals crud={crud} />
       {enableVerification ? verification.dialogs : null}
+
+      {kind === "RETAILER" ? (
+        <CreateRetailerModal
+          open={createRetailerOpen}
+          scope="super_admin"
+          onClose={() => setCreateRetailerOpen(false)}
+          onCreated={() => {
+            void loadData();
+          }}
+        />
+      ) : null}
+
+      {kind === "DISTRIBUTOR" ? (
+        <CreateDistributorModal
+          open={createDistributorOpen}
+          scope="super_admin"
+          onClose={() => setCreateDistributorOpen(false)}
+          onCreated={() => {
+            void loadData();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

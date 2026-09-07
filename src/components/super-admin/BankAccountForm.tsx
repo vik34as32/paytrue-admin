@@ -14,6 +14,7 @@ import {
   mapBankAccountToFormValues,
 } from "@/validations/bankAccountSchemas";
 import { BankAccountRecord } from "@/types/bankAccount";
+import { resolveBankNameFromIfsc } from "@/constants/indianBanks";
 
 const STATUS_OPTIONS = [
   { value: "ACTIVE", label: "Active" },
@@ -43,11 +44,14 @@ export function BankAccountForm({
     reset,
     setValue,
     watch,
+    getValues,
     formState: { errors },
   } = useForm<BankAccountFormValues>({
     resolver: zodResolver(bankAccountFormSchema),
     defaultValues: bankAccountEmptyDefaults,
   });
+
+  const ifscCode = watch("ifscCode") || "";
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,6 +64,13 @@ export function BankAccountForm({
     }
     reset(bankAccountEmptyDefaults);
   }, [account, isOpen, reset]);
+
+  useEffect(() => {
+    const bankName = resolveBankNameFromIfsc(ifscCode);
+    if (!bankName) return;
+    if ((getValues("bankName") || "") === bankName) return;
+    setValue("bankName", bankName, { shouldValidate: true, shouldDirty: true });
+  }, [ifscCode, getValues, setValue]);
 
   const handleFormSubmit = handleSubmit(async (values) => {
     const success = await onSubmit(values);
@@ -77,6 +88,23 @@ export function BankAccountForm({
           error={errors.accountHolderName?.message}
           {...register("accountHolderName")}
         />
+        <Input
+          label="IFSC Code"
+          placeholder="e.g. HDFC0001234"
+          value={ifscCode}
+          maxLength={11}
+          error={errors.ifscCode?.message}
+          onChange={(e) => {
+            const next = e.target.value
+              .toUpperCase()
+              .replace(/[^A-Z0-9]/g, "")
+              .slice(0, 11);
+            setValue("ifscCode", next, {
+              shouldValidate: true,
+              shouldDirty: true,
+            });
+          }}
+        />
         <BankSelect
           label="Bank Name"
           value={watch("bankName") || ""}
@@ -84,19 +112,13 @@ export function BankAccountForm({
             setValue("bankName", bankName, { shouldValidate: true })
           }
           error={errors.bankName?.message}
-          placeholder="Search Indian bank by name..."
+          placeholder="Auto from IFSC or search..."
         />
         <Input
           label="Account Number"
           placeholder="Enter account number"
           error={errors.accountNumber?.message}
           {...register("accountNumber")}
-        />
-        <Input
-          label="IFSC Code"
-          placeholder="e.g. HDFC0001234"
-          error={errors.ifscCode?.message}
-          {...register("ifscCode")}
         />
         <Input
           label="Branch Name"

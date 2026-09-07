@@ -1,5 +1,6 @@
-/** Generates a password meeting admin registration rules (upper, lower, digit, 8+ chars). */
-export function generateSecurePassword(length = 12): string {
+/** Generates a strong password (upper, lower, digit, special). Default length 8. */
+export function generateSecurePassword(length = 8): string {
+  const safeLength = Math.max(8, length);
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lower = "abcdefghjkmnpqrstuvwxyz";
   const digits = "23456789";
@@ -13,7 +14,7 @@ export function generateSecurePassword(length = 12): string {
     special[Math.floor(Math.random() * special.length)],
   ];
 
-  for (let i = chars.length; i < length; i++) {
+  for (let i = chars.length; i < safeLength; i++) {
     chars.push(all[Math.floor(Math.random() * all.length)]);
   }
 

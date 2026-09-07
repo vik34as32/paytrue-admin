@@ -2,30 +2,42 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Eye, Pencil, Trash2 } from "lucide-react";
-import { Badge } from "@/components/common/Badge";
 import { Button } from "@/components/common/Button";
-import { MailtoLink } from "@/components/common/MailtoLink";
-import { NetworkUserAvatar } from "@/components/super-admin/NetworkUserAvatar";
 import { VerificationBadge } from "@/components/verification/VerificationBadge";
 import { VerificationActions } from "@/components/verification/VerificationActions";
-import { DocumentThumbStack } from "@/components/verification/DocumentThumbStack";
 import { NetworkUserRecord } from "@/types/superAdmin";
 import {
   getUserVerificationDisplayLabel,
   getUserVerificationStatus,
 } from "@/lib/idVerification";
 import {
-  formatUserTypeLabel,
   getNetworkUserName,
+  getUserAadhaarBackImage,
+  getUserAadhaarFrontImage,
   getUserAadhaarNumber,
+  getUserCancelledChequeImage,
+  getUserDateOfBirth,
   getUserFirstName,
+  getUserKycCompletedAt,
+  getUserMiniKycStatus,
   getUserOutletField,
   getUserOutletId,
-  getUserOutletName,
+  getUserPanCardImage,
   getUserPanNumber,
+  getUserPassbookImage,
+  getWalletBalance,
 } from "@/lib/normalizeUser";
-import { formatDate } from "@/lib/utils";
-
+import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  DocImageCell,
+  DocumentStatusCell,
+  EmailCell,
+  getRecordPhone,
+  HierarchyCell,
+  PhoneCell,
+  ProfileCell,
+  StatusPill,
+} from "@/components/user-management/cells";
 import {
   SuperAdminUserActions,
   SuperAdminUserActionsMenu,
@@ -52,12 +64,199 @@ export type NetworkUserListKind =
   | "DISTRIBUTOR"
   | "MASTER_DISTRIBUTOR";
 
-function getPhone(user: NetworkUserRecord): string {
-  const phone =
-    user.mobile ||
-    (typeof user.phone === "string" ? user.phone : undefined) ||
-    "";
-  return phone || "—";
+function monoCell(value: string) {
+  return (
+    <span
+      className="block max-w-[160px] truncate font-mono text-xs text-slate-700 dark:text-foreground"
+      title={value !== "—" ? value : undefined}
+    >
+      {value}
+    </span>
+  );
+}
+
+function textCell(value: string, max = 180) {
+  return (
+    <span
+      className="block truncate text-xs font-medium text-slate-700 dark:text-foreground"
+      style={{ maxWidth: max }}
+      title={value !== "—" ? value : undefined}
+    >
+      {value}
+    </span>
+  );
+}
+
+/** Shared extended columns for Retailer / Distributor / MD lists. */
+function buildExtendedDetailColumns(
+  kind?: NetworkUserListKind
+): ColumnDef<NetworkUserRecord, unknown>[] {
+  const isRetailer = kind === "RETAILER";
+
+  const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
+    {
+      id: "address",
+      header: "Address",
+      enableSorting: false,
+      cell: ({ row }) => textCell(getUserOutletField(row.original, "address"), 200),
+    },
+    {
+      id: "district",
+      header: "District",
+      enableSorting: false,
+      cell: ({ row }) => textCell(getUserOutletField(row.original, "district"), 120),
+    },
+    {
+      id: "city",
+      header: "City",
+      enableSorting: false,
+      cell: ({ row }) => textCell(getUserOutletField(row.original, "city"), 120),
+    },
+    {
+      id: "pincode",
+      header: "Pincode",
+      enableSorting: false,
+      cell: ({ row }) => monoCell(getUserOutletField(row.original, "pincode")),
+    },
+    {
+      id: "latitude",
+      header: "Latitude",
+      enableSorting: false,
+      cell: ({ row }) => monoCell(getUserOutletField(row.original, "latitude")),
+    },
+    {
+      id: "longitude",
+      header: "Longitude",
+      enableSorting: false,
+      cell: ({ row }) => monoCell(getUserOutletField(row.original, "longitude")),
+    },
+  ];
+
+  if (isRetailer) {
+    columns.push(
+      {
+        id: "miniKycStatus",
+        header: "Mini KYC Status",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const value = getUserMiniKycStatus(row.original);
+          if (value === "—") return <span className="text-xs text-slate-400">—</span>;
+          return <StatusPill status={value} />;
+        },
+      },
+      {
+        id: "dateOfBirth",
+        header: "Date of Birth",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const raw = getUserDateOfBirth(row.original);
+          if (raw === "—") return <span className="text-xs text-slate-400">—</span>;
+          return (
+            <span className="whitespace-nowrap text-xs font-medium text-slate-700">
+              {formatDate(raw, "dd MMM yyyy")}
+            </span>
+          );
+        },
+      },
+      {
+        id: "kycCompletedAt",
+        header: "KYC Completed At",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const raw = getUserKycCompletedAt(row.original);
+          if (!raw) return <span className="text-xs text-slate-400">—</span>;
+          return (
+            <span className="whitespace-nowrap text-xs font-medium text-slate-700">
+              {formatDate(raw, "dd MMM yyyy, HH:mm")}
+            </span>
+          );
+        },
+      }
+    );
+  }
+
+  columns.push(
+    {
+      id: "aadhaarNumber",
+      header: "Aadhaar Number",
+      enableSorting: false,
+      cell: ({ row }) => monoCell(getUserAadhaarNumber(row.original)),
+    },
+    {
+      id: "aadhaarFrontImage",
+      header: "Aadhaar Front",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DocImageCell
+          src={getUserAadhaarFrontImage(row.original)}
+          label="Aadhaar Front"
+        />
+      ),
+    },
+    {
+      id: "aadhaarBackImage",
+      header: "Aadhaar Back",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DocImageCell
+          src={getUserAadhaarBackImage(row.original)}
+          label="Aadhaar Back"
+        />
+      ),
+    },
+    {
+      id: "panNumber",
+      header: "PAN Number",
+      enableSorting: false,
+      cell: ({ row }) => monoCell(getUserPanNumber(row.original)),
+    },
+    {
+      id: "panCardImage",
+      header: "PAN Image",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DocImageCell
+          src={getUserPanCardImage(row.original)}
+          label="PAN Card"
+        />
+      ),
+    },
+    {
+      id: "passbookImage",
+      header: "Passbook Image",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DocImageCell
+          src={getUserPassbookImage(row.original)}
+          label="Passbook"
+        />
+      ),
+    },
+    {
+      id: "cancelledChequeImage",
+      header: "Cancelled Cheque",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DocImageCell
+          src={getUserCancelledChequeImage(row.original)}
+          label="Cancelled Cheque"
+        />
+      ),
+    },
+    {
+      id: "walletBalance",
+      header: "Wallet Balance",
+      enableSorting: false,
+      meta: { align: "right" as const },
+      cell: ({ row }) => (
+        <span className="font-semibold tabular-nums text-slate-900 dark:text-foreground">
+          {formatCurrency(getWalletBalance(row.original))}
+        </span>
+      ),
+    }
+  );
+
+  return columns;
 }
 
 function displayName(
@@ -76,11 +275,11 @@ function ActionsCell({
   actions: NetworkUserColumnActions;
 }) {
   const status = getUserVerificationStatus(user);
-  // Edit / Delete only when explicitly enabled (Super Admin).
   const showEditDelete = actions.showEditDelete === true;
+  const name = getNetworkUserName(user);
 
   return (
-    <div className="inline-flex w-max flex-nowrap items-center gap-1 whitespace-nowrap">
+    <div className="inline-flex w-max flex-nowrap items-center gap-1.5 whitespace-nowrap">
       {actions.showVerificationActions ? (
         <VerificationActions
           status={status}
@@ -96,8 +295,8 @@ function ActionsCell({
       <Button
         variant="ghost"
         size="sm"
-        className="!h-8 !w-8 shrink-0 !p-0"
-        aria-label="View user"
+        className="!h-9 !w-9 shrink-0 !rounded-lg !border !border-slate-200 !bg-white !p-0 text-slate-600 shadow-sm hover:!bg-slate-50 dark:!border-border dark:!bg-card"
+        aria-label={`View profile for ${name}`}
         disabled={actions.disabled}
         onClick={() => actions.onView(user)}
       >
@@ -108,8 +307,8 @@ function ActionsCell({
           <Button
             variant="ghost"
             size="sm"
-            className="!h-8 !w-8 shrink-0 !p-0"
-            aria-label="Edit user"
+            className="!h-9 !w-9 shrink-0 !rounded-lg !border !border-slate-200 !bg-white !p-0 text-slate-600 shadow-sm hover:!bg-slate-50 dark:!border-border dark:!bg-card"
+            aria-label={`Edit user ${name}`}
             disabled={actions.disabled}
             onClick={() => actions.onEdit(user)}
           >
@@ -118,8 +317,8 @@ function ActionsCell({
           <Button
             variant="ghost"
             size="sm"
-            className="!h-8 !w-8 shrink-0 !p-0"
-            aria-label="Delete user"
+            className="!h-9 !w-9 shrink-0 !rounded-lg !border !border-slate-200 !bg-white !p-0 shadow-sm hover:!bg-rose-50 dark:!border-border dark:!bg-card"
+            aria-label={`Delete user ${name}`}
             disabled={actions.disabled}
             onClick={() => actions.onDelete(user)}
           >
@@ -129,21 +328,6 @@ function ActionsCell({
       ) : null}
     </div>
   );
-}
-
-function statusBadge(statusRaw?: string) {
-  const status = String(statusRaw || "").toUpperCase();
-  const variant =
-    status === "ACTIVE"
-      ? "success"
-      : status === "PENDING"
-        ? "pending"
-        : status === "SUSPENDED"
-          ? "suspended"
-          : status === "INACTIVE"
-            ? "inactive"
-            : "default";
-  return <Badge variant={variant}>{status || "—"}</Badge>;
 }
 
 /** Admin panel columns for MD / Distributor / Retailer lists (not Super Admin). */
@@ -157,49 +341,15 @@ export function createAdminNetworkUserColumns(
 ): ColumnDef<NetworkUserRecord, unknown>[] {
   const kind = options?.userKind;
   const isRetailer = kind === "RETAILER";
-  const pageIndex = options?.pageIndex ?? 0;
-  const pageSize = options?.pageSize ?? 10;
+  const showHierarchy = kind === "RETAILER" || kind === "DISTRIBUTOR";
 
   const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
     {
-      id: "srNo",
-      header: "Sr No.",
+      id: "profile",
+      header: "User",
       enableSorting: false,
-      size: 72,
-      cell: ({ row }) => (
-        <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-slate-100 px-1.5 text-xs font-bold text-slate-700 dark:bg-muted dark:text-foreground">
-          {pageIndex * pageSize + row.index + 1}
-        </span>
-      ),
-    },
-    {
-      id: "profileImage",
-      header: "Profile",
-      enableSorting: false,
-      cell: ({ row }) => <NetworkUserAvatar user={row.original} size="sm" />,
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => (
-        <div className="min-w-[150px]">
-          <p className="font-semibold text-slate-900 dark:text-foreground">
-            {displayName(row.original, kind)}
-          </p>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
-            {formatUserTypeLabel(row.original.userType || row.original.role)}
-          </p>
-        </div>
-      ),
-    },
-    {
-      accessorKey: "userCode",
-      header: "User Code",
-      cell: ({ row }) => (
-        <span className="rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:border-primary/30 dark:bg-primary/10 dark:text-primary">
-          {row.original.userCode || "—"}
-        </span>
-      ),
+      size: 260,
+      cell: ({ row }) => <ProfileCell user={row.original} kind={kind} />,
     },
   ];
 
@@ -207,8 +357,9 @@ export function createAdminNetworkUserColumns(
     columns.push({
       id: "outletId",
       header: "Outlet ID",
+      enableSorting: false,
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-slate-800 dark:text-foreground">
+        <span className="font-mono text-xs font-semibold text-slate-700 dark:text-foreground">
           {getUserOutletId(row.original)}
         </span>
       ),
@@ -219,27 +370,47 @@ export function createAdminNetworkUserColumns(
     {
       accessorKey: "email",
       header: "Email",
-      cell: ({ row }) => <MailtoLink email={row.original.email} />,
+      cell: ({ row }) => (
+        <EmailCell
+          email={row.original.email}
+          name={displayName(row.original, kind)}
+        />
+      ),
     },
     {
       id: "phone",
       header: "Phone",
       cell: ({ row }) => (
-        <span className="font-medium tabular-nums text-slate-800 dark:text-foreground">
-          {getPhone(row.original)}
-        </span>
+        <PhoneCell
+          phone={getRecordPhone(row.original)}
+          name={displayName(row.original, kind)}
+        />
       ),
     },
     {
       id: "documents",
       header: "Documents",
       enableSorting: false,
-      cell: ({ row }) => <DocumentThumbStack user={row.original} />,
-    },
+      cell: ({ row }) => <DocumentStatusCell user={row.original} />,
+    }
+  );
+
+  if (showHierarchy) {
+    columns.push({
+      id: "hierarchy",
+      header: "Hierarchy",
+      enableSorting: false,
+      cell: ({ row }) => <HierarchyCell user={row.original} />,
+    });
+  }
+
+  columns.push(...buildExtendedDetailColumns(kind));
+
+  columns.push(
     {
       accessorKey: "status",
       header: "Status",
-      cell: ({ row }) => statusBadge(row.original.status),
+      cell: ({ row }) => <StatusPill status={row.original.status} />,
     },
     {
       id: "verificationStatus",
@@ -255,7 +426,7 @@ export function createAdminNetworkUserColumns(
       id: "createdAt",
       header: "Created",
       cell: ({ row }) => (
-        <span className="whitespace-nowrap text-xs text-slate-600 dark:text-muted">
+        <span className="whitespace-nowrap text-xs font-medium text-slate-500">
           {formatDate(row.original.createdAt, "dd MMM yyyy")}
         </span>
       ),
@@ -264,7 +435,8 @@ export function createAdminNetworkUserColumns(
       id: "actions",
       header: "Actions",
       enableSorting: false,
-      size: 220,
+      meta: { align: "center" as const },
+      size: 160,
       cell: ({ row }) => (
         <ActionsCell user={row.original} actions={actions} />
       ),
@@ -277,67 +449,7 @@ export function createAdminNetworkUserColumns(
 export function createNetworkUserColumns(
   actions: NetworkUserColumnActions
 ): ColumnDef<NetworkUserRecord, unknown>[] {
-  return [
-    {
-      id: "profileImage",
-      header: "Profile",
-      cell: ({ row }) => <NetworkUserAvatar user={row.original} size="sm" />,
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
-      cell: ({ row }) => getNetworkUserName(row.original),
-    },
-    {
-      accessorKey: "email",
-      header: "Email",
-      cell: ({ row }) => <MailtoLink email={row.original.email} />,
-    },
-    {
-      id: "mobile",
-      header: "Mobile",
-      cell: ({ row }) => getPhone(row.original),
-    },
-    {
-      id: "outletName",
-      header: "Outlet Name",
-      cell: ({ row }) => getUserOutletName(row.original),
-    },
-    {
-      id: "state",
-      header: "State",
-      cell: ({ row }) => getUserOutletField(row.original, "state"),
-    },
-    {
-      id: "city",
-      header: "City",
-      cell: ({ row }) => getUserOutletField(row.original, "city"),
-    },
-    {
-      id: "aadhaarNumber",
-      header: "Aadhaar Number",
-      cell: ({ row }) => getUserAadhaarNumber(row.original),
-    },
-    {
-      id: "panNumber",
-      header: "PAN Number",
-      cell: ({ row }) => getUserPanNumber(row.original),
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge variant="default">{row.original.status || "—"}</Badge>
-      ),
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => (
-        <ActionsCell user={row.original} actions={actions} />
-      ),
-    },
-  ];
+  return createAdminNetworkUserColumns(actions);
 }
 
 /** Enterprise columns for Super Admin MD / Distributor / Retailer lists */
@@ -349,46 +461,18 @@ export function createSuperAdminNetworkUserColumns(
     userKind?: NetworkUserListKind;
   }
 ): ColumnDef<NetworkUserRecord, unknown>[] {
-  const pageIndex = options?.pageIndex ?? 0;
-  const pageSize = options?.pageSize ?? 10;
   const kind = options?.userKind;
   const isRetailer = kind === "RETAILER";
+  const showHierarchy = kind === "RETAILER" || kind === "DISTRIBUTOR";
 
   const columns: ColumnDef<NetworkUserRecord, unknown>[] = [
     {
-      id: "srNo",
-      header: "Sr No.",
-      enableSorting: false,
-      cell: ({ row }) => pageIndex * pageSize + row.index + 1,
-    },
-    {
-      accessorKey: "userCode",
-      header: "User Code",
-      enableSorting: false,
-      cell: ({ row }) => (
-        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-          {row.original.userCode || "—"}
-        </span>
-      ),
-    },
-    {
-      accessorKey: "name",
-      header: "Name",
+      id: "profile",
+      header: "User",
       enableSorting: true,
-      cell: ({ row }) => (
-        <div className="flex min-w-[150px] items-center gap-2">
-          <NetworkUserAvatar user={row.original} size="sm" />
-          <span className="font-semibold text-foreground">
-            {displayName(row.original, kind)}
-          </span>
-        </div>
-      ),
-    },
-    {
-      id: "businessName",
-      header: "Business Name",
-      enableSorting: false,
-      cell: ({ row }) => getUserOutletName(row.original),
+      accessorKey: "name",
+      size: 280,
+      cell: ({ row }) => <ProfileCell user={row.original} kind={kind} />,
     },
   ];
 
@@ -398,7 +482,7 @@ export function createSuperAdminNetworkUserColumns(
       header: "Outlet ID",
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="font-mono text-xs font-semibold text-foreground">
+        <span className="font-mono text-xs font-semibold text-slate-700 dark:text-foreground">
           {getUserOutletId(row.original)}
         </span>
       ),
@@ -410,42 +494,54 @@ export function createSuperAdminNetworkUserColumns(
       accessorKey: "email",
       header: "Email",
       enableSorting: true,
-      cell: ({ row }) => <MailtoLink email={row.original.email} />,
+      cell: ({ row }) => (
+        <EmailCell
+          email={row.original.email}
+          name={displayName(row.original, kind)}
+        />
+      ),
     },
     {
       id: "phone",
       accessorKey: "mobile",
       header: "Phone",
       enableSorting: true,
-      cell: ({ row }) => getPhone(row.original),
-    },
-    {
-      id: "aadhaarNumber",
-      header: "Aadhaar Number",
-      enableSorting: false,
-      cell: ({ row }) => getUserAadhaarNumber(row.original),
-    },
-    {
-      id: "panNumber",
-      header: "PAN Number",
-      enableSorting: false,
-      cell: ({ row }) => getUserPanNumber(row.original),
+      cell: ({ row }) => (
+        <PhoneCell
+          phone={getRecordPhone(row.original)}
+          name={displayName(row.original, kind)}
+        />
+      ),
     },
     {
       id: "documents",
       header: "Documents",
       enableSorting: false,
-      cell: ({ row }) => <DocumentThumbStack user={row.original} />,
-    },
+      cell: ({ row }) => <DocumentStatusCell user={row.original} />,
+    }
+  );
+
+  if (showHierarchy) {
+    columns.push({
+      id: "hierarchy",
+      header: "Hierarchy",
+      enableSorting: false,
+      cell: ({ row }) => <HierarchyCell user={row.original} />,
+    });
+  }
+
+  columns.push(...buildExtendedDetailColumns(kind));
+
+  columns.push(
     {
       accessorKey: "status",
       header: "Status",
       enableSorting: false,
-      cell: ({ row }) => statusBadge(row.original.status),
+      cell: ({ row }) => <StatusPill status={row.original.status} />,
     },
     {
       id: "verificationStatus",
-      header: "Verification Status",
+      header: "Verification",
       enableSorting: false,
       cell: ({ row }) => (
         <VerificationBadge
@@ -458,19 +554,20 @@ export function createSuperAdminNetworkUserColumns(
       id: "actions",
       header: "Actions",
       enableSorting: false,
+      meta: { align: "center" as const },
       cell: ({ row }) => {
         const user = row.original;
         const status = getUserVerificationStatus(user);
         const accountStatus = String(user.status || "").toUpperCase();
-        // Verified users get full menu; inactive/suspended can open menu to Activate
         const showMoreMenu =
           !actions.showVerificationActions ||
           status === "VERIFIED" ||
           accountStatus === "INACTIVE" ||
           accountStatus === "SUSPENDED";
+        const name = displayName(user, kind);
 
         return (
-          <div className="inline-flex w-max flex-nowrap items-center gap-1.5 whitespace-nowrap">
+          <div className="inline-flex w-max flex-nowrap items-center justify-center gap-1.5 whitespace-nowrap">
             {actions.showVerificationActions ? (
               <VerificationActions
                 status={status}
@@ -486,7 +583,11 @@ export function createSuperAdminNetworkUserColumns(
               />
             ) : null}
             {showMoreMenu ? (
-              <SuperAdminUserActionsMenu user={user} actions={actions} />
+              <SuperAdminUserActionsMenu
+                user={user}
+                actions={actions}
+                ariaLabel={`More actions for ${name}`}
+              />
             ) : null}
           </div>
         );

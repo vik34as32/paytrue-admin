@@ -15,7 +15,7 @@ export default function CreateDistributorPage() {
         <PageHeader
           breadcrumb="Admin"
           title="Create Distributor"
-          subtitle="Complete the multi-step registration with personal, outlet, KYC and bank details"
+          subtitle="Select Master Distributor, then complete personal, outlet, KYC and bank details"
           action={
             <Link href={ROUTES.adminDistributors}>
               <Button variant="outline" size="sm">
@@ -27,11 +27,13 @@ export default function CreateDistributorPage() {
         />
         <UserMultiStepForm
           userType="DISTRIBUTOR"
-          requireEmailVerification
-          requireMobileVerification
+          requireHierarchyLinking
+          hierarchyScope="admin"
+          requireEmailVerification={false}
+          requireMobileVerification={false}
           submitLabel="Create Distributor"
           successTitle="Distributor Created!"
-          successMessage="The distributor has been onboarded successfully. Login credentials have been sent to the registered email."
+          successMessage="The distributor has been onboarded successfully and linked under the selected master distributor."
           successToast="Distributor created successfully."
           successRedirect={ROUTES.adminDistributors}
         />

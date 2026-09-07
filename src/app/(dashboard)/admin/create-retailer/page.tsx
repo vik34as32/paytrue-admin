@@ -27,11 +27,13 @@ export default function CreateRetailerPage() {
         />
         <UserMultiStepForm
           userType="RETAILER"
-          requireEmailVerification
-          requireMobileVerification
+          requireHierarchyLinking
+          hierarchyScope="admin"
+          requireEmailVerification={false}
+          requireMobileVerification={false}
           submitLabel="Create Retailer"
           successTitle="Retailer Created!"
-          successMessage="The retailer has been onboarded successfully. Login credentials have been sent to the registered email."
+          successMessage="The retailer has been onboarded successfully and linked under the selected distributor."
           successToast="Retailer created successfully."
           successRedirect={ROUTES.adminRetailers}
         />

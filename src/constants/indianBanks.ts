@@ -1,5 +1,6 @@
 import {
   LOCAL_INDIAN_BANKS,
+  findLocalBankByIfsc,
   findLocalBankByName,
   getLocalBankLogoPath,
 } from "@/constants/localIndianBanks";
@@ -132,6 +133,35 @@ const RAW_INDIAN_BANKS: IndianBank[] = [
 export const UNIQUE_INDIAN_BANKS: IndianBank[] = Array.from(
   new Map(RAW_INDIAN_BANKS.map((bank) => [bank.name, bank])).values()
 ).sort((a, b) => a.name.localeCompare(b.name));
+
+const INDIAN_BANK_BY_CODE = new Map(
+  RAW_INDIAN_BANKS.map((bank) => [bank.code.toUpperCase(), bank])
+);
+
+/** Resolve bank from full IFSC or 4-letter bank code. */
+export function findIndianBankByIfsc(
+  ifscOrCode: string
+): IndianBank | undefined {
+  const prefix = ifscOrCode
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 4);
+  if (prefix.length < 4) return undefined;
+  return INDIAN_BANK_BY_CODE.get(prefix);
+}
+
+/**
+ * Prefer local logo banks (BankLogoGrid), then full Indian bank list.
+ * Returns the bank display name to store in forms.
+ */
+export function resolveBankNameFromIfsc(ifscOrCode: string): string | null {
+  const local = findLocalBankByIfsc(ifscOrCode);
+  if (local) return local.name;
+  const known = findIndianBankByIfsc(ifscOrCode);
+  if (!known) return null;
+  return findLocalBankByName(known.name)?.name || known.name;
+}
 
 /** IFSC prefix → local SVG slug under /public/indian-bank */
 const LOCAL_BANK_SLUG_BY_IFSC: Record<string, string> = Object.fromEntries(

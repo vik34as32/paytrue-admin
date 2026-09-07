@@ -27,8 +27,8 @@ export default function CreateMasterDistributorPage() {
         />
         <UserMultiStepForm
           userType="MASTER_DISTRIBUTOR"
-          requireEmailVerification
-          requireMobileVerification
+          requireEmailVerification={false}
+          requireMobileVerification={false}
           submitLabel="Create Master Distributor"
           successTitle="Master Distributor Created!"
           successMessage="The master distributor has been onboarded successfully. Login credentials have been sent to the registered email."

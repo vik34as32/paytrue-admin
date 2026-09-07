@@ -157,7 +157,7 @@ export function DataTable<T>({
     <div className="space-y-4">
       {!hideSearch && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-xs">
+          <div className="w-full sm:max-w-md">
             <Input
               placeholder={searchPlaceholder}
               icon={<HiSearch className="h-4 w-4" />}
@@ -170,16 +170,16 @@ export function DataTable<T>({
 
       <div
         className={cn(
-          "overflow-x-auto rounded-xl border border-[#E2E8F0] bg-white shadow-sm dark:border-border dark:bg-card",
+          "overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] dark:border-border dark:bg-card",
           stickyHeader && "max-h-[min(70vh,720px)] overflow-y-auto"
         )}
       >
-        <table className="w-full" style={{ minWidth: minTableWidth }}>
-          <thead className={cn(stickyHeader && "sticky top-0 z-10")}>
+        <table className="w-full border-collapse" style={{ minWidth: minTableWidth }}>
+          <thead className={cn(stickyHeader && "sticky top-0 z-20")}>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
                 key={headerGroup.id}
-                className="border-b border-[#E2E8F0] bg-[#F1F5F9] dark:border-border dark:bg-muted/40"
+                className="border-b border-slate-200 bg-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)] dark:border-border dark:bg-slate-900"
               >
                 {headerGroup.headers.map((header) => {
                   const align = (
@@ -191,10 +191,10 @@ export function DataTable<T>({
                     <th
                       key={header.id}
                       className={cn(
-                        "px-4 py-3.5 text-[11px] font-bold uppercase tracking-wider text-[#334155] select-none dark:text-foreground",
+                        "px-4 py-3.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-100 select-none",
                         getAlignClass(align),
                         header.column.getCanSort() &&
-                          "cursor-pointer hover:text-[#0F172A]"
+                          "cursor-pointer hover:text-white"
                       )}
                       style={{
                         width: header.column.getSize()
@@ -226,10 +226,16 @@ export function DataTable<T>({
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-[#E2E8F0] dark:border-border">
+                <tr
+                  key={i}
+                  className={cn(
+                    "border-b border-slate-100 dark:border-border",
+                    i % 2 === 1 && "bg-slate-50/80 dark:bg-muted/20"
+                  )}
+                >
                   {columns.map((_, j) => (
-                    <td key={j} className="px-4 py-3.5">
-                      <div className="h-4 animate-pulse rounded bg-[#E2E8F0] dark:bg-border" />
+                    <td key={j} className="px-4 py-4">
+                      <div className="h-4 animate-pulse rounded bg-slate-200/80 dark:bg-border" />
                     </td>
                   ))}
                 </tr>
@@ -240,19 +246,24 @@ export function DataTable<T>({
                   colSpan={columns.length}
                   className="px-4 py-16 text-center text-muted"
                 >
-                  <p className="text-sm font-medium">No data found</p>
-                  <p className="mt-1 text-xs">
+                  <p className="text-sm font-medium text-slate-700 dark:text-foreground">
+                    No data found
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
                     Try adjusting your search criteria
                   </p>
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
+              table.getRowModel().rows.map((row, rowIndex) => (
                 <tr
                   key={row.id}
                   className={cn(
-                    "border-b border-[#E2E8F0] bg-white last:border-0 transition-colors dark:border-border dark:bg-card",
-                    "hover:bg-[#EEF2FF]/70 dark:hover:bg-primary/5"
+                    "border-b border-slate-100 transition-colors duration-150 last:border-b-0 dark:border-border",
+                    rowIndex % 2 === 0
+                      ? "bg-white dark:bg-card"
+                      : "bg-slate-50/90 dark:bg-muted/15",
+                    "hover:bg-sky-50/70 dark:hover:bg-primary/5"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {
@@ -265,7 +276,8 @@ export function DataTable<T>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "px-4 py-3.5 text-sm text-[#0F172A] align-middle dark:text-foreground",
+                          "px-4 py-4 text-sm text-slate-900 align-middle dark:text-foreground",
+                          "min-h-[68px]",
                           getAlignClass(align)
                         )}
                       >
@@ -284,7 +296,7 @@ export function DataTable<T>({
       </div>
 
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-[#64748B] dark:text-muted">
+        <p className="text-sm text-slate-500 dark:text-muted">
           Showing {range.from} to {range.to} of {range.total} entries
         </p>
 
@@ -294,7 +306,7 @@ export function DataTable<T>({
             size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="!h-8 !rounded-md"
+            className="!h-8 !rounded-lg"
           >
             <HiChevronLeft className="h-4 w-4" />
           </Button>
@@ -308,10 +320,10 @@ export function DataTable<T>({
                 else table.setPageIndex(i);
               }}
               className={cn(
-                "flex h-8 min-w-8 items-center justify-center rounded-md px-2 text-xs font-semibold transition-colors",
+                "flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold transition-colors duration-150",
                 pageIndex === i
-                  ? "bg-[#4318FF] text-white shadow-sm"
-                  : "border border-[#E2E8F0] bg-white text-[#334155] hover:bg-[#F1F5F9] dark:border-border dark:bg-card dark:text-foreground"
+                  ? "bg-slate-800 text-white shadow-sm dark:bg-primary"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-foreground"
               )}
             >
               {i + 1}
@@ -323,15 +335,15 @@ export function DataTable<T>({
             size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="!h-8 !rounded-md"
+            className="!h-8 !rounded-lg"
           >
             <HiChevronRight className="h-4 w-4" />
           </Button>
 
           {pageSizeOptions?.length && onPageSizeChange ? (
-            <label className="ml-1 flex items-center gap-2 text-sm text-[#64748B]">
+            <label className="ml-1 flex items-center gap-2 text-sm text-slate-500">
               <select
-                className="rounded-md border border-[#E2E8F0] bg-white px-2 py-1.5 text-sm text-[#0F172A] outline-none focus:border-[#4318FF] dark:border-border dark:bg-card dark:text-foreground"
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-border dark:bg-card dark:text-foreground"
                 value={pageSize}
                 onChange={(e) => onPageSizeChange(Number(e.target.value))}
               >
