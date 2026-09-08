@@ -25,7 +25,7 @@ import {
 } from "@/types/admin";
 import { UserFormValues } from "@/validations/userStepSchemas";
 import {
-  buildAdminHierarchyCreateFormData,
+  buildAdminHierarchyCreatePayload,
   buildUserFormData,
   extractUserFiles,
 } from "@/lib/buildUserFormData";
@@ -291,8 +291,9 @@ function getCreateUserClient() {
 }
 
 /**
- * Create RETAILER / DISTRIBUTOR via POST /api/v1/admin/users (multipart).
- * UI form stays the same; payload includes hierarchy + outlet/kyc/bank + files.
+ * Create RETAILER / DISTRIBUTOR via POST /api/v1/admin/users.
+ * Body must be a JSON object (adminCreateUserSchema). Multipart is rejected
+ * by Fastify with `{ field: "body", message: "must be object" }`.
  */
 export async function createUser(data: UserFormValues, userType: string) {
   const role = String(userType || "").toUpperCase() as AdminManagedUserRole;
@@ -308,11 +309,11 @@ export async function createUser(data: UserFormValues, userType: string) {
       throw new Error("Distributor is required");
     }
 
-    const formData = buildAdminHierarchyCreateFormData(data, role);
+    const payload = buildAdminHierarchyCreatePayload(data, role);
     const { data: response } = await commissionAdminModuleClient.post<
       ApiResponse<AdminNetworkUser>
-    >("/users", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
+    >("/users", payload, {
+      headers: { "Content-Type": "application/json" },
     });
     return normalizeNetworkUser(response.data);
   }

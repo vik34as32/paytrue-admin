@@ -45,6 +45,13 @@ function attachDualAuth(client: AxiosInstance) {
       }
       if (config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
+        // Let the browser set multipart boundary. A bare
+        // "multipart/form-data" or leftover "application/json"
+        // makes Fastify reject the body with "must be object".
+        if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+          config.headers.delete?.("Content-Type");
+          delete config.headers["Content-Type"];
+        }
       }
       return config;
     },

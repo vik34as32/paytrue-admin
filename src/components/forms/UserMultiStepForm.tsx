@@ -503,48 +503,60 @@ export function UserMultiStepForm({
       },
     );
   }, [methods]);
+  const lastPincodeLookupRef = useRef("");
+
+  // Lookup only when outlet step is open and pincode is a new 6-digit value
   useEffect(() => {
-  if (pincode?.length !== 6) return;
+    const code = (pincode || "").trim();
+    if (step !== 2 || code.length !== 6) return;
+    if (lastPincodeLookupRef.current === code) return;
 
-  const fetchPincodeDetails = async () => {
-    try {
-      const response = await fetch(
-        `https://api.postalpincode.in/pincode/${pincode}`
-      );
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      lastPincodeLookupRef.current = code;
 
-      const data = await response.json();
+      void (async () => {
+        try {
+          const response = await fetch(
+            `https://api.postalpincode.in/pincode/${code}`,
+            { signal: controller.signal }
+          );
+          const data = await response.json();
 
-      if (
-        data[0]?.Status === "Success" &&
-        data[0]?.PostOffice?.length > 0
-      ) {
-        const postOffice = data[0].PostOffice[0];
+          if (
+            data[0]?.Status === "Success" &&
+            data[0]?.PostOffice?.length > 0
+          ) {
+            const postOffice = data[0].PostOffice[0];
+            const indianStates = State.getStatesOfCountry("IN");
 
-        methods.setValue("district", postOffice.District, {
-          shouldValidate: true,
-        });
+            setValue("district", postOffice.District, { shouldValidate: true });
+            setValue("city", postOffice.Block || postOffice.Name, {
+              shouldValidate: true,
+            });
 
-        methods.setValue("city", postOffice.Block || postOffice.Name, {
-          shouldValidate: true,
-        });
-
-        const matchedState = states.find(
-          (state) =>
-            state.name.toLowerCase() === String(postOffice.State).toLowerCase()
-        );
-        if (matchedState) {
-          methods.setValue("state", matchedState.isoCode, {
-            shouldValidate: true,
-          });
+            const matchedState = indianStates.find(
+              (state) =>
+                state.name.toLowerCase() ===
+                String(postOffice.State).toLowerCase()
+            );
+            if (matchedState) {
+              setValue("state", matchedState.isoCode, { shouldValidate: true });
+            }
+          }
+        } catch (error) {
+          if ((error as { name?: string })?.name === "AbortError") return;
+          lastPincodeLookupRef.current = "";
+          console.error("Pincode lookup failed", error);
         }
-      }
-    } catch (error) {
-      console.error("Pincode lookup failed", error);
-    }
-  };
+      })();
+    }, 400);
 
-  fetchPincodeDetails();
-}, [pincode, methods, states]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [pincode, step, setValue]);
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2">

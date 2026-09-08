@@ -222,6 +222,160 @@ function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return next as Partial<T>;
 }
 
+export interface AdminHierarchyCreatePayload {
+  email: string;
+  mobile: string;
+  password: string;
+  firstName: string;
+  lastName?: string;
+  name?: string;
+  userType: "MASTER_DISTRIBUTOR" | "DISTRIBUTOR" | "RETAILER";
+  masterDistributorId?: string;
+  distributorId?: string;
+  alternateMobileNumber?: string;
+  gender?: "M" | "F" | "T";
+  dateOfBirth?: string;
+  aadhaar?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  latitude?: number;
+  longitude?: number;
+  outlet?: {
+    outletName: string;
+    businessType?: string;
+    gstNumber?: string;
+    address?: string;
+    state?: string;
+    district?: string;
+    city?: string;
+    village?: string;
+    pincode?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  kyc?: {
+    aadhaarNumber?: string;
+    panNumber?: string;
+  };
+  bankAccount?: {
+    accountHolderName: string;
+    bankName: string;
+    accountNumber: string;
+    ifscCode: string;
+  };
+}
+
+/**
+ * JSON body for POST /api/v1/admin/users.
+ * Fastify rejects multipart here with `{ field: "body", message: "must be object" }`
+ * before Zod runs. Nested outlet / kyc / bankAccount must be objects, not strings.
+ */
+export function buildAdminHierarchyCreatePayload(
+  values: UserFormValues,
+  userType: "RETAILER" | "DISTRIBUTOR" | "MASTER_DISTRIBUTOR"
+): AdminHierarchyCreatePayload {
+  const fullName =
+    (values.fullName || "").trim() ||
+    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
+  const derived = splitFullName(fullName);
+  const firstName = (values.firstName || "").trim() || derived.firstName;
+  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const pan = (values.panNumber || "").trim().toUpperCase();
+  const aadhaar = (values.aadhaarNumber || "").replace(/\D/g, "");
+  const gender = toApiGender(values.gender);
+  const latitude = parseOptionalNumber(values.latitude);
+  const longitude = parseOptionalNumber(values.longitude);
+  const businessType = (values.businessType || "").trim().toUpperCase();
+  const dateOfBirth = (values.dateOfBirth || "").trim();
+  const pincode = (values.pincode || "").trim();
+
+  const payload: AdminHierarchyCreatePayload = {
+    email: values.email.trim(),
+    mobile: values.mobile.trim(),
+    password: values.password,
+    firstName,
+    userType,
+  };
+
+  if (lastName) payload.lastName = lastName;
+  if (fullName) payload.name = fullName;
+  if (gender) payload.gender = gender;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+    payload.dateOfBirth = dateOfBirth;
+  }
+  if (/^\d{12}$/.test(aadhaar)) {
+    payload.aadhaar = aadhaar;
+    payload.aadhaarNumber = aadhaar;
+  }
+  if (/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+    payload.panNumber = pan;
+  }
+  if (values.address?.trim()) payload.address = values.address.trim();
+  if (values.city?.trim()) payload.city = values.city.trim();
+  if (/^\d{6}$/.test(pincode)) payload.pincode = pincode;
+  if (latitude !== undefined) payload.latitude = latitude;
+  if (longitude !== undefined) payload.longitude = longitude;
+  if (values.alternateMobileNumber?.trim()) {
+    payload.alternateMobileNumber = values.alternateMobileNumber.trim();
+  }
+
+  if (userType === "DISTRIBUTOR" || userType === "RETAILER") {
+    const masterDistributorId = (values.masterDistributorId || "").trim();
+    if (masterDistributorId) payload.masterDistributorId = masterDistributorId;
+  }
+  if (userType === "RETAILER") {
+    const distributorId = (values.parentId || "").trim();
+    if (distributorId) payload.distributorId = distributorId;
+  }
+
+  const outletName = (values.outletName || "").trim();
+  if (outletName) {
+    payload.outlet = {
+      outletName,
+      ...compactObject({
+        businessType: OUTLET_BUSINESS_TYPES.has(businessType)
+          ? businessType
+          : undefined,
+        gstNumber: values.gstNumber?.trim(),
+        address: values.address?.trim(),
+        state: values.state?.trim(),
+        district: values.district?.trim(),
+        city: values.city?.trim(),
+        village: values.village?.trim(),
+        pincode: /^\d{6}$/.test(pincode) ? pincode : undefined,
+        latitude,
+        longitude,
+      }),
+    };
+  }
+
+  const kyc = compactObject({
+    aadhaarNumber: /^\d{12}$/.test(aadhaar) ? aadhaar : undefined,
+    panNumber: /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan) ? pan : undefined,
+  });
+  if (Object.keys(kyc).length) {
+    payload.kyc = kyc;
+  }
+
+  const accountHolderName = (values.accountHolderName || "").trim();
+  const bankName = (values.bankName || "").trim();
+  const accountNumber = (values.accountNumber || "").trim();
+  const ifscCode = (values.ifscCode || "").trim().toUpperCase();
+  if (accountHolderName && bankName && accountNumber && ifscCode) {
+    payload.bankAccount = {
+      accountHolderName,
+      bankName,
+      accountNumber,
+      ifscCode,
+    };
+  }
+
+  return payload;
+}
+
 /**
  * Multipart payload for POST /api/v1/admin/users
  * (Admin + Super Admin, retailer / distributor create).
