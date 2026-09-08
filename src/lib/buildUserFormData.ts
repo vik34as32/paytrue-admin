@@ -1,5 +1,14 @@
 import { USER_FILE_FIELDS, UserFileFieldKey } from "@/constants/uploadConfig";
+import { toApiGender } from "@/constants/gender";
 import { UserFormValues } from "@/validations/userStepSchemas";
+
+const OUTLET_BUSINESS_TYPES = new Set([
+  "INDIVIDUAL",
+  "PARTNERSHIP",
+  "PRIVATE_LIMITED",
+  "PROPRIETORSHIP",
+  "OTHER",
+]);
 
 export interface ApiUserRecord {
   firstName?: string;
@@ -140,7 +149,7 @@ export function buildUserFormData(
   appendIfPresent(formData, "email", values.email);
   appendIfPresent(formData, "mobile", values.mobile);
   appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);
-  appendIfPresent(formData, "gender", values.gender);
+  appendIfPresent(formData, "gender", toApiGender(values.gender));
   appendIfPresent(formData, "dateOfBirth", values.dateOfBirth);
   appendIfPresent(formData, "userType", userType);
   // Retailer hierarchy: form parentId = API distributorId
@@ -186,6 +195,120 @@ export function buildUserFormData(
       ifscCode: values.ifscCode,
     })
   );
+
+  (Object.entries(USER_FILE_FIELDS) as [UserFileFieldKey, string][]).forEach(
+    ([formKey, apiKey]) => {
+      appendFileIfPresent(formData, apiKey, files[formKey]);
+    }
+  );
+
+  return formData;
+}
+
+function parseOptionalNumber(value?: string): number | undefined {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const next: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined || value === null || value === "") continue;
+    next[key] = value;
+  }
+  return next as Partial<T>;
+}
+
+/**
+ * Multipart payload for POST /api/v1/admin/users
+ * (Admin + Super Admin, retailer / distributor create).
+ * UI stays the same; this maps collected fields to adminCreateUserSchema.
+ */
+export function buildAdminHierarchyCreateFormData(
+  values: UserFormValues,
+  userType: "RETAILER" | "DISTRIBUTOR" | "MASTER_DISTRIBUTOR"
+): FormData {
+  const formData = new FormData();
+  const files = extractUserFiles(values);
+
+  const fullName =
+    (values.fullName || "").trim() ||
+    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
+  const derived = splitFullName(fullName);
+  const firstName = (values.firstName || "").trim() || derived.firstName;
+  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const pan = (values.panNumber || "").trim().toUpperCase();
+  const aadhaar = (values.aadhaarNumber || "").replace(/\D/g, "");
+  const gender = toApiGender(values.gender);
+  const latitude = parseOptionalNumber(values.latitude);
+  const longitude = parseOptionalNumber(values.longitude);
+  const businessType = (values.businessType || "").trim().toUpperCase();
+
+  appendIfPresent(formData, "email", values.email.trim());
+  appendIfPresent(formData, "mobile", values.mobile.trim());
+  appendIfPresent(formData, "password", values.password);
+  appendIfPresent(formData, "firstName", firstName);
+  appendIfPresent(formData, "lastName", lastName);
+  appendIfPresent(formData, "name", fullName);
+  appendIfPresent(formData, "userType", userType);
+  appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);
+  appendIfPresent(formData, "gender", gender);
+  appendIfPresent(formData, "dateOfBirth", values.dateOfBirth);
+  appendIfPresent(formData, "aadhaar", aadhaar);
+  appendIfPresent(formData, "aadhaarNumber", aadhaar);
+  appendIfPresent(formData, "panNumber", pan);
+  appendIfPresent(formData, "address", values.address);
+  appendIfPresent(formData, "city", values.city);
+  appendIfPresent(formData, "pincode", values.pincode);
+  if (latitude !== undefined) formData.append("latitude", String(latitude));
+  if (longitude !== undefined) formData.append("longitude", String(longitude));
+
+  if (userType === "DISTRIBUTOR" || userType === "RETAILER") {
+    appendIfPresent(formData, "masterDistributorId", values.masterDistributorId);
+  }
+  if (userType === "RETAILER") {
+    appendIfPresent(formData, "distributorId", values.parentId);
+  }
+
+  const outlet = compactObject({
+    outletName: values.outletName,
+    businessType: OUTLET_BUSINESS_TYPES.has(businessType)
+      ? businessType
+      : undefined,
+    gstNumber: values.gstNumber,
+    address: values.address,
+    state: values.state,
+    district: values.district,
+    city: values.city,
+    village: values.village,
+    pincode: values.pincode,
+    latitude,
+    longitude,
+  });
+  if (Object.keys(outlet).length) {
+    formData.append("outlet", JSON.stringify(outlet));
+  }
+
+  const kyc = compactObject({
+    aadhaarNumber: aadhaar,
+    panNumber: pan,
+  });
+  if (Object.keys(kyc).length) {
+    formData.append("kyc", JSON.stringify(kyc));
+  }
+
+  const bankAccount = compactObject({
+    accountHolderName: values.accountHolderName,
+    bankName: values.bankName,
+    accountNumber: values.accountNumber,
+    ifscCode: (values.ifscCode || "").trim().toUpperCase(),
+  });
+  if (Object.keys(bankAccount).length) {
+    formData.append("bankAccount", JSON.stringify(bankAccount));
+  }
 
   (Object.entries(USER_FILE_FIELDS) as [UserFileFieldKey, string][]).forEach(
     ([formKey, apiKey]) => {

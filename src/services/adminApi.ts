@@ -25,14 +25,12 @@ import {
 } from "@/types/admin";
 import { UserFormValues } from "@/validations/userStepSchemas";
 import {
+  buildAdminHierarchyCreateFormData,
   buildUserFormData,
   extractUserFiles,
 } from "@/lib/buildUserFormData";
-import {
-  buildAdminCreateUserPayload,
-  createAdminManagedUser,
-  type AdminManagedUserRole,
-} from "@/services/adminUsersApi";
+import { commissionAdminModuleClient } from "@/lib/api/commissionClient";
+import type { AdminManagedUserRole } from "@/services/adminUsersApi";
 import { ApiResponse } from "@/types";
 
 function readPaginationMeta(
@@ -293,30 +291,30 @@ function getCreateUserClient() {
 }
 
 /**
- * Create hierarchy user via POST /api/v1/admin/users (adminCreateUserSchema JSON).
- * RETAILER requires masterDistributorId + distributorId.
- * DISTRIBUTOR requires masterDistributorId only.
+ * Create RETAILER / DISTRIBUTOR via POST /api/v1/admin/users (multipart).
+ * UI form stays the same; payload includes hierarchy + outlet/kyc/bank + files.
  */
 export async function createUser(data: UserFormValues, userType: string) {
   const role = String(userType || "").toUpperCase() as AdminManagedUserRole;
 
   if (role === "RETAILER" || role === "DISTRIBUTOR") {
-    const payload = buildAdminCreateUserPayload(data, role);
+    const masterDistributorId = (data.masterDistributorId || "").trim();
+    const distributorId = (data.parentId || "").trim();
 
-    if (!payload.masterDistributorId) {
+    if (!masterDistributorId) {
       throw new Error("Master Distributor is required");
     }
-    if (role === "RETAILER" && !payload.distributorId) {
+    if (role === "RETAILER" && !distributorId) {
       throw new Error("Distributor is required");
     }
 
-    // DISTRIBUTOR must not send distributorId (backend rejects it)
-    if (role === "DISTRIBUTOR") {
-      delete payload.distributorId;
-    }
-
-    const created = await createAdminManagedUser(payload);
-    return normalizeNetworkUser(created);
+    const formData = buildAdminHierarchyCreateFormData(data, role);
+    const { data: response } = await commissionAdminModuleClient.post<
+      ApiResponse<AdminNetworkUser>
+    >("/users", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return normalizeNetworkUser(response.data);
   }
 
   // Legacy multipart path (MASTER_DISTRIBUTOR)
