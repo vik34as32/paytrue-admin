@@ -102,6 +102,82 @@ function normalizeStatus(value?: string | null): string | undefined {
   return upper;
 }
 
+function toEditGender(value?: string | null): "M" | "F" | "T" | "" {
+  const raw = (value || "").trim().toUpperCase();
+  if (raw === "M" || raw === "MALE") return "M";
+  if (raw === "F" || raw === "FEMALE") return "F";
+  if (raw === "T" || raw === "OTHER") return "T";
+  return "";
+}
+
+/**
+ * Gender / DOB live under outlet.miniKycResponse for InstantPay KYC retailers.
+ */
+function extractMiniKycIdentity(user: UserDetailRecord): {
+  gender: string;
+  dateOfBirth: string;
+} {
+  const outlet = user.outlet as
+    | (NonNullable<UserDetailRecord["outlet"]> & {
+        miniKycResponse?: {
+          data?: Record<string, unknown>;
+          requestSnapshot?: Record<string, unknown>;
+        } | null;
+      })
+    | undefined;
+  const mini = outlet?.miniKycResponse;
+  const data = mini?.data;
+  const snapshot = mini?.requestSnapshot;
+  const raw = user as Record<string, unknown>;
+
+  const genderCandidates = [
+    data?.gender,
+    snapshot?.gender,
+    raw.gender,
+    user.profile?.gender,
+  ];
+  const dobCandidates = [
+    data?.dateOfBirth,
+    snapshot?.dateOfBirth,
+    raw.dateOfBirth,
+    user.profile?.dateOfBirth,
+    user.profile?.dob,
+  ];
+
+  const gender = genderCandidates.find(
+    (value) => typeof value === "string" && value.trim()
+  );
+  const dateOfBirth = dobCandidates.find(
+    (value) => typeof value === "string" && value.trim()
+  );
+
+  return {
+    gender: typeof gender === "string" ? gender : "",
+    dateOfBirth: typeof dateOfBirth === "string" ? dateOfBirth : "",
+  };
+}
+
+/** Normalize API DOB (ISO / DD-MM-YYYY / etc.) to YYYY-MM-DD for <input type="date"> */
+function toDateInputValue(value?: string | null): string {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "—") return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const dmy = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (dmy) {
+    const day = dmy[1].padStart(2, "0");
+    const month = dmy[2].padStart(2, "0");
+    return `${dmy[3]}-${month}-${day}`;
+  }
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, "0");
+    const d = String(parsed.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return "";
+}
+
 function compactObject(
   value: Record<string, unknown>
 ): Record<string, unknown> | undefined {
@@ -147,6 +223,22 @@ function buildSuperAdminEditUserBody(
     password,
   };
 
+  if ("gender" in values) {
+    const gender = emptyToUndefined(
+      (values as NetworkUserEditValues).gender
+    )?.toUpperCase();
+    if (gender === "M" || gender === "F" || gender === "T") {
+      body.gender = gender;
+    } else if (gender === "MALE") body.gender = "M";
+    else if (gender === "FEMALE") body.gender = "F";
+    else if (gender === "OTHER") body.gender = "T";
+  }
+  if ("dateOfBirth" in values) {
+    body.dateOfBirth = emptyToUndefined(
+      (values as NetworkUserEditValues).dateOfBirth
+    );
+  }
+
   if (includeOutlet && "outletName" in values) {
     const networkValues = values as NetworkUserEditValues;
     body.outlet = {
@@ -186,6 +278,7 @@ export function mapUserDetailToEditValues(
   const mapped = mapApiUserToFormValues(userDetailToApiRecord(user));
   const outlet = user.outlet || {};
   const bank = user.bankAccount || {};
+  const miniKycIdentity = extractMiniKycIdentity(user);
 
   return {
     firstName: mapped.firstName,
@@ -194,6 +287,13 @@ export function mapUserDetailToEditValues(
     mobile: mapped.mobile,
     password: "",
     alternateMobileNumber: mapped.alternateMobileNumber,
+    // Form stores API codes M|F|T; Select shows Male/Female/Other labels.
+    gender: (toEditGender(
+      miniKycIdentity.gender || mapped.gender || ""
+    ) || "") as NetworkUserEditValues["gender"],
+    dateOfBirth: toDateInputValue(
+      miniKycIdentity.dateOfBirth || mapped.dateOfBirth || ""
+    ),
     outletName: mapped.outletName || user.businessName || outlet.outletName || "",
     businessType: (normalizeBusinessType(
       mapped.businessType || outlet.businessType
@@ -220,6 +320,13 @@ export function mapUserDetailToEditValues(
     status: (normalizeStatus(user.status) ||
       "") as NetworkUserEditValues["status"],
     profileImage: null,
+    aadhaarFront: null,
+    aadhaarBack: null,
+    panCard: null,
+    ownerPhoto: null,
+    videoVerification: null,
+    passbookImage: null,
+    cancelledChequeImage: null,
   };
 }
 

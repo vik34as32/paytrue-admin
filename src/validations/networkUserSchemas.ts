@@ -10,9 +10,11 @@ const businessTypeEnum = z.enum([
   "OTHER",
 ]);
 
+const optionalFile = z.custom<File | null>().nullable().optional();
+
 export const networkUserEditSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
-  lastName: z.string().min(2, "Last name is required"),
+  lastName: z.string().max(100).optional().or(z.literal("")),
   email: z.string().email("Enter a valid email"),
   mobile: z.string().regex(mobileRegex, "Enter a valid 10-digit mobile number"),
   password: z
@@ -23,10 +25,16 @@ export const networkUserEditSchema = z.object({
       "Password must be at least 8 characters"
     ),
   alternateMobileNumber: z.string().optional(),
+  gender: z.enum(["M", "F", "T", ""]).optional(),
+  dateOfBirth: z
+    .string()
+    .optional()
+    .refine(
+      (value) => !value || /^\d{4}-\d{2}-\d{2}$/.test(value),
+      "Date of birth must be YYYY-MM-DD"
+    ),
   outletName: z.string().min(2, "Outlet name is required"),
-  businessType: z
-    .union([businessTypeEnum, z.literal("")])
-    .optional(),
+  businessType: z.union([businessTypeEnum, z.literal("")]).optional(),
   gstNumber: z.string().optional(),
   state: z.string().min(2, "State is required"),
   district: z.string().optional(),
@@ -45,7 +53,14 @@ export const networkUserEditSchema = z.object({
   status: z
     .enum(["ACTIVE", "INACTIVE", "SUSPENDED", "PENDING", ""])
     .optional(),
-  profileImage: z.custom<File | null>().nullable().optional(),
+  profileImage: optionalFile,
+  aadhaarFront: optionalFile,
+  aadhaarBack: optionalFile,
+  panCard: optionalFile,
+  ownerPhoto: optionalFile,
+  videoVerification: optionalFile,
+  passbookImage: optionalFile,
+  cancelledChequeImage: optionalFile,
 });
 
 export type NetworkUserEditValues = z.infer<typeof networkUserEditSchema>;
@@ -57,6 +72,8 @@ export const networkUserEditEmptyDefaults: NetworkUserEditValues = {
   mobile: "",
   password: "",
   alternateMobileNumber: "",
+  gender: "",
+  dateOfBirth: "",
   outletName: "",
   businessType: "",
   gstNumber: "",
@@ -76,4 +93,11 @@ export const networkUserEditEmptyDefaults: NetworkUserEditValues = {
   ifscCode: "",
   status: "",
   profileImage: null,
+  aadhaarFront: null,
+  aadhaarBack: null,
+  panCard: null,
+  ownerPhoto: null,
+  videoVerification: null,
+  passbookImage: null,
+  cancelledChequeImage: null,
 };

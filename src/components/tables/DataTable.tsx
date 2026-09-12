@@ -295,10 +295,34 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-500 dark:text-muted">
-          Showing {range.from} to {range.to} of {range.total} entries
-        </p>
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 dark:border-border dark:bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-0.5">
+          <p className="text-sm font-semibold text-slate-800 dark:text-foreground">
+            Showing{" "}
+            <span className="tabular-nums text-slate-950 dark:text-foreground">
+              {range.from}
+            </span>
+            –
+            <span className="tabular-nums text-slate-950 dark:text-foreground">
+              {range.to}
+            </span>{" "}
+            of{" "}
+            <span className="tabular-nums text-slate-950 dark:text-foreground">
+              {range.total}
+            </span>{" "}
+            records
+          </p>
+          <p className="text-xs text-slate-500 dark:text-muted">
+            Page{" "}
+            <span className="font-semibold tabular-nums text-slate-700 dark:text-foreground">
+              {pageIndex + 1}
+            </span>{" "}
+            of{" "}
+            <span className="font-semibold tabular-nums text-slate-700 dark:text-foreground">
+              {totalPages}
+            </span>
+          </p>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -306,9 +330,10 @@ export function DataTable<T>({
             size="sm"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="!h-8 !rounded-lg"
+            className="!h-9 !rounded-xl"
           >
             <HiChevronLeft className="h-4 w-4" />
+            Prev
           </Button>
 
           {pageButtons.map((i) => (
@@ -320,10 +345,10 @@ export function DataTable<T>({
                 else table.setPageIndex(i);
               }}
               className={cn(
-                "flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold transition-colors duration-150",
+                "flex h-9 min-w-9 items-center justify-center rounded-xl px-2.5 text-xs font-bold transition-all duration-150",
                 pageIndex === i
-                  ? "bg-slate-800 text-white shadow-sm dark:bg-primary"
-                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-foreground"
+                  ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 dark:bg-primary"
+                  : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-foreground"
               )}
             >
               {i + 1}
@@ -335,15 +360,17 @@ export function DataTable<T>({
             size="sm"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="!h-8 !rounded-lg"
+            className="!h-9 !rounded-xl"
           >
+            Next
             <HiChevronRight className="h-4 w-4" />
           </Button>
 
           {pageSizeOptions?.length && onPageSizeChange ? (
             <label className="ml-1 flex items-center gap-2 text-sm text-slate-500">
+              <span className="hidden sm:inline">Rows</span>
               <select
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-400 dark:border-border dark:bg-card dark:text-foreground"
+                className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-400 dark:border-border dark:bg-card dark:text-foreground"
                 value={pageSize}
                 onChange={(e) => onPageSizeChange(Number(e.target.value))}
               >

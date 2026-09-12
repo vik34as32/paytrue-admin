@@ -52,6 +52,7 @@ const SHARED_ADMIN_SUPER_ADMIN_ROUTES = [
   ROUTES.adminServiceMaster,
   ROUTES.adminWallets,
   ROUTES.ledger,
+  ROUTES.hierarchyManagement,
 ];
 
 const ROLE_ROUTES: Record<UserRole, string[]> = {

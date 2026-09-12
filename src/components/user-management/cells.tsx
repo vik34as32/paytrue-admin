@@ -332,36 +332,95 @@ export function HierarchyCell({ user }: { user: NetworkUserRecord }) {
   }
 
   return (
-    <div className="min-w-[140px] max-w-[200px] space-y-0.5 text-[12px] leading-snug">
+    <div className="min-w-[160px] max-w-[220px] space-y-1.5 text-[12px] leading-snug">
       {md ? (
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-            Master Dist.
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50/80 px-2.5 py-1.5 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-indigo-500">
+            Master Distributor
           </p>
-          <p className="truncate font-medium text-slate-800 dark:text-foreground" title={md}>
+          <p
+            className="truncate font-semibold text-slate-900 dark:text-foreground"
+            title={md}
+          >
             {md}
           </p>
         </div>
       ) : null}
       {dist ? (
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="rounded-lg border border-sky-100 bg-sky-50/80 px-2.5 py-1.5 dark:border-sky-500/20 dark:bg-sky-500/10">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-sky-600">
             Distributor
           </p>
-          <p className="truncate font-medium text-slate-800 dark:text-foreground" title={dist}>
+          <p
+            className="truncate font-semibold text-slate-900 dark:text-foreground"
+            title={dist}
+          >
             {dist}
           </p>
         </div>
       ) : null}
       {!md && !dist && parent ? (
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 dark:border-border dark:bg-muted/30">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
             Parent
           </p>
-          <p className="truncate font-medium text-slate-800 dark:text-foreground" title={parent}>
+          <p
+            className="truncate font-semibold text-slate-900 dark:text-foreground"
+            title={parent}
+          >
             {parent}
           </p>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Dedicated Master Distributor column cell */
+export function MasterDistributorCell({ user }: { user: NetworkUserRecord }) {
+  const labels = getHierarchyLabel(user as UserDetailRecord);
+  const md = labels.masterDistributor;
+  if (!md) return <span className="text-xs text-slate-400">—</span>;
+  const code = (user as UserDetailRecord).masterDistributor?.userCode;
+  return (
+    <div className="min-w-[140px] max-w-[200px] rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-white px-3 py-2 shadow-sm dark:border-indigo-500/20 dark:from-indigo-500/10 dark:to-card">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-indigo-500">
+        Master Dist.
+      </p>
+      <p
+        className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-foreground"
+        title={md}
+      >
+        {md}
+      </p>
+      {code ? (
+        <p className="mt-0.5 font-mono text-[10px] text-slate-500">{code}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Dedicated Distributor column cell */
+export function DistributorCell({ user }: { user: NetworkUserRecord }) {
+  const labels = getHierarchyLabel(user as UserDetailRecord);
+  const dist = labels.distributor || (!labels.masterDistributor ? labels.parentUser : undefined);
+  if (!dist) return <span className="text-xs text-slate-400">—</span>;
+  const code =
+    (user as UserDetailRecord).distributor?.userCode ||
+    (user as UserDetailRecord).parentUser?.userCode;
+  return (
+    <div className="min-w-[140px] max-w-[200px] rounded-xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white px-3 py-2 shadow-sm dark:border-sky-500/20 dark:from-sky-500/10 dark:to-card">
+      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-sky-600">
+        Distributor
+      </p>
+      <p
+        className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-foreground"
+        title={dist}
+      >
+        {dist}
+      </p>
+      {code ? (
+        <p className="mt-0.5 font-mono text-[10px] text-slate-500">{code}</p>
       ) : null}
     </div>
   );

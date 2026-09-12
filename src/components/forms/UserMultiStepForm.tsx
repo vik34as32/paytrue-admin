@@ -1,5 +1,5 @@
 "use client";
-import { State, City } from "country-state-city";
+import { State } from "country-state-city";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Select } from "@/components/common/Select";
@@ -13,14 +13,23 @@ import {
 } from "react-hook-form";
 import { toast } from "sonner";
 import { ZodIssue } from "zod";
-import { ChevronLeft, ChevronRight, Check } from "lucide-react";
+import {
+  Calendar,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Mail,
+  MapPin,
+  RefreshCw,
+  Smartphone,
+} from "lucide-react";
 import { Input } from "@/components/common/Input";
 import { Button } from "@/components/common/Button";
 import { Card, CardHeader } from "@/components/common/Card";
 import { ImageUpload } from "@/components/common/ImageUpload";
 import { VideoUpload } from "@/components/common/VideoUpload";
 import { BankLogoGrid } from "@/components/common/BankLogoGrid";
-import { ImagePreviewModal } from "@/components/common/ImagePreviewModal";
+import { cn } from "@/lib/utils";
 import { generateSecurePassword } from "@/lib/generatePassword";
 import { splitFullName } from "@/lib/buildUserFormData";
 import {
@@ -95,84 +104,37 @@ function FormField<T extends FieldValues>({
 function PreviewSection({
   title,
   items,
+  onEdit,
 }: {
   title: string;
   items: [string, string | undefined][];
+  onEdit?: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background/60 p-4">
-      <h4 className="mb-3 text-sm font-bold text-foreground">{title}</h4>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="rounded-xl bg-slate-500 p-5 text-white shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h4 className="text-sm font-bold text-white">{title}</h4>
+        {onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-sm font-semibold text-sky-300 transition hover:text-sky-200"
+          >
+            Edit
+          </button>
+        ) : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
         {items.map(([label, value]) => (
           <div key={label}>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-              {label}
-            </p>
-            <p className="text-sm font-medium text-foreground">
+            <p className="text-xs font-medium text-slate-200/80">{label}</p>
+            <p className="mt-0.5 text-sm font-semibold text-white">
               {value || "—"}
             </p>
           </div>
         ))}
       </div>
     </div>
-  );
-}
-
-function PreviewImageCard({
-  label,
-  file,
-}: {
-  label: string;
-  file: File | null;
-}) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!(file instanceof File)) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
-
-  if (!previewUrl) {
-    return (
-      <div className="rounded-xl border border-dashed border-border bg-background/40 p-4 text-center">
-        <p className="text-xs font-semibold text-muted">{label}</p>
-        <p className="mt-1 text-xs text-muted">Not uploaded</p>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="group overflow-hidden rounded-xl border border-border bg-card text-left shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
-      >
-        <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={previewUrl}
-            alt={label}
-            className="h-full w-full object-contain transition-transform group-hover:scale-[1.02]"
-          />
-        </div>
-        <p className="border-t border-border px-3 py-2 text-xs font-semibold text-foreground">
-          {label}
-        </p>
-      </button>
-      <ImagePreviewModal
-        open={open}
-        onClose={() => setOpen(false)}
-        src={previewUrl}
-        title={label}
-      />
-    </>
   );
 }
 
@@ -226,6 +188,9 @@ export function UserMultiStepForm({
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [confirmAccountError, setConfirmAccountError] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
   const draftReadyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -287,9 +252,6 @@ export function UserMultiStepForm({
     setValue("bankName", bankName, { shouldValidate: true, shouldDirty: true });
   }, [ifscCode, getValues, setValue]);
 
-  const cities = selectedState
-    ? City.getCitiesOfState("IN", selectedState)
-    : [];
   const emailVerification = useEmailVerification(email);
   const mobileVerification = useMobileVerification(mobile);
   const needsEmailVerification = requireEmailVerification;
@@ -360,6 +322,16 @@ export function UserMultiStepForm({
     if (step === 1 && needsMobileVerification && !mobileVerification.isVerified) {
       toast.error(MOBILE_VERIFICATION_REQUIRED_MESSAGE);
       return;
+    }
+
+    if (step === 4) {
+      const account = (getValues("accountNumber") || "").trim();
+      if (confirmAccountNumber.trim() !== account) {
+        setConfirmAccountError("Account numbers do not match");
+        toast.error("Confirm account number must match");
+        return;
+      }
+      setConfirmAccountError("");
     }
 
     setStep((current) => {
@@ -489,20 +461,40 @@ export function UserMultiStepForm({
     persistDraft();
   }, [step, maxStepReached, persistDraft]);
 
+  const captureLocation = useCallback(
+    (opts?: { silent?: boolean }) => {
+      if (!navigator.geolocation) {
+        if (!opts?.silent) {
+          toast.error("Geolocation is not supported by this browser");
+        }
+        return;
+      }
+      setLocationLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setValue("latitude", position.coords.latitude.toFixed(6), {
+            shouldDirty: true,
+          });
+          setValue("longitude", position.coords.longitude.toFixed(6), {
+            shouldDirty: true,
+          });
+          setLocationLoading(false);
+          if (!opts?.silent) toast.success("Location updated");
+        },
+        (error) => {
+          console.error("Location error:", error);
+          setLocationLoading(false);
+          if (!opts?.silent) toast.error("Unable to fetch current location");
+        },
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    },
+    [setValue]
+  );
+
   useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        methods.setValue("latitude", position.coords.latitude.toString());
-
-        methods.setValue("longitude", position.coords.longitude.toString());
-      },
-      (error) => {
-        console.error("Location error:", error);
-      },
-    );
-  }, [methods]);
+    captureLocation({ silent: true });
+  }, [captureLocation]);
   const lastPincodeLookupRef = useRef("");
 
   // Lookup only when outlet step is open and pincode is a new 6-digit value
@@ -603,18 +595,21 @@ export function UserMultiStepForm({
 
             <div className="space-y-6">
               {step === 1 && (
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="space-y-4">
                   {needsHierarchy ? (
-                    <RetailerHierarchyFields
-                      methods={methods}
-                      scope={hierarchyScope}
-                      mode={
-                        needsDistributorHierarchy ? "distributor" : "retailer"
-                      }
-                    />
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <RetailerHierarchyFields
+                        methods={methods}
+                        scope={hierarchyScope}
+                        mode={
+                          needsDistributorHierarchy ? "distributor" : "retailer"
+                        }
+                      />
+                    </div>
                   ) : null}
+
                   {isDistributorCreate ? (
-                    <>
+                    <div className="grid gap-4 lg:grid-cols-2">
                       <FormField
                         name="firstName"
                         label="First Name"
@@ -627,35 +622,16 @@ export function UserMultiStepForm({
                         placeholder="Enter last name"
                         methods={methods}
                       />
-                    </>
+                    </div>
                   ) : (
-                    <>
-                      <FormField
-                        name="fullName"
-                        label="Full Name"
-                        placeholder="Enter full name"
-                        methods={methods}
-                      />
-                      <Select
-                        label="Gender"
-                        value={values.gender || ""}
-                        onChange={(e) =>
-                          setValue("gender", e.target.value, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          })
-                        }
-                        error={errors.gender?.message as string | undefined}
-                        options={[...GENDER_OPTIONS]}
-                      />
-                      <FormField
-                        name="dateOfBirth"
-                        label="Date of Birth"
-                        type="date"
-                        methods={methods}
-                      />
-                    </>
+                    <FormField
+                      name="fullName"
+                      label="Full Name"
+                      placeholder="Enter full name"
+                      methods={methods}
+                    />
                   )}
+
                   {needsEmailVerification ? (
                     <EmailVerificationField
                       email={email}
@@ -668,302 +644,439 @@ export function UserMultiStepForm({
                       error={errors.email?.message}
                     />
                   ) : (
-                    <FormField
-                      name="email"
-                      label="Email"
-                      type="email"
-                      placeholder="Enter email"
-                      methods={methods}
-                    />
+                    <div className="w-full">
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                        <input
+                          type="email"
+                          placeholder="Enter email"
+                          className={cn(
+                            "w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-24 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20",
+                            errors.email && "border-accent-red"
+                          )}
+                          {...methods.register("email")}
+                        />
+                      </div>
+                      {errors.email?.message ? (
+                        <p className="mt-1 text-xs text-accent-red">
+                          {String(errors.email.message)}
+                        </p>
+                      ) : null}
+                    </div>
                   )}
-                  <FormField
-                    name="alternateMobileNumber"
-                    label="Alternate Mobile"
-                    placeholder="Optional"
-                    methods={methods}
-                  />
-                  {needsMobileVerification ? (
-                    <MobileVerificationField
-                      mobile={mobile}
-                      onMobileChange={(value) =>
-                        setValue("mobile", value, { shouldValidate: true })
-                      }
-                      verification={mobileVerification}
-                      label="Mobile"
-                      placeholder="10-digit mobile"
-                      error={errors.mobile?.message}
-                      className="space-y-2"
-                    />
-                  ) : (
-                    <FormField
-                      name="mobile"
-                      label="Mobile"
-                      placeholder="10-digit mobile"
-                      methods={methods}
-                    />
-                  )}
-                  <div className="lg:col-span-2">
-                    <ImageUpload
-                      label="Profile Image"
-                      file={values.profileImage}
-                      onChange={(file) => setFile("profileImage", file)}
-                      error={errors.profileImage?.message as string | undefined}
-                    />
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {needsMobileVerification ? (
+                      <MobileVerificationField
+                        mobile={mobile}
+                        onMobileChange={(value) =>
+                          setValue("mobile", value, { shouldValidate: true })
+                        }
+                        verification={mobileVerification}
+                        label="Mobile"
+                        placeholder="10-digit mobile"
+                        error={errors.mobile?.message}
+                        className="space-y-2"
+                      />
+                    ) : (
+                      <div className="w-full">
+                        <label className="mb-1.5 block text-sm font-medium text-foreground">
+                          Mobile
+                        </label>
+                        <div className="relative">
+                          <Smartphone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="10-digit mobile"
+                            maxLength={10}
+                            className={cn(
+                              "w-full rounded-xl border border-border bg-card py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20",
+                              errors.mobile && "border-accent-red"
+                            )}
+                            {...methods.register("mobile")}
+                          />
+                        </div>
+                        {errors.mobile?.message ? (
+                          <p className="mt-1 text-xs text-accent-red">
+                            {String(errors.mobile.message)}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {!isDistributorCreate ? (
+                      <Select
+                        label="Gender"
+                        value={values.gender || ""}
+                        onChange={(e) =>
+                          setValue("gender", e.target.value, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          })
+                        }
+                        error={errors.gender?.message as string | undefined}
+                        options={[...GENDER_OPTIONS]}
+                      />
+                    ) : (
+                      <FormField
+                        name="alternateMobileNumber"
+                        label="Alternate Mobile"
+                        placeholder="Optional"
+                        methods={methods}
+                      />
+                    )}
                   </div>
+
+                  {!isDistributorCreate ? (
+                    <div className="w-full">
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">
+                        Date of Birth
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="date"
+                          className={cn(
+                            "w-full rounded-xl border border-border bg-card px-4 py-2.5 pr-10 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20",
+                            errors.dateOfBirth && "border-accent-red"
+                          )}
+                          {...methods.register("dateOfBirth")}
+                        />
+                        <Calendar className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                      </div>
+                      {errors.dateOfBirth?.message ? (
+                        <p className="mt-1 text-xs text-accent-red">
+                          {String(errors.dateOfBirth.message)}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {!isDistributorCreate ? (
+                    <FormField
+                      name="alternateMobileNumber"
+                      label="Alternate Mobile"
+                      placeholder="Optional"
+                      methods={methods}
+                    />
+                  ) : null}
+
+                  <ImageUpload
+                    label="Profile Image"
+                    size="tall"
+                    file={values.profileImage}
+                    onChange={(file) => setFile("profileImage", file)}
+                    error={errors.profileImage?.message as string | undefined}
+                  />
                 </div>
               )}
 
               {step === 2 && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <FormField
-                    name="outletName"
-                    label="Outlet Name"
-                    placeholder="Enter outlet name"
-                    methods={methods}
-                  />
-                  <Select
-                    label="Business Type"
-                    value={values.businessType}
-                    onChange={(e) =>
-                      methods.setValue("businessType", e.target.value, {
-                        shouldValidate: true,
-                      })
-                    }
-                    error={errors.businessType?.message as string | undefined}
-                    options={[
-                      { value: "", label: "Select Business Type " },
-                      { value: "INDIVIDUAL", label: "Individual" },
-                      { value: "PARTNERSHIP", label: "Partnership" },
-                      { value: "PRIVATE_LIMITED", label: "Private Limited" },
-                      { value: "PROPRIETORSHIP", label: "Proprietorship" },
-                      { value: "OTHER", label: "Other" },
-                      { value: "SALE", label: "Sale" },
-                    ]}
-                  />
-                  <FormField
-                    name="gstNumber"
-                    label="GST Number"
-                    placeholder="Optional"
-                    methods={methods}
-                  />
-                  <FormField
-                    name="address"
-                    label="Address"
-                    placeholder="Full address"
-                    methods={methods}
-                  />
-                  <Select
-                    label="State"
-                    value={selectedState}
-                    onChange={(e) => {
-                      methods.setValue("state", e.target.value, {
-                        shouldValidate: true,
-                      });
+                <div className="space-y-4">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <FormField
+                      name="outletName"
+                      label="Outlet Name"
+                      placeholder="Enter outlet name"
+                      methods={methods}
+                    />
+                    <Select
+                      label="Business Type"
+                      value={values.businessType}
+                      onChange={(e) =>
+                        methods.setValue("businessType", e.target.value, {
+                          shouldValidate: true,
+                        })
+                      }
+                      error={errors.businessType?.message as string | undefined}
+                      options={[
+                        { value: "", label: "Select Business Type" },
+                        { value: "INDIVIDUAL", label: "Individual" },
+                        { value: "PARTNERSHIP", label: "Partnership" },
+                        { value: "PRIVATE_LIMITED", label: "Private Limited" },
+                        { value: "PROPRIETORSHIP", label: "Proprietorship" },
+                        { value: "OTHER", label: "Other" },
+                      ]}
+                    />
+                    <FormField
+                      name="gstNumber"
+                      label="GST Number"
+                      placeholder="Optional"
+                      methods={methods}
+                    />
+                    <FormField
+                      name="address"
+                      label="Address"
+                      placeholder="Full address"
+                      methods={methods}
+                    />
+                    <FormField
+                      name="pincode"
+                      label="Pincode"
+                      placeholder="6-digit pincode"
+                      methods={methods}
+                    />
+                    <Select
+                      label="State"
+                      value={selectedState}
+                      onChange={(e) => {
+                        methods.setValue("state", e.target.value, {
+                          shouldValidate: true,
+                        });
+                        methods.setValue("city", "");
+                        methods.setValue("district", "");
+                      }}
+                      error={errors.state?.message as string | undefined}
+                      options={[
+                        { value: "", label: "Select State" },
+                        ...states.map((state) => ({
+                          value: state.isoCode,
+                          label: state.name,
+                        })),
+                      ]}
+                    />
+                    <FormField
+                      name="city"
+                      label="City"
+                      placeholder="City"
+                      methods={methods}
+                    />
+                    <FormField
+                      name="district"
+                      label="District"
+                      placeholder="District"
+                      methods={methods}
+                      disabled
+                    />
+                    <FormField
+                      name="village"
+                      label="Village"
+                      placeholder="Optional"
+                      methods={methods}
+                    />
+                  </div>
 
-                      methods.setValue("city", "");
-                      methods.setValue("district", "");
-                    }}
-                    error={errors.state?.message as string | undefined}
-                    options={[
-                      { value: "", label: "Select State" },
-                      ...states.map((state) => ({
-                        value: state.isoCode,
-                        label: state.name,
-                      })),
-                    ]}
-                  />
-                  <FormField
-  name="district"
-  label="District"
-  placeholder="District"
-  methods={methods}
-  disabled
-/>
-                  <Select
-                    label="City"
-                    value={values.city}
-                    onChange={(e) =>
-                      methods.setValue("city", e.target.value, {
-                        shouldValidate: true,
-                      })
-                    }
-                    disabled={!selectedState}
-                    error={errors.city?.message as string | undefined}
-                    options={[
-                      { value: "", label: "Select City" },
-                      ...cities.map((city) => ({
-                        value: city.name,
-                        label: city.name,
-                      })),
-                    ]}
-                  />
-                  <FormField
-                    name="village"
-                    label="Village"
-                    placeholder="Optional"
-                    methods={methods}
-                  />
-                  <FormField
-                    name="pincode"
-                    label="Pincode"
-                    placeholder="6-digit pincode"
-                    methods={methods}
-                  />
-                  <FormField
-                    name="latitude"
-                    label="Latitude"
-                    placeholder="Fetching..."
-                    methods={methods}
-                    disabled
-                  />
-                  <FormField
-                    name="longitude"
-                    label="Longitude"
-                    placeholder="Optional"
-                    methods={methods}
-                    disabled
-                  />
+                  <div className="flex flex-col gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="flex items-start gap-2 text-sm text-sky-800">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                      Latitude &amp; longitude are captured from your current
+                      GPS location.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-sky-300 bg-white text-sky-700 hover:bg-sky-100"
+                      onClick={() => captureLocation()}
+                      disabled={locationLoading}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "h-4 w-4",
+                          locationLoading && "animate-spin"
+                        )}
+                      />
+                      Refresh Current Location
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="w-full">
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">
+                        Latitude
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={values.latitude || ""}
+                        placeholder="Fetching..."
+                        className="w-full rounded-xl border border-slate-600 bg-slate-600 px-4 py-2.5 text-sm font-medium text-white outline-none"
+                      />
+                    </div>
+                    <div className="w-full">
+                      <label className="mb-1.5 block text-sm font-medium text-foreground">
+                        Longitude
+                      </label>
+                      <input
+                        type="text"
+                        readOnly
+                        value={values.longitude || ""}
+                        placeholder="Fetching..."
+                        className="w-full rounded-xl border border-slate-600 bg-slate-600 px-4 py-2.5 text-sm font-medium text-white outline-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
               {step === 3 && (
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <Controller
-                    name="aadhaarNumber"
-                    control={methods.control}
-                    render={({ field }) => (
-                      <Input
-                        label="Aadhaar Number"
-                        placeholder="12-digit Aadhaar"
-                        inputMode="numeric"
-                        maxLength={12}
-                        value={field.value}
-                        error={errors.aadhaarNumber?.message}
-                        onChange={(event) => {
-                          const digits = event.target.value.replace(/\D/g, "").slice(0, 12);
-                          field.onChange(digits);
-                        }}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="panNumber"
-                    control={methods.control}
-                    render={({ field }) => (
-                      <Input
-                        label="PAN Number"
-                        placeholder="ABCDE1234F"
-                        maxLength={10}
-                        value={field.value}
-                        error={errors.panNumber?.message}
-                        onChange={(event) => {
-                          const normalized = event.target.value
-                            .toUpperCase()
-                            .replace(/[^A-Z0-9]/g, "")
-                            .slice(0, 10);
-                          field.onChange(normalized);
-                        }}
-                      />
-                    )}
-                  />
-                  <ImageUpload
-                    label="Aadhaar Front"
-                    file={values.aadhaarFront}
-                    onChange={(file) => setFile("aadhaarFront", file)}
-                    error={errors.aadhaarFront?.message as string | undefined}
-                  />
-                  <ImageUpload
-                    label="Aadhaar Back"
-                    file={values.aadhaarBack}
-                    onChange={(file) => setFile("aadhaarBack", file)}
-                    error={errors.aadhaarBack?.message as string | undefined}
-                  />
-                  <ImageUpload
-                    label="PAN Card"
-                    file={values.panCard}
-                    onChange={(file) => setFile("panCard", file)}
-                    error={errors.panCard?.message as string | undefined}
-                  />
-                  <ImageUpload
-                    label="Owner Photo"
-                    file={values.ownerPhoto}
-                    onChange={(file) => setFile("ownerPhoto", file)}
-                    error={errors.ownerPhoto?.message as string | undefined}
-                  />
-                  <div className="lg:col-span-2">
-                    <VideoUpload
-                      label="Video Verification"
-                      optional
-                      file={values.videoVerification}
-                      onChange={(file) => setFile("videoVerification", file)}
-                      error={
-                        errors.videoVerification?.message as string | undefined
-                      }
+                <div className="space-y-6">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Controller
+                      name="panNumber"
+                      control={methods.control}
+                      render={({ field }) => (
+                        <Input
+                          label="PAN Number"
+                          placeholder="ABCDE1234F"
+                          maxLength={10}
+                          value={field.value}
+                          error={errors.panNumber?.message}
+                          onChange={(event) => {
+                            const normalized = event.target.value
+                              .toUpperCase()
+                              .replace(/[^A-Z0-9]/g, "")
+                              .slice(0, 10);
+                            field.onChange(normalized);
+                          }}
+                        />
+                      )}
+                    />
+                    <Controller
+                      name="aadhaarNumber"
+                      control={methods.control}
+                      render={({ field }) => (
+                        <Input
+                          label="Aadhaar Number"
+                          placeholder="12-digit Aadhaar"
+                          inputMode="numeric"
+                          maxLength={12}
+                          value={field.value}
+                          error={errors.aadhaarNumber?.message}
+                          onChange={(event) => {
+                            const digits = event.target.value
+                              .replace(/\D/g, "")
+                              .slice(0, 12);
+                            field.onChange(digits);
+                          }}
+                        />
+                      )}
                     />
                   </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <ImageUpload
+                      label="Aadhaar Front"
+                      file={values.aadhaarFront}
+                      onChange={(file) => setFile("aadhaarFront", file)}
+                      error={errors.aadhaarFront?.message as string | undefined}
+                    />
+                    <ImageUpload
+                      label="Aadhaar Back"
+                      file={values.aadhaarBack}
+                      onChange={(file) => setFile("aadhaarBack", file)}
+                      error={errors.aadhaarBack?.message as string | undefined}
+                    />
+                    <ImageUpload
+                      label="PAN Card"
+                      file={values.panCard}
+                      onChange={(file) => setFile("panCard", file)}
+                      error={errors.panCard?.message as string | undefined}
+                    />
+                    <ImageUpload
+                      label="Owner Photo"
+                      file={values.ownerPhoto}
+                      onChange={(file) => setFile("ownerPhoto", file)}
+                      error={errors.ownerPhoto?.message as string | undefined}
+                    />
+                  </div>
+
+                  <VideoUpload
+                    label="Video Verification"
+                    optional
+                    file={values.videoVerification}
+                    onChange={(file) => setFile("videoVerification", file)}
+                    error={
+                      errors.videoVerification?.message as string | undefined
+                    }
+                  />
                 </div>
               )}
 
               {step === 4 && (
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <FormField
-                    name="accountHolderName"
-                    label="Account Holder Name"
-                    placeholder="As per bank"
-                    methods={methods}
-                  />
-                  <div className="space-y-1.5">
-                    <Input
-                      label="IFSC Code"
-                      placeholder="e.g. HDFC0001234"
-                      value={ifscCode}
-                      maxLength={11}
-                      autoCapitalize="characters"
-                      error={errors.ifscCode?.message as string | undefined}
-                      onChange={(e) => {
-                        const next = e.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z0-9]/g, "")
-                          .slice(0, 11);
-                        setValue("ifscCode", next, {
-                          shouldValidate: true,
-                          shouldDirty: true,
-                        });
-                      }}
+                <div className="space-y-6">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <FormField
+                      name="accountHolderName"
+                      label="Account Holder Name"
+                      placeholder="As per bank"
+                      methods={methods}
                     />
-                    <p className="text-[11px] text-muted">
-                      Bank selects automatically from IFSC
-                    </p>
+                    <div className="space-y-1.5">
+                      <Input
+                        label="IFSC Code"
+                        placeholder="e.g. HDFC0001234"
+                        value={ifscCode}
+                        maxLength={11}
+                        autoCapitalize="characters"
+                        error={errors.ifscCode?.message as string | undefined}
+                        onChange={(e) => {
+                          const next = e.target.value
+                            .toUpperCase()
+                            .replace(/[^A-Z0-9]/g, "")
+                            .slice(0, 11);
+                          setValue("ifscCode", next, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
+                      />
+                      <p className="text-[11px] text-muted">
+                        Bank selects automatically from IFSC
+                      </p>
+                    </div>
+                    <FormField
+                      name="accountNumber"
+                      label="Account Number"
+                      placeholder="Account number"
+                      methods={methods}
+                    />
+                    <div className="w-full">
+                      <Input
+                        label="Confirm Account Number"
+                        placeholder="Re-enter account number"
+                        value={confirmAccountNumber}
+                        error={confirmAccountError || undefined}
+                        onChange={(e) => {
+                          setConfirmAccountNumber(e.target.value);
+                          setConfirmAccountError("");
+                        }}
+                      />
+                    </div>
+                    <BankLogoGrid
+                      value={values.bankName}
+                      onChange={(bankName) => {
+                        setValue("bankName", bankName, { shouldValidate: true });
+                      }}
+                      error={errors.bankName?.message as string | undefined}
+                    />
                   </div>
-                  <BankLogoGrid
-                    value={values.bankName}
-                    onChange={(bankName) => {
-                      setValue("bankName", bankName, { shouldValidate: true });
-                    }}
-                    error={errors.bankName?.message as string | undefined}
-                  />
-                  <FormField
-                    name="accountNumber"
-                    label="Account Number"
-                    placeholder="Account number"
-                    methods={methods}
-                  />
-                  <ImageUpload
-                    label="Passbook Image"
-                    optional
-                    file={values.passbookImage}
-                    onChange={(file) => setFile("passbookImage", file)}
-                    error={errors.passbookImage?.message as string | undefined}
-                  />
-                  <ImageUpload
-                    label="Cancelled Cheque"
-                    optional
-                    file={values.cancelledChequeImage}
-                    onChange={(file) => setFile("cancelledChequeImage", file)}
-                    error={
-                      errors.cancelledChequeImage?.message as string | undefined
-                    }
-                  />
+
+                  <div className="grid gap-6">
+                    <ImageUpload
+                      label="Passbook Image"
+                      optional
+                      size="tall"
+                      file={values.passbookImage}
+                      onChange={(file) => setFile("passbookImage", file)}
+                      error={errors.passbookImage?.message as string | undefined}
+                    />
+                    <ImageUpload
+                      label="Cancelled Cheque"
+                      optional
+                      size="tall"
+                      file={values.cancelledChequeImage}
+                      onChange={(file) => setFile("cancelledChequeImage", file)}
+                      error={
+                        errors.cancelledChequeImage?.message as
+                          | string
+                          | undefined
+                      }
+                    />
+                  </div>
                 </div>
               )}
 
@@ -972,6 +1085,7 @@ export function UserMultiStepForm({
                   {needsHierarchy ? (
                     <PreviewSection
                       title="Hierarchy Linking"
+                      onEdit={() => setStep(1)}
                       items={
                         needsRetailerHierarchy
                           ? [
@@ -992,11 +1106,11 @@ export function UserMultiStepForm({
                   ) : null}
                   <PreviewSection
                     title="Personal Details"
+                    onEdit={() => setStep(1)}
                     items={
                       isDistributorCreate
                         ? [
-                            ["First Name", values.firstName],
-                            ["Last Name", values.lastName],
+                            ["Name", `${values.firstName} ${values.lastName}`.trim()],
                             ["Email", values.email],
                             ["Mobile", values.mobile],
                             [
@@ -1006,87 +1120,47 @@ export function UserMultiStepForm({
                           ]
                         : [
                             [
-                              "Full Name",
+                              "Name",
                               values.fullName ||
                                 `${values.firstName} ${values.lastName}`.trim(),
                             ],
-                            ["Gender", getGenderLabel(values.gender)],
-                            ["Date of Birth", values.dateOfBirth || "—"],
                             ["Email", values.email],
                             ["Mobile", values.mobile],
-                            [
-                              "Alternate Mobile",
-                              values.alternateMobileNumber,
-                            ],
+                            ["Gender", getGenderLabel(values.gender)],
+                            ["Date of Birth", values.dateOfBirth || "—"],
                           ]
                     }
                   />
                   <PreviewSection
                     title="Outlet Information"
+                    onEdit={() => setStep(2)}
                     items={[
                       ["Outlet", values.outletName],
                       ["Business Type", values.businessType],
                       ["GST", values.gstNumber],
                       ["Address", values.address],
+                      ["City", values.city],
                       [
-                        "City",
-                        [
-                          values.city,
-                          values.district,
-                          states.find((state) => state.isoCode === values.state)
-                            ?.name || values.state,
-                        ]
-                          .filter(Boolean)
-                          .join(", "),
+                        "State",
+                        states.find((state) => state.isoCode === values.state)
+                          ?.name || values.state,
                       ],
                       ["Pincode", values.pincode],
+                      ["Latitude", values.latitude],
+                      ["Longitude", values.longitude],
                     ]}
                   />
                   <PreviewSection
                     title="KYC"
+                    onEdit={() => setStep(3)}
                     items={[
-                      ["Aadhaar", values.aadhaarNumber],
+                      ["AADHAAR", values.aadhaarNumber],
                       ["PAN", values.panNumber],
-                      [
-                        "Video Verification",
-                        values.videoVerification?.name || "Not provided",
-                      ],
                     ]}
                   />
-                  <div className="rounded-xl border border-border bg-background/60 p-4">
-                    <h4 className="mb-3 text-sm font-bold text-foreground">
-                      Uploaded Documents
-                    </h4>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      <PreviewImageCard
-                        label="Profile Image"
-                        file={values.profileImage}
-                      />
-                      <PreviewImageCard
-                        label="Aadhaar Front"
-                        file={values.aadhaarFront}
-                      />
-                      <PreviewImageCard
-                        label="Aadhaar Back"
-                        file={values.aadhaarBack}
-                      />
-                      <PreviewImageCard label="PAN Card" file={values.panCard} />
-                      <PreviewImageCard
-                        label="Owner Photo"
-                        file={values.ownerPhoto}
-                      />
-                      <PreviewImageCard
-                        label="Passbook"
-                        file={values.passbookImage}
-                      />
-                      <PreviewImageCard
-                        label="Cancelled Cheque"
-                        file={values.cancelledChequeImage}
-                      />
-                    </div>
-                  </div>
                   <PreviewSection
-                    title="Bank"
+                    title="Bank Details"
+                    onEdit={() => setStep(4)}
                     items={[
                       ["Account Holder", values.accountHolderName],
                       ["Bank", values.bankName],
@@ -1116,7 +1190,7 @@ export function UserMultiStepForm({
                     disabled={step === 1 || createUserLoading}
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Back
+                    Previous
                   </Button>
                 </div>
                 {step < 5 ? (

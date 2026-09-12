@@ -49,6 +49,7 @@ export const ROUTES = {
   reports: "/reports",
   ledger: "/ledger",
   hierarchy: "/hierarchy",
+  hierarchyManagement: "/hierarchy-management",
   history: "/history",
   profile: "/profile",
   settings: "/settings",
@@ -166,6 +167,7 @@ export const SIDEBAR_ITEMS = [
   { label: "Reports", href: ROUTES.reports, icon: "reports", roles: ["master_distributor", "distributor"] as const },
   { label: "Ledger", href: ROUTES.ledger, icon: "ledger", roles: ["master_distributor", "distributor", "retailer"] as const },
   { label: "Hierarchy", href: ROUTES.hierarchy, icon: "hierarchy", roles: ["super_admin"] as const },
+  { label: "Hierarchy Management", href: ROUTES.hierarchyManagement, icon: "hierarchy", roles: ["super_admin"] as const },
   { label: "History", href: ROUTES.history, icon: "history", roles: ["master_distributor", "distributor", "retailer"] as const },
   { label: "Reports", href: ROUTES.statments, icon: "reports", roles: ["retailer"] as const },
 
@@ -193,6 +195,7 @@ export const ADMIN_SIDEBAR_ITEMS = [
   { label: "Reports", href: ROUTES.adminReports, icon: "reports" as const },
   { label: "Wallet Ledger", href: ROUTES.adminWalletLedger, icon: "ledger" as const },
   { label: "Hierarchy", href: ROUTES.adminHierarchy, icon: "hierarchy" as const },
+  { label: "Hierarchy Management", href: ROUTES.hierarchyManagement, icon: "hierarchy" as const },
   // { label: "Profile", href: ROUTES.adminProfile, icon: "profile" as const },
   // { label: "Change Password", href: ROUTES.adminChangePassword, icon: "profile" as const },
 ] as const;

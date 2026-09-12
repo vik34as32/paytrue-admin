@@ -12,6 +12,7 @@ import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
 import { DataTable } from "@/components/tables/DataTable";
 import { ReportExportBar } from "@/components/tables/ReportExportBar";
+import { BankLogoName } from "@/components/common/BankLogoName";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   downloadReportExcel,
@@ -29,6 +30,7 @@ import {
 const PAGE_SIZE = 20;
 
 const SERVICE_TABS: { key: StatementServiceTab; label: string }[] = [
+  { key: "DMT3", label: "DMT3" },
   { key: "DMT", label: "DMT" },
   { key: "UPI", label: "UPI ATM" },
   { key: "AEPS", label: "AEPS" },
@@ -52,10 +54,23 @@ function statusVariant(
   status?: string
 ): "success" | "pending" | "rejected" | "default" {
   const value = (status || "").toUpperCase();
-  if (value === "SUCCESS" || value === "REFUNDED") return "success";
+  if (value === "SUCCESS") return "success";
   if (value === "PENDING" || value === "PROCESSING") return "pending";
   if (value === "FAILED" || value === "REVERSED") return "rejected";
+  if (value === "REFUNDED") return "pending";
   return "default";
+}
+
+function StatusPill({ status }: { status?: string }) {
+  const value = String(status || "—").toUpperCase();
+  return (
+    <Badge
+      variant={statusVariant(value)}
+      className="min-w-[5.5rem] justify-center px-3 py-1 text-[11px] font-bold uppercase tracking-wide"
+    >
+      {value}
+    </Badge>
+  );
 }
 
 function money(value?: number | null, tone?: "credit" | "debit") {
@@ -86,12 +101,14 @@ async function copyText(value: string) {
 function maskAccount(value?: string | null) {
   if (!value) return "—";
   const digits = value.replace(/\s/g, "");
+  // Already masked from API (e.g. XXXXXXXXXXX4142)
+  if (/x/i.test(digits)) return digits;
   if (digits.length <= 4) return digits;
   return `XXXXXXXX${digits.slice(-4)}`;
 }
 
 export function SuperAdminServiceStatementView() {
-  const [service, setService] = useState<StatementServiceTab>("AEPS");
+  const [service, setService] = useState<StatementServiceTab>("DMT3");
   const [aepsType, setAepsType] = useState<AepsTxnFilter>("CASH_WITHDRAWAL");
   const [retailers, setRetailers] = useState<
     { value: string; label: string }[]
@@ -230,6 +247,7 @@ export function SuperAdminServiceStatementView() {
         enableSorting: false,
         cell: ({ row }) => {
           const s = String(row.original.service || "").toUpperCase();
+          if (s.includes("DMT3")) return "DMT3";
           if (s.includes("AEPS")) return "AEPS";
           if (s.includes("DMT")) return "DMT";
           if (s.includes("UPI")) return "UPI ATM";
@@ -383,6 +401,160 @@ export function SuperAdminServiceStatementView() {
       ];
     }
 
+    if (service === "DMT3") {
+      return [
+        {
+          id: "dateTime",
+          header: "Date & Time",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <span className="whitespace-nowrap text-sm tabular-nums">
+              {row.original.dateTime || "—"}
+            </span>
+          ),
+        },
+        {
+          id: "ledgerNo",
+          header: "Txn ID",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <div className="flex max-w-[200px] items-center gap-1">
+              <span
+                className="truncate font-mono text-xs font-medium text-primary"
+                title={row.original.ledgerNo}
+              >
+                {row.original.ledgerNo}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded p-0.5 text-muted hover:bg-muted hover:text-foreground"
+                onClick={() => void copyText(row.original.ledgerNo)}
+                aria-label="Copy txn id"
+              >
+                <Copy className="size-3.5" />
+              </button>
+            </div>
+          ),
+        },
+        {
+          id: "status",
+          header: "Status",
+          enableSorting: false,
+          meta: { align: "center" as const },
+          cell: ({ row }) => <StatusPill status={row.original.status} />,
+        },
+        {
+          id: "mode",
+          header: "Mode",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold">
+              {row.original.transferMode || "—"}
+            </span>
+          ),
+        },
+        {
+          id: "customer",
+          header: "Remitter",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <div className="min-w-0">
+              <p className="truncate font-medium">
+                {row.original.customerName || "—"}
+              </p>
+              <p className="truncate text-xs text-muted">
+                {row.original.customerMobile || ""}
+              </p>
+            </div>
+          ),
+        },
+        {
+          id: "bank",
+          header: "Beneficiary",
+          enableSorting: false,
+          cell: ({ row }) => {
+            const name = row.original.bankName;
+            const account = maskAccount(row.original.accountNumber);
+            if (!name && account === "—") return "—";
+            return (
+              <div className="flex min-w-0 items-center gap-2.5">
+                <BankLogoName
+                  bankName={name}
+                  ifscCode={row.original.ifscCode}
+                  logoOnly
+                  logoClassName="h-9 w-9"
+                />
+                <div className="min-w-0">
+                  <p
+                    className="truncate text-sm font-medium"
+                    title={row.original.beneficiaryName || undefined}
+                  >
+                    {row.original.beneficiaryName || "Beneficiary"}
+                  </p>
+                  <p className="truncate font-mono text-xs text-muted">
+                    {account}
+                  </p>
+                </div>
+              </div>
+            );
+          },
+        },
+        {
+          id: "rrn",
+          header: "UTR / RRN",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <span className="font-mono text-xs">{row.original.rrn || "—"}</span>
+          ),
+        },
+        {
+          id: "amount",
+          header: "Amount",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) => money(row.original.txnAmount, "debit"),
+        },
+        {
+          id: "charge",
+          header: "Charge",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) => money(row.original.charge),
+        },
+        {
+          id: "commission",
+          header: "Comm.",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) => money(row.original.commission, "credit"),
+        },
+        {
+          id: "opening",
+          header: "Opening",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) =>
+            row.original.openingBalance != null
+              ? money(row.original.openingBalance)
+              : "—",
+        },
+        {
+          id: "closing",
+          header: "Updated Balance",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) =>
+            row.original.closingBalance != null ? (
+              <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">
+                {formatCurrency(row.original.closingBalance)}
+              </span>
+            ) : (
+              "—"
+            ),
+        },
+      ];
+    }
+
     return [
       ...baseStart,
       {
@@ -495,6 +667,23 @@ export function SuperAdminServiceStatementView() {
     ]
   );
 
+  const dmt3Summary = useMemo(() => {
+    if (service !== "DMT3") return null;
+    let success = 0;
+    let failed = 0;
+    let refunded = 0;
+    let amountSum = 0;
+    for (const row of rows) {
+      const s = String(row.status || "").toUpperCase();
+      if (s === "SUCCESS") success += 1;
+      else if (s === "FAILED") failed += 1;
+      else if (s === "REFUNDED") refunded += 1;
+      amountSum += Number(row.txnAmount || 0);
+    }
+    const latestClosing = rows.find((r) => r.closingBalance != null)?.closingBalance;
+    return { success, failed, refunded, amountSum, latestClosing };
+  }, [service, rows]);
+
   const toStatementExportRows = (items: StatementRow[]) =>
     items.map((row, index) => ({
       "#": index + 1,
@@ -503,14 +692,16 @@ export function SuperAdminServiceStatementView() {
       Reference: row.reference || "",
       Service: row.service || "",
       Status: row.status || "",
-      Retailer: row.retailer?.name || "",
+      Remitter: row.customerName || "",
+      Beneficiary: row.beneficiaryName || "",
+      Bank: row.bankName || "",
+      Account: row.accountNumber || "",
+      "UTR / RRN": row.rrn || "",
       Amount: row.txnAmount ?? row.amount ?? 0,
       Charge: row.charge ?? 0,
       Commission: row.commission ?? 0,
-      TDS: row.tds ?? 0,
-      Credit: row.credit ?? 0,
-      Debit: row.debit ?? 0,
-      Closing: row.closingBalance ?? "",
+      Opening: row.openingBalance ?? "",
+      "Updated Balance": row.closingBalance ?? "",
       Description: row.description || row.message || "",
     }));
 
@@ -571,7 +762,9 @@ export function SuperAdminServiceStatementView() {
             ? aepsType === "CASH_WITHDRAWAL"
               ? "Cash Withdrawal"
               : "Cash Deposit"
-            : "Service transactions report",
+            : service === "DMT3"
+              ? "Finzeng DMT3 payout transactions"
+              : "Service transactions report",
         filename: reportFilename(`service-statement-${service.toLowerCase()}`),
         columns: Object.keys(exportRows[0] || {}).map((key) => ({
           key,
@@ -593,8 +786,8 @@ export function SuperAdminServiceStatementView() {
     <div className="space-y-6">
       <PageHeader
         breadcrumb="Super Admin"
-        title="Reports"
-        subtitle="DMT, UPI ATM aur AEPS statements — retailer portal jaisa view."
+        title="Service Statements"
+        subtitle="Live DMT3 / DMT / UPI ATM / AEPS transaction reports with balances and status."
         action={
           <Button
             variant="outline"
@@ -608,6 +801,58 @@ export function SuperAdminServiceStatementView() {
         }
       />
 
+      {service === "DMT3" && dmt3Summary ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Card className="border-border p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Total Transactions
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              {total.toLocaleString("en-IN")}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">
+              Page {pageIndex + 1} of {pageCount}
+            </p>
+          </Card>
+          <Card className="border-border p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              This Page Status
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                {dmt3Summary.success} Success
+              </span>
+              <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                {dmt3Summary.failed} Failed
+              </span>
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                {dmt3Summary.refunded} Refunded
+              </span>
+            </div>
+          </Card>
+          <Card className="border-border p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Page Amount
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
+              {formatCurrency(dmt3Summary.amountSum)}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">{rows.length} rows on this page</p>
+          </Card>
+          <Card className="border-border p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Latest Updated Balance
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">
+              {dmt3Summary.latestClosing != null
+                ? formatCurrency(dmt3Summary.latestClosing)
+                : "—"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted">From newest txn on page</p>
+          </Card>
+        </div>
+      ) : null}
+
       <Card className="space-y-4 p-4 sm:p-5">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="md:col-span-2">
@@ -615,7 +860,7 @@ export function SuperAdminServiceStatementView() {
               label="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search ID, reference, description, service..."
+              placeholder="Search Txn ID, remitter, UTR, reference..."
             />
           </div>
           <Input
@@ -630,12 +875,21 @@ export function SuperAdminServiceStatementView() {
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />
-          <Select
-            label="Retailer"
-            value={retailerId}
-            onChange={(e) => setRetailerId(e.target.value)}
-            options={retailers}
-          />
+          {service === "DMT3" ? (
+            <Select
+              label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              options={STATUS_OPTIONS}
+            />
+          ) : (
+            <Select
+              label="Retailer"
+              value={retailerId}
+              onChange={(e) => setRetailerId(e.target.value)}
+              options={retailers}
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -680,27 +934,41 @@ export function SuperAdminServiceStatementView() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          <Select
-            label="Status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            options={STATUS_OPTIONS}
-            className="max-w-[180px]"
-          />
-          <p className="pt-6 text-sm text-muted">
+          {service !== "DMT3" ? (
+            <Select
+              label="Status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              options={STATUS_OPTIONS}
+              className="max-w-[180px]"
+            />
+          ) : null}
+          <p className={cn("text-sm text-muted", service !== "DMT3" && "pt-6")}>
             <span className="font-semibold text-foreground">
               {service === "UPI" ? "UPI ATM" : service}
               {service === "AEPS" && aepsType
                 ? ` · ${aepsType === "CASH_WITHDRAWAL" ? "Cash Withdrawal" : "Cash Deposit"}`
                 : ""}
             </span>{" "}
-            · {total} entries
+            · <span className="font-bold text-foreground">{total}</span> total
+            entries
           </p>
         </div>
       </Card>
 
       <Card className="overflow-hidden p-0">
-        <div className="border-b border-border px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {service === "DMT3"
+                ? "DMT3 Payout Transactions"
+                : `${service === "UPI" ? "UPI ATM" : service} Statement`}
+            </p>
+            <p className="text-xs text-muted">
+              {total.toLocaleString("en-IN")} records · showing{" "}
+              {rows.length} on this page
+            </p>
+          </div>
           <ReportExportBar
             loading={exportLoading || loading}
             onExportExcel={() => void handleExportExcel()}
@@ -718,7 +986,9 @@ export function SuperAdminServiceStatementView() {
           onPageChange={setPageIndex}
           pageSize={PAGE_SIZE}
           totalRows={total}
-          minTableWidth={service === "AEPS" ? 1500 : 1200}
+          minTableWidth={
+            service === "AEPS" ? 1500 : service === "DMT3" ? 1380 : 1200
+          }
           tone="report"
           stickyHeader
         />

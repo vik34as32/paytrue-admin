@@ -215,6 +215,57 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
       }
     : undefined;
 
+  const parentRaw =
+    (obj.parentUser && typeof obj.parentUser === "object"
+      ? (obj.parentUser as Record<string, unknown>)
+      : null) ||
+    (obj.parent && typeof obj.parent === "object"
+      ? (obj.parent as Record<string, unknown>)
+      : null);
+
+  const distributorRaw =
+    obj.distributor && typeof obj.distributor === "object"
+      ? (obj.distributor as Record<string, unknown>)
+      : parentRaw &&
+          String(parentRaw.role || parentRaw.userType || "")
+            .toUpperCase()
+            .includes("DISTRIBUTOR") &&
+          !String(parentRaw.role || parentRaw.userType || "")
+            .toUpperCase()
+            .includes("MASTER")
+        ? parentRaw
+        : undefined;
+
+  const masterDistributorRaw =
+    obj.masterDistributor && typeof obj.masterDistributor === "object"
+      ? (obj.masterDistributor as Record<string, unknown>)
+      : parentRaw &&
+          String(parentRaw.role || parentRaw.userType || "")
+            .toUpperCase()
+            .includes("MASTER")
+        ? parentRaw
+        : undefined;
+
+  const toHierarchyPerson = (
+    raw?: Record<string, unknown> | null
+  ): UserDetailRecord["parentUser"] => {
+    if (!raw) return undefined;
+    return {
+      id: raw.id != null ? String(raw.id) : undefined,
+      name: typeof raw.name === "string" ? raw.name : undefined,
+      firstName: typeof raw.firstName === "string" ? raw.firstName : undefined,
+      lastName: typeof raw.lastName === "string" ? raw.lastName : undefined,
+      email: typeof raw.email === "string" ? raw.email : undefined,
+      userType:
+        typeof raw.userType === "string"
+          ? raw.userType
+          : typeof raw.role === "string"
+            ? raw.role
+            : undefined,
+      userCode: typeof raw.userCode === "string" ? raw.userCode : undefined,
+    };
+  };
+
   return {
     id: String(obj.id ?? obj._id ?? ""),
     firstName: obj.firstName as string | undefined,
@@ -278,9 +329,9 @@ export function normalizeUserDetail(raw: unknown): UserDetailRecord {
     outlet: outletNormalized as UserDetailRecord["outlet"],
     kyc,
     bankAccount,
-    parentUser: obj.parentUser as UserDetailRecord["parentUser"],
-    distributor: obj.distributor as UserDetailRecord["distributor"],
-    masterDistributor: obj.masterDistributor as UserDetailRecord["masterDistributor"],
+    parentUser: toHierarchyPerson(parentRaw),
+    distributor: toHierarchyPerson(distributorRaw),
+    masterDistributor: toHierarchyPerson(masterDistributorRaw),
     kycStatus:
       (kyc?.kycStatus as string | undefined) ??
       (kyc?.status as string | undefined) ??
@@ -449,12 +500,16 @@ export function getHierarchyLabel(user: UserDetailRecord): {
   distributor?: string;
   masterDistributor?: string;
 } {
+  const parentName =
+    readNestedName(user.parentUser) ||
+    (user.parentId ? `ID: ${user.parentId}` : undefined);
+  const distributorName = readNestedName(user.distributor);
+  const masterName = readNestedName(user.masterDistributor);
+
   return {
-    parentUser:
-      readNestedName(user.parentUser) ||
-      (user.parentId ? `ID: ${user.parentId}` : undefined),
-    distributor: readNestedName(user.distributor),
-    masterDistributor: readNestedName(user.masterDistributor),
+    parentUser: parentName,
+    distributor: distributorName || undefined,
+    masterDistributor: masterName || undefined,
   };
 }
 
@@ -481,6 +536,14 @@ export function getWalletBalance(user: UserDetailRecord): number {
 }
 
 export function getUserDateOfBirth(user: NetworkUserRecord): string {
+  const outlet = user.outlet;
+  const mini =
+    outlet && typeof outlet === "object"
+      ? (outlet as { miniKycResponse?: { data?: { dateOfBirth?: string }; requestSnapshot?: { dateOfBirth?: string } } })
+          .miniKycResponse
+      : undefined;
+  const fromMini =
+    mini?.data?.dateOfBirth || mini?.requestSnapshot?.dateOfBirth || "";
   const profile = user.profile;
   const fromProfile =
     profile && typeof profile === "object"
@@ -488,10 +551,36 @@ export function getUserDateOfBirth(user: NetworkUserRecord): string {
       : undefined;
   const top = (user as Record<string, unknown>).dateOfBirth;
   const value =
+    (typeof fromMini === "string" && fromMini) ||
     (typeof fromProfile === "string" && fromProfile) ||
     (typeof top === "string" && top) ||
     "";
-  return value.trim() || "—";
+  const normalized = value.trim();
+  if (!normalized) return "—";
+  if (/^\d{4}-\d{2}-\d{2}/.test(normalized)) return normalized.slice(0, 10);
+  return normalized;
+}
+
+export function getUserGender(user: NetworkUserRecord): "M" | "F" | "T" | "" {
+  const outlet = user.outlet;
+  const mini =
+    outlet && typeof outlet === "object"
+      ? (outlet as { miniKycResponse?: { data?: { gender?: string }; requestSnapshot?: { gender?: string } } })
+          .miniKycResponse
+      : undefined;
+  const raw =
+    mini?.data?.gender ||
+    mini?.requestSnapshot?.gender ||
+    (typeof (user as Record<string, unknown>).gender === "string"
+      ? String((user as Record<string, unknown>).gender)
+      : "") ||
+    user.profile?.gender ||
+    "";
+  const upper = raw.trim().toUpperCase();
+  if (upper === "M" || upper === "MALE") return "M";
+  if (upper === "F" || upper === "FEMALE") return "F";
+  if (upper === "T" || upper === "OTHER") return "T";
+  return "";
 }
 
 export function getUserMiniKycStatus(user: NetworkUserRecord): string {
@@ -542,18 +631,37 @@ export function getUserCancelledChequeImage(
 }
 
 export function userDetailToApiRecord(user: UserDetailRecord): ApiUserRecord {
+  const miniGender =
+    user.outlet?.miniKycResponse?.data?.gender ||
+    user.outlet?.miniKycResponse?.requestSnapshot?.gender;
+  const miniDob =
+    user.outlet?.miniKycResponse?.data?.dateOfBirth ||
+    user.outlet?.miniKycResponse?.requestSnapshot?.dateOfBirth;
+  const raw = user as Record<string, unknown>;
   return {
     firstName: user.firstName,
     lastName: user.lastName,
     email: user.email,
     mobile: user.mobile,
     alternateMobileNumber: user.alternateMobileNumber,
+    gender:
+      (typeof miniGender === "string" && miniGender) ||
+      (typeof raw.gender === "string" && raw.gender) ||
+      user.profile?.gender ||
+      undefined,
+    dateOfBirth:
+      (typeof miniDob === "string" && miniDob) ||
+      (typeof raw.dateOfBirth === "string" && raw.dateOfBirth) ||
+      user.profile?.dateOfBirth ||
+      user.profile?.dob ||
+      undefined,
     profileImage: user.profileImage,
     state: user.state,
     city: user.city,
     outlet: user.outlet,
     kyc: user.kyc,
     bankAccount: user.bankAccount,
+    profile: user.profile,
   };
 }
 

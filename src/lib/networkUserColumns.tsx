@@ -31,9 +31,10 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   DocImageCell,
   DocumentStatusCell,
+  DistributorCell,
   EmailCell,
   getRecordPhone,
-  HierarchyCell,
+  MasterDistributorCell,
   PhoneCell,
   ProfileCell,
   StatusPill,
@@ -396,12 +397,32 @@ export function createAdminNetworkUserColumns(
   );
 
   if (showHierarchy) {
-    columns.push({
-      id: "hierarchy",
-      header: "Hierarchy",
-      enableSorting: false,
-      cell: ({ row }) => <HierarchyCell user={row.original} />,
-    });
+    if (kind === "RETAILER") {
+      columns.push(
+        {
+          id: "masterDistributor",
+          header: "Master Distributor",
+          enableSorting: false,
+          size: 200,
+          cell: ({ row }) => <MasterDistributorCell user={row.original} />,
+        },
+        {
+          id: "distributor",
+          header: "Distributor",
+          enableSorting: false,
+          size: 200,
+          cell: ({ row }) => <DistributorCell user={row.original} />,
+        }
+      );
+    } else {
+      columns.push({
+        id: "masterDistributor",
+        header: "Master Distributor",
+        enableSorting: false,
+        size: 220,
+        cell: ({ row }) => <MasterDistributorCell user={row.original} />,
+      });
+    }
   }
 
   columns.push(...buildExtendedDetailColumns(kind));
@@ -522,12 +543,32 @@ export function createSuperAdminNetworkUserColumns(
   );
 
   if (showHierarchy) {
-    columns.push({
-      id: "hierarchy",
-      header: "Hierarchy",
-      enableSorting: false,
-      cell: ({ row }) => <HierarchyCell user={row.original} />,
-    });
+    if (kind === "RETAILER") {
+      columns.push(
+        {
+          id: "masterDistributor",
+          header: "Master Distributor",
+          enableSorting: false,
+          size: 200,
+          cell: ({ row }) => <MasterDistributorCell user={row.original} />,
+        },
+        {
+          id: "distributor",
+          header: "Distributor",
+          enableSorting: false,
+          size: 200,
+          cell: ({ row }) => <DistributorCell user={row.original} />,
+        }
+      );
+    } else {
+      columns.push({
+        id: "masterDistributor",
+        header: "Master Distributor",
+        enableSorting: false,
+        size: 220,
+        cell: ({ row }) => <MasterDistributorCell user={row.original} />,
+      });
+    }
   }
 
   columns.push(...buildExtendedDetailColumns(kind));

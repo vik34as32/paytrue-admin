@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Circle, Square, Upload, Video, X } from "lucide-react";
+import { Camera, Circle, Square, Trash2, Upload, Video } from "lucide-react";
 import { Button } from "@/components/common/Button";
 
 interface VideoUploadProps {
@@ -90,7 +90,9 @@ export function VideoUpload({
       }
       setCameraReady(true);
     } catch {
-      setCameraError("Camera access denied. Please allow camera permission or upload a video.");
+      setCameraError(
+        "Camera access denied. Please allow camera permission or upload a video."
+      );
     }
   };
 
@@ -128,13 +130,13 @@ export function VideoUpload({
 
   return (
     <div className={cn("w-full", className)}>
-      <label className="mb-1.5 block text-sm font-medium text-foreground">
+      <label className="mb-1.5 block text-sm font-medium text-muted">
         {displayLabel}
       </label>
 
       {!file && !preview ? (
         <div className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
@@ -142,6 +144,7 @@ export function VideoUpload({
               onClick={() => {
                 setMode("upload");
                 stopCamera();
+                inputRef.current?.click();
               }}
             >
               <Upload className="h-4 w-4" />
@@ -156,10 +159,21 @@ export function VideoUpload({
                 void startCamera();
               }}
             >
-              <Video className="h-4 w-4" />
-              Record Video
+              <Camera className="h-4 w-4" />
+              Record Webcam
             </Button>
           </div>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => {
+              const selected = e.target.files?.[0];
+              if (selected) handleFile(selected);
+            }}
+          />
 
           {mode === "upload" ? (
             <div
@@ -173,24 +187,14 @@ export function VideoUpload({
                 }
               }}
               className={cn(
-                "cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-all",
+                "flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-all",
                 error
                   ? "border-accent-red/50 bg-accent-red/5"
-                  : "border-border bg-background/50 hover:border-primary/50 hover:bg-primary/5"
+                  : "border-border bg-slate-50 hover:border-primary/50 hover:bg-primary/5"
               )}
             >
-              <input
-                ref={inputRef}
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(e) => {
-                  const selected = e.target.files?.[0];
-                  if (selected) handleFile(selected);
-                }}
-              />
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Upload className="h-5 w-5" />
+                <Video className="h-5 w-5" />
               </div>
               <p className="text-sm font-medium text-foreground">
                 Click to upload video
@@ -198,7 +202,7 @@ export function VideoUpload({
               <p className="mt-1 text-xs text-muted">MP4, WebM or MOV</p>
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <div className="overflow-hidden rounded-xl bg-[#1e293b]">
               <div className="relative aspect-video bg-black">
                 <video
                   ref={videoRef}
@@ -212,9 +216,9 @@ export function VideoUpload({
                   </div>
                 ) : null}
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 {cameraError ? (
-                  <p className="text-xs text-accent-red">{cameraError}</p>
+                  <p className="text-xs text-red-300">{cameraError}</p>
                 ) : (
                   <>
                     <Button
@@ -237,7 +241,12 @@ export function VideoUpload({
                         Start Recording
                       </Button>
                     ) : (
-                      <Button type="button" size="sm" variant="outline" onClick={stopRecording}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={stopRecording}
+                      >
                         <Square className="h-4 w-4" />
                         Stop Recording
                       </Button>
@@ -249,24 +258,24 @@ export function VideoUpload({
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="relative overflow-hidden rounded-xl bg-[#1e293b]">
           {preview ? (
-            <div className="relative aspect-video max-h-60 w-full overflow-hidden bg-black">
-              <video src={preview} controls className="h-full w-full object-contain" />
+            <div className="relative aspect-video w-full overflow-hidden bg-black">
+              <video
+                src={preview}
+                controls
+                className="h-full w-full object-contain"
+              />
             </div>
           ) : null}
-          <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-            <p className="truncate text-xs text-muted">
-              {file?.name || "Existing video"}
-            </p>
-            <button
-              type="button"
-              onClick={removeFile}
-              className="rounded-lg p-1.5 text-muted hover:bg-accent-red/10 hover:text-accent-red"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={removeFile}
+            className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-red-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
         </div>
       )}
 

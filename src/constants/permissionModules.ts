@@ -164,6 +164,18 @@ export const PERMISSION_CATALOG: ScopedPermissionModule[] = [
       p("users.update", "Update Users", ["ADMIN"]),
       p("users.delete", "Delete Users", ["ADMIN"]),
       p("hierarchy.view", "View Hierarchy", ["ADMIN"]),
+      p(
+        "hierarchy.reassign_retailer",
+        "Reassign Retailer",
+        ["ADMIN"],
+        "Move a retailer to another distributor"
+      ),
+      p(
+        "hierarchy.reassign_distributor",
+        "Reassign Distributor",
+        ["ADMIN"],
+        "Move a distributor to another master distributor"
+      ),
     ],
   },
   {

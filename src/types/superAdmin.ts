@@ -142,6 +142,10 @@ export interface ListQueryParams {
   /** Legacy aliases (also sent to API for compatibility) */
   startDate?: string;
   endDate?: string;
+  /** Hierarchy filters (passed through when backend supports them) */
+  masterDistributorId?: string;
+  distributorId?: string;
+  parentId?: string;
 }
 
 export interface WalletHistoryParams extends ListQueryParams {
@@ -241,9 +245,23 @@ export interface UserOutletRecord {
   longitude?: string | number;
   miniKycStatus?: string | null;
   kycCompletedAt?: string | null;
+  miniKycResponse?: {
+    data?: {
+      gender?: string;
+      dateOfBirth?: string;
+      name?: string;
+      [key: string]: unknown;
+    };
+    requestSnapshot?: {
+      gender?: string;
+      dateOfBirth?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  } | null;
   createdAt?: string;
   updatedAt?: string;
-  [key: string]: string | number | null | undefined;
+  [key: string]: unknown;
 }
 
 export interface NetworkUserRecord {

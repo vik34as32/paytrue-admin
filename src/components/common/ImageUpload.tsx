@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Pencil, RefreshCw, Upload, X } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import { ImagePreviewModal } from "@/components/common/ImagePreviewModal";
 
 interface ImageUploadProps {
@@ -15,6 +15,8 @@ interface ImageUploadProps {
   optional?: boolean;
   /** View mode: show image only, no upload/replace/remove */
   readOnly?: boolean;
+  /** Tall preview like profile image on edit profile */
+  size?: "default" | "tall";
 }
 
 export function ImageUpload({
@@ -26,6 +28,7 @@ export function ImageUpload({
   className,
   optional = false,
   readOnly = false,
+  size = "default",
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -54,10 +57,11 @@ export function ImageUpload({
 
   const displayPreview = preview;
   const displayLabel = optional ? `${label} (Optional)` : label;
+  const aspectClass = size === "tall" ? "aspect-[16/10] min-h-[220px]" : "aspect-[4/3] min-h-[180px]";
 
   return (
     <div className={cn("w-full", className)}>
-      <label className="mb-1.5 block text-sm font-medium text-foreground">
+      <label className="mb-1.5 block text-sm font-medium text-muted">
         {displayLabel}
       </label>
 
@@ -79,9 +83,11 @@ export function ImageUpload({
             }}
             className={cn(
               "cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-all",
+              aspectClass,
+              "flex flex-col items-center justify-center",
               error
                 ? "border-accent-red/50 bg-accent-red/5"
-                : "border-border bg-background/50 hover:border-primary/50 hover:bg-primary/5"
+                : "border-border bg-slate-50 hover:border-primary/50 hover:bg-primary/5"
             )}
           >
             <input
@@ -104,70 +110,47 @@ export function ImageUpload({
           </div>
         )
       ) : (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-xl bg-[#1e293b]",
+            aspectClass
+          )}
+        >
           {displayPreview ? (
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
-              className="group relative block w-full"
+              className="absolute inset-0 flex items-center justify-center p-4"
             >
-              <div className="relative aspect-[4/3] max-h-52 w-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={displayPreview}
-                  alt={label}
-                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
-                />
-                {!readOnly ? (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-                    <span className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit image
-                    </span>
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
-                    <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                      View image
-                    </span>
-                  </div>
-                )}
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displayPreview}
+                alt={label}
+                className="max-h-full max-w-full rounded-md object-contain"
+              />
             </button>
           ) : null}
-          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-2.5">
-            <p className="truncate text-xs text-muted">
-              {file?.name || "Existing image"}
-            </p>
-            {!readOnly ? (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setPreviewOpen(true)}
-                  className="rounded-lg p-1.5 text-muted hover:bg-primary/10 hover:text-primary"
-                  aria-label="Edit image"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="rounded-lg p-1.5 text-muted hover:bg-primary/10 hover:text-primary"
-                  aria-label="Replace image"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={removeFile}
-                  className="rounded-lg p-1.5 text-muted hover:bg-accent-red/10 hover:text-accent-red"
-                  aria-label="Remove image"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ) : null}
-          </div>
+
+          {!readOnly ? (
+            <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                className="rounded-md bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm transition hover:bg-slate-100"
+              >
+                Replace
+              </button>
+              <button
+                type="button"
+                onClick={removeFile}
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-red-500 text-white shadow-sm transition hover:bg-red-600"
+                aria-label="Remove image"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+
           {!readOnly ? (
             <input
               ref={inputRef}
