@@ -107,6 +107,50 @@ export function splitFullName(fullName: string): {
   };
 }
 
+/** Drop consecutive duplicate words: "RAJESH KUMAR KUMAR" → "RAJESH KUMAR". */
+export function collapseRepeatedNameTokens(value: string): string {
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  const collapsed: string[] = [];
+  for (const token of tokens) {
+    const prev = collapsed[collapsed.length - 1];
+    if (!prev || prev.toLowerCase() !== token.toLowerCase()) {
+      collapsed.push(token);
+    }
+  }
+  return collapsed.join(" ");
+}
+
+/**
+ * InstantPay Mini KYC uses `firstName` as outlet `name`.
+ * Send the full name once — never append lastName if it is already on firstName.
+ */
+export function toPayloadFirstName(values: {
+  firstName?: string | null;
+  lastName?: string | null;
+  fullName?: string | null;
+  name?: string | null;
+}): string {
+  const first = (values.firstName || "").trim();
+  const last = (values.lastName || "").trim();
+  const fullName = (values.fullName || "").trim();
+  const storedName = (values.name || "").trim();
+  const firstLower = first.toLowerCase();
+  const lastLower = last.toLowerCase();
+
+  let candidate = first;
+  if (!candidate) {
+    candidate = fullName || storedName || last;
+  } else if (
+    last &&
+    firstLower !== lastLower &&
+    !firstLower.endsWith(` ${lastLower}`)
+  ) {
+    candidate = `${first} ${last}`;
+  }
+
+  return collapseRepeatedNameTokens(candidate);
+}
+
 function appendFileIfPresent(formData: FormData, key: string, file: File | undefined) {
   if (file instanceof File) {
     formData.append(key, file);
@@ -135,17 +179,17 @@ export function buildUserFormData(
   const { userType, includePassword = true } = options;
   const formData = new FormData();
 
-  const fullName =
-    (values.fullName || "").trim() ||
-    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
-  const derived = splitFullName(fullName);
-  const firstName = (values.firstName || "").trim() || derived.firstName;
-  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const lastName = (values.lastName || "").trim();
+  const firstName = toPayloadFirstName({
+    firstName: values.firstName,
+    lastName,
+    fullName: values.fullName,
+  });
 
   appendIfPresent(formData, "firstName", firstName);
   appendIfPresent(formData, "lastName", lastName);
-  appendIfPresent(formData, "fullName", fullName);
-  appendIfPresent(formData, "name", fullName);
+  appendIfPresent(formData, "fullName", firstName);
+  appendIfPresent(formData, "name", firstName);
   appendIfPresent(formData, "email", values.email);
   appendIfPresent(formData, "mobile", values.mobile);
   appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);
@@ -277,12 +321,12 @@ export function buildAdminHierarchyCreatePayload(
   values: UserFormValues,
   userType: "RETAILER" | "DISTRIBUTOR" | "MASTER_DISTRIBUTOR"
 ): AdminHierarchyCreatePayload {
-  const fullName =
-    (values.fullName || "").trim() ||
-    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
-  const derived = splitFullName(fullName);
-  const firstName = (values.firstName || "").trim() || derived.firstName;
-  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const lastName = (values.lastName || "").trim();
+  const firstName = toPayloadFirstName({
+    firstName: values.firstName,
+    lastName,
+    fullName: values.fullName,
+  });
   const pan = (values.panNumber || "").trim().toUpperCase();
   const aadhaar = (values.aadhaarNumber || "").replace(/\D/g, "");
   const gender = toApiGender(values.gender);
@@ -301,7 +345,7 @@ export function buildAdminHierarchyCreatePayload(
   };
 
   if (lastName) payload.lastName = lastName;
-  if (fullName) payload.name = fullName;
+  if (firstName) payload.name = firstName;
   if (gender) payload.gender = gender;
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
     payload.dateOfBirth = dateOfBirth;
@@ -388,12 +432,12 @@ export function buildAdminHierarchyCreateFormData(
   const formData = new FormData();
   const files = extractUserFiles(values);
 
-  const fullName =
-    (values.fullName || "").trim() ||
-    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
-  const derived = splitFullName(fullName);
-  const firstName = (values.firstName || "").trim() || derived.firstName;
-  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const lastName = (values.lastName || "").trim();
+  const firstName = toPayloadFirstName({
+    firstName: values.firstName,
+    lastName,
+    fullName: values.fullName,
+  });
   const pan = (values.panNumber || "").trim().toUpperCase();
   const aadhaar = (values.aadhaarNumber || "").replace(/\D/g, "");
   const gender = toApiGender(values.gender);
@@ -406,7 +450,7 @@ export function buildAdminHierarchyCreateFormData(
   appendIfPresent(formData, "password", values.password);
   appendIfPresent(formData, "firstName", firstName);
   appendIfPresent(formData, "lastName", lastName);
-  appendIfPresent(formData, "name", fullName);
+  appendIfPresent(formData, "name", firstName);
   appendIfPresent(formData, "userType", userType);
   appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);
   appendIfPresent(formData, "gender", gender);
@@ -490,15 +534,23 @@ export function mapApiUserToFormValues(
   const kyc = user.kyc || {};
   const bank = user.bankAccount || {};
   const profile = user.profile || {};
+  const cleanedName = toPayloadFirstName({
+    firstName: user.firstName,
+    lastName: user.lastName,
+    fullName: user.fullName,
+    name: user.name,
+  });
+  const splitName = splitFullName(cleanedName);
+  const lastName =
+    splitName.lastName &&
+    splitName.lastName.toLowerCase() !== splitName.firstName.toLowerCase()
+      ? splitName.lastName
+      : (user.lastName || "").trim();
 
   return {
-    firstName: user.firstName || "",
-    lastName: user.lastName || "",
-    fullName:
-      user.fullName ||
-      user.name ||
-      [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
-      "",
+    firstName: splitName.firstName || user.firstName || "",
+    lastName,
+    fullName: cleanedName,
     email: user.email || "",
     mobile: user.mobile || user.phone || "",
     password: "",

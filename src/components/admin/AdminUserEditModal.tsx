@@ -14,6 +14,7 @@ import {
   formatUserTypeLabel,
   getNetworkUserName,
 } from "@/lib/normalizeUser";
+import { toPayloadFirstName } from "@/lib/buildUserFormData";
 import { AdminUserUpdatePayload } from "@/services/adminUsersApi";
 
 const STATUS_OPTIONS = [
@@ -86,14 +87,14 @@ export function AdminUserEditModal({
   }, [isOpen, user, reset]);
 
   const submit = handleSubmit(async (values) => {
-    const name = [values.firstName, values.lastName]
-      .filter((part): part is string => Boolean(part && part.trim()))
-      .map((part) => part.trim())
-      .join(" ");
+    const firstName = toPayloadFirstName({
+      firstName: values.firstName,
+      lastName: values.lastName,
+    });
     const ok = await onSubmit({
-      firstName: values.firstName.trim(),
+      firstName,
       lastName: values.lastName?.trim() || null,
-      name,
+      name: firstName,
       email: values.email.trim(),
       phone: values.mobile.trim(),
       mobile: values.mobile.trim(),

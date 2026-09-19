@@ -76,6 +76,15 @@ function moneyCell(value: number, tone: "muted" | "credit" | "debit" | "focus" =
   );
 }
 
+function onlyDigits(value?: string | null) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function phoneKey(value?: string | null) {
+  const digits = onlyDigits(value);
+  return digits.length >= 10 ? digits.slice(-10) : "";
+}
+
 export function RetailerWalletLedgerView({
   scope,
   breadcrumb,
@@ -91,6 +100,8 @@ export function RetailerWalletLedgerView({
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [retailerPhone, setRetailerPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [status, setStatus] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -99,6 +110,32 @@ export function RetailerWalletLedgerView({
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  const matchedRetailerId = useMemo(() => {
+    const key = phoneKey(retailerPhone) || phoneKey(debouncedSearch);
+    if (!key) return "";
+    return (
+      retailers.find((r) => phoneKey(r.mobile) === key)?.id || ""
+    );
+  }, [retailerPhone, debouncedSearch, retailers]);
+
+  useEffect(() => {
+    const key = phoneKey(retailerPhone) || phoneKey(debouncedSearch);
+    if (!key) {
+      setPhoneError("");
+      return;
+    }
+    if (matchedRetailerId) {
+      setPhoneError("");
+      setRetailerId((current) =>
+        current === matchedRetailerId ? current : matchedRetailerId
+      );
+      return;
+    }
+    if (onlyDigits(retailerPhone).length >= 10 || phoneKey(debouncedSearch)) {
+      setPhoneError("No retailer found for this phone number");
+    }
+  }, [matchedRetailerId, retailerPhone, debouncedSearch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,18 +169,36 @@ export function RetailerWalletLedgerView({
 
     setLoading(true);
     try {
+      const phoneLookup = Boolean(phoneKey(retailerPhone) || phoneKey(debouncedSearch));
       const result = await fetchRetailerWalletLedger(scope, retailerId, {
         page: pageIndex + 1,
         limit: PAGE_SIZE,
-        search: debouncedSearch || undefined,
+        search: phoneLookup ? undefined : debouncedSearch || undefined,
         status: status || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         sortBy: "createdAt",
         sortOrder: "desc",
       });
+      const selected = retailers.find((r) => r.id === retailerId);
       setRows(result.items);
-      setRetailer(result.retailer);
+      setRetailer(
+        result.retailer
+          ? {
+              ...result.retailer,
+              mobile: result.retailer.mobile || selected?.mobile || null,
+              name: result.retailer.name || selected?.name || result.retailer.name,
+              userCode: result.retailer.userCode || selected?.userCode || null,
+            }
+          : selected
+            ? {
+                id: selected.id,
+                name: selected.name,
+                userCode: selected.userCode || null,
+                mobile: selected.mobile || null,
+              }
+            : null
+      );
       setTotal(result.pagination.total);
       setPageCount(Math.max(1, result.pagination.totalPages));
     } catch (error) {
@@ -159,9 +214,11 @@ export function RetailerWalletLedgerView({
     retailerId,
     pageIndex,
     debouncedSearch,
+    retailerPhone,
     status,
     startDate,
     endDate,
+    retailers,
   ]);
 
   useEffect(() => {
@@ -170,7 +227,7 @@ export function RetailerWalletLedgerView({
 
   useEffect(() => {
     setPageIndex(0);
-  }, [retailerId, debouncedSearch, status, startDate, endDate]);
+  }, [retailerId, debouncedSearch, retailerPhone, status, startDate, endDate]);
 
   const retailerOptions = useMemo(
     () => [
@@ -319,8 +376,9 @@ export function RetailerWalletLedgerView({
     }));
 
   const fetchAllLedgerRows = async () => {
+    const phoneLookup = Boolean(phoneKey(retailerPhone) || phoneKey(debouncedSearch));
     const params = {
-      search: debouncedSearch || undefined,
+      search: phoneLookup ? undefined : debouncedSearch || undefined,
       status: status || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
@@ -426,18 +484,31 @@ export function RetailerWalletLedgerView({
       />
 
       <Card className="space-y-4 p-4 sm:p-5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <Select
             label="Retailer"
             value={retailerId}
-            onChange={(e) => setRetailerId(e.target.value)}
+            onChange={(e) => {
+              const nextId = e.target.value;
+              setRetailerId(nextId);
+              const next = retailers.find((r) => r.id === nextId);
+              setRetailerPhone(next?.mobile || "");
+              setPhoneError("");
+            }}
             options={retailerOptions}
+          />
+          <Input
+            label="Retailer phone"
+            value={retailerPhone}
+            onChange={(e) => setRetailerPhone(e.target.value)}
+            placeholder="10-digit mobile"
+            error={phoneError || undefined}
           />
           <Input
             label="Search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Ledger no, description..."
+            placeholder="Ledger no, phone, description..."
           />
           <Select
             label="Status"
@@ -465,6 +536,9 @@ export function RetailerWalletLedgerView({
             <span className="font-medium">{retailer.name}</span>
             {retailer.userCode ? (
               <span className="text-muted">· {retailer.userCode}</span>
+            ) : null}
+            {retailer.mobile ? (
+              <span className="tabular-nums text-muted">· {retailer.mobile}</span>
             ) : null}
             <span className="text-muted">· Balance</span>
             <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">

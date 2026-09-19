@@ -29,6 +29,7 @@ import {
   mapApiUserToExistingUrls,
   mapApiUserToExtraMediaUrls,
   mapApiUserToFormValues,
+  toPayloadFirstName,
 } from "@/lib/buildUserFormData";
 import { formatUserTypeLabel, getNetworkUserName } from "@/lib/normalizeUser";
 import { resolveMediaUrl } from "@/lib/utils";
@@ -255,14 +256,14 @@ export function AdminUserStepModal({
   const saveEdit = handleSubmit(async () => {
     if (!onSubmit || !isEdit) return;
     const data = getValues();
-    const name = [data.firstName, data.lastName]
-      .filter((part) => Boolean(part?.trim()))
-      .map((part) => part.trim())
-      .join(" ");
+    const firstName = toPayloadFirstName({
+      firstName: data.firstName,
+      lastName: data.lastName,
+    });
     const ok = await onSubmit({
-      firstName: data.firstName.trim(),
+      firstName,
       lastName: data.lastName?.trim() || null,
-      name,
+      name: firstName,
       email: data.email.trim(),
       phone: data.mobile.trim(),
       mobile: data.mobile.trim(),

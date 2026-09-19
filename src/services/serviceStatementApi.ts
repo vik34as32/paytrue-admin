@@ -33,21 +33,88 @@ function formatDateTime(raw?: string | null): string {
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function pickMobile(obj: Record<string, unknown>): string | null {
+  const value =
+    obj.mobile ??
+    obj.phone ??
+    obj.mobileNumber ??
+    obj.phoneNumber ??
+    obj.contactNumber ??
+    obj.retailerMobile ??
+    obj.retailerPhone;
+  if (value === null || value === undefined || value === "") return null;
+  return String(value);
+}
+
 function normalizeRetailer(raw: unknown): StatementRetailer | null {
   const obj = asRecord(raw);
-  if (!obj.id) return null;
+  const id = obj.id ?? obj._id ?? obj.userId ?? obj.retailerId;
+  const mobile = pickMobile(obj);
   const name =
     (obj.name as string) ||
     [obj.firstName, obj.lastName].filter(Boolean).join(" ") ||
     (obj.userCode as string) ||
-    "Retailer";
+    (obj.retailerName as string) ||
+    "";
+  if (!id && !name && !mobile) return null;
   return {
-    id: String(obj.id),
-    name,
+    id: id ? String(id) : "",
+    name: name || "Retailer",
     userCode: (obj.userCode as string) || null,
-    mobile: (obj.mobile as string) || null,
+    mobile,
     email: (obj.email as string) || null,
     status: (obj.status as string) || null,
+  };
+}
+
+function retailerFromRow(obj: Record<string, unknown>): StatementRetailer | null {
+  return (
+    normalizeRetailer(obj.retailer) ||
+    normalizeRetailer(obj.user) ||
+    normalizeRetailer(obj.createdBy) ||
+    normalizeRetailer(obj.outletUser) ||
+    normalizeRetailer({
+      id: obj.retailerId ?? obj.userId,
+      name: obj.retailerName ?? obj.userName ?? obj.outletName,
+      mobile: obj.retailerMobile ?? obj.retailerPhone ?? obj.userMobile,
+      userCode: obj.retailerCode ?? obj.userCode,
+    })
+  );
+}
+
+export function enrichStatementRetailer(
+  row: StatementRow,
+  catalog: Array<{
+    id: string;
+    name?: string | null;
+    mobile?: string | null;
+    phone?: string | null;
+    userCode?: string | null;
+  }>
+): StatementRow {
+  const id = row.retailerId || row.retailer?.id || "";
+  const match = id ? catalog.find((item) => item.id === id) : undefined;
+  const mobile =
+    row.retailer?.mobile || match?.mobile || match?.phone || null;
+  const name =
+    (row.retailer?.name && row.retailer.name !== "Retailer"
+      ? row.retailer.name
+      : null) ||
+    match?.name ||
+    row.retailer?.name ||
+    null;
+  if (!id && !name && !mobile) return row;
+  return {
+    ...row,
+    retailerId: id || row.retailerId,
+    retailer: {
+      id: id || row.retailer?.id || "",
+      name: name || "Retailer",
+      mobile,
+      userCode: row.retailer?.userCode || match?.userCode || null,
+      email: row.retailer?.email || null,
+      status: row.retailer?.status || null,
+    },
   };
 }
 
@@ -112,6 +179,7 @@ export function normalizeStatementRow(raw: unknown): StatementRow {
   const createdAt = (obj.createdAt as string) || null;
   const amount = toNumber(obj.txnAmount ?? obj.amount);
   const service = detectService(obj);
+  const retailer = retailerFromRow(obj);
 
   return {
     id: String(obj.id ?? obj.ledgerId ?? ""),
@@ -146,8 +214,12 @@ export function normalizeStatementRow(raw: unknown): StatementRow {
       null,
     aadhaarMasked: (obj.aadhaarMasked as string) || null,
     rrn: (obj.rrn as string) || null,
-    retailer: normalizeRetailer(obj.retailer ?? obj.user),
-    retailerId: (obj.retailerId as string) || (obj.userId as string) || null,
+    retailer,
+    retailerId:
+      (obj.retailerId as string) ||
+      (obj.userId as string) ||
+      retailer?.id ||
+      null,
     createdAt,
     dateTime: (obj.dateTime as string) || formatDateTime(createdAt),
   };
@@ -158,9 +230,7 @@ export function normalizeDmt3Transaction(raw: unknown): StatementRow {
   const obj = asRecord(raw);
   const remitter = asRecord(obj.remitter);
   const beneficiary = asRecord(obj.beneficiary);
-  const retailer = normalizeRetailer(
-    obj.retailer ?? obj.user ?? obj.createdBy ?? null
-  );
+  const retailer = retailerFromRow(obj);
   const createdAt =
     (obj.createdAt as string) ||
     (obj.finalizedAt as string) ||
@@ -336,6 +406,9 @@ async function fetchDmt3AdminStatement(
       pageSize: limit,
       status: params.status || undefined,
       search: params.search || undefined,
+      mobile: params.mobile || undefined,
+      phone: params.mobile || undefined,
+      retailerMobile: params.mobile || undefined,
       fromDate: params.fromDate || undefined,
       toDate: params.toDate || undefined,
       startDate: params.fromDate || undefined,
@@ -386,6 +459,9 @@ export async function fetchServiceStatement(
       service,
       status: params.status || undefined,
       search: params.search || undefined,
+      mobile: params.mobile || undefined,
+      phone: params.mobile || undefined,
+      retailerMobile: params.mobile || undefined,
       fromDate: params.fromDate || undefined,
       toDate: params.toDate || undefined,
       sortOrder: params.sortOrder || "desc",

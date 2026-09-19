@@ -27,6 +27,7 @@ import { VerificationCard } from "@/components/verification/VerificationCard";
 import {
   mapApiUserToExistingUrls,
   splitFullName,
+  toPayloadFirstName,
 } from "@/lib/buildUserFormData";
 import { formatUserTypeLabel, getNetworkUserName } from "@/lib/normalizeUser";
 import { cn, resolveMediaUrl } from "@/lib/utils";
@@ -183,7 +184,10 @@ export function SuperAdminUserStepModal({
       password: "",
     });
     setFullName(
-      [mapped.firstName, mapped.lastName].filter(Boolean).join(" ").trim()
+      toPayloadFirstName({
+        firstName: mapped.firstName,
+        lastName: mapped.lastName,
+      })
     );
     setConfirmAccountNumber(mapped.accountNumber || "");
     setConfirmAccountError("");

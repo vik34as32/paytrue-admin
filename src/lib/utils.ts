@@ -15,6 +15,22 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+/** Axis / card shorthand: ₹1,000 · ₹10K · ₹1L · ₹10L · ₹1Cr */
+export function formatCompactInr(amount: number): string {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "₹0";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const format = (n: number, suffix: string) => {
+    const rounded = n >= 10 ? n.toFixed(0) : n.toFixed(n >= 1 ? 1 : 2);
+    return `${sign}₹${rounded.replace(/\.0$/, "")}${suffix}`;
+  };
+  if (abs >= 1_00_00_000) return format(abs / 1_00_00_000, "Cr");
+  if (abs >= 1_00_000) return format(abs / 1_00_000, "L");
+  if (abs >= 10_000) return format(abs / 1_000, "K");
+  return `${sign}${formatCurrency(abs)}`;
+}
+
 export function formatDate(
   date?: string | Date | null,
   pattern = "dd MMM yyyy, HH:mm"

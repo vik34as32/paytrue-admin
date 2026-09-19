@@ -43,6 +43,7 @@ interface DataTableProps<T> {
   tone?: "default" | "network" | "report";
   stickyHeader?: boolean;
   minTableWidth?: number;
+  onRowClick?: (row: T) => void;
 }
 
 function getAlignClass(align?: ColumnAlign): string {
@@ -73,6 +74,7 @@ export function DataTable<T>({
   tone: _tone = "report",
   stickyHeader = false,
   minTableWidth = 720,
+  onRowClick,
 }: DataTableProps<T>) {
   void _tone;
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -258,12 +260,18 @@ export function DataTable<T>({
               table.getRowModel().rows.map((row, rowIndex) => (
                 <tr
                   key={row.id}
+                  onClick={
+                    onRowClick
+                      ? () => onRowClick(row.original)
+                      : undefined
+                  }
                   className={cn(
                     "border-b border-slate-100 transition-colors duration-150 last:border-b-0 dark:border-border",
                     rowIndex % 2 === 0
                       ? "bg-white dark:bg-card"
                       : "bg-slate-50/90 dark:bg-muted/15",
-                    "hover:bg-sky-50/70 dark:hover:bg-primary/5"
+                    "hover:bg-sky-50/70 dark:hover:bg-primary/5",
+                    onRowClick && "cursor-pointer"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {

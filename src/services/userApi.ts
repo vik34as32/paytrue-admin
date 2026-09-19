@@ -3,7 +3,10 @@ import {
   normalizeUserDetail,
   userDetailToApiRecord,
 } from "@/lib/normalizeUser";
-import { mapApiUserToFormValues } from "@/lib/buildUserFormData";
+import {
+  mapApiUserToFormValues,
+  toPayloadFirstName,
+} from "@/lib/buildUserFormData";
 import { UserDetailRecord, AdminDetailRecord } from "@/types/superAdmin";
 import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
 import { AdminEditValues } from "@/validations/adminSchemas";
@@ -210,12 +213,15 @@ function buildSuperAdminEditUserBody(
       ? emptyToUndefined((values as NetworkUserEditValues).password)
       : undefined;
 
+  const payloadFirstName = toPayloadFirstName({
+    firstName: values.firstName,
+    lastName: values.lastName,
+  });
+
   const body: Record<string, unknown> = {
-    firstName: emptyToUndefined(values.firstName),
+    firstName: emptyToUndefined(payloadFirstName),
     lastName: emptyToUndefined(values.lastName),
-    name: emptyToUndefined(
-      [values.firstName, values.lastName].filter(Boolean).join(" ")
-    ),
+    name: emptyToUndefined(payloadFirstName),
     email: emptyToUndefined(values.email),
     mobile: emptyToUndefined(values.mobile),
     alternateMobileNumber: emptyToUndefined(values.alternateMobileNumber),

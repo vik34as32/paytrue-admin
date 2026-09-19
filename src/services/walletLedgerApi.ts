@@ -71,7 +71,10 @@ function normalizeRetailer(raw: unknown): WalletLedgerRetailer | null {
     lastName: lastName || null,
     userCode: (obj.userCode as string) || null,
     email: (obj.email as string) || null,
-    mobile: (obj.mobile as string) || null,
+    mobile:
+      (obj.mobile as string) ||
+      (obj.phone as string) ||
+      null,
     status: (obj.status as string) || null,
     userType: (obj.userType as string) || "RETAILER",
     walletBalance: toNumber(obj.walletBalance ?? obj.balance),
@@ -266,7 +269,9 @@ export async function fetchWalletLedgerRetailers(
           name: u.name || u.userCode || "Retailer",
           userCode: u.userCode,
           mobile: u.mobile,
-          label: [u.name || "Retailer", u.userCode].filter(Boolean).join(" · "),
+          label: [u.name || "Retailer", u.userCode, u.mobile]
+            .filter(Boolean)
+            .join(" · "),
         }));
     }
   } catch {
@@ -283,7 +288,7 @@ export async function fetchWalletLedgerRetailers(
         name,
         userCode: u.userCode,
         mobile: u.mobile,
-        label: [name, u.userCode].filter(Boolean).join(" · "),
+        label: [name, u.userCode, u.mobile].filter(Boolean).join(" · "),
       };
     });
 }

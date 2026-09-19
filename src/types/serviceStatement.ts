@@ -67,6 +67,7 @@ export interface StatementQueryParams {
   service?: StatementServiceTab | "ALL";
   status?: string;
   search?: string;
+  mobile?: string;
   fromDate?: string;
   toDate?: string;
   sortOrder?: "asc" | "desc";

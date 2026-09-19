@@ -8,6 +8,7 @@ import { Button } from "@/components/common/Button";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/cards/StatCard";
 import { WalletBalanceCard } from "@/components/super-admin/WalletBalanceCard";
+import { BusinessOverviewChart } from "@/components/dashboard/BusinessOverviewChart";
 import { TransferBalanceModal } from "@/components/super-admin/TransferBalanceModal";
 import { AddBalanceModal } from "@/components/super-admin/AddBalanceModal";
 import { DataTable } from "@/components/tables/DataTable";
@@ -192,6 +193,8 @@ export function SuperAdminWalletDashboardView() {
           />
         ))}
       </div>
+
+      <BusinessOverviewChart />
 
       {/* <Card>
         <CardHeader

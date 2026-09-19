@@ -78,7 +78,10 @@ function normalizePublicNetworkUser(raw: unknown): PublicNetworkUser {
     fullName,
     name: fullName,
     userCode: (obj.userCode as string | undefined) ?? undefined,
-    mobile: (obj.mobile as string | undefined) ?? undefined,
+    mobile:
+      (obj.mobile as string | undefined) ||
+      (obj.phone as string | undefined) ||
+      undefined,
     email: (obj.email as string | undefined) ?? undefined,
     userType: (obj.userType as string | undefined) ?? undefined,
     parentId: (obj.parentId as string | null | undefined) ?? null,

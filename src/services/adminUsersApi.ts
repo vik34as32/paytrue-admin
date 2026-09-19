@@ -1,7 +1,7 @@
 import { adminModuleClient } from "@/lib/api/client";
 import { commissionAdminModuleClient } from "@/lib/api/commissionClient";
 import { normalizeUserDetail } from "@/lib/normalizeUser";
-import { splitFullName } from "@/lib/buildUserFormData";
+import { toPayloadFirstName } from "@/lib/buildUserFormData";
 import { ApiResponse } from "@/types";
 import {
   AdminListQueryParams,
@@ -59,12 +59,12 @@ export function buildAdminCreateUserPayload(
   values: UserFormValues,
   userType: AdminManagedUserRole
 ): AdminCreateUserPayload {
-  const fullName =
-    (values.fullName || "").trim() ||
-    [values.firstName, values.lastName].filter(Boolean).join(" ").trim();
-  const derived = splitFullName(fullName);
-  const firstName = (values.firstName || "").trim() || derived.firstName;
-  const lastName = (values.lastName || "").trim() || derived.lastName;
+  const lastName = (values.lastName || "").trim();
+  const firstName = toPayloadFirstName({
+    firstName: values.firstName,
+    lastName,
+    fullName: values.fullName,
+  });
 
   const payload: AdminCreateUserPayload = {
     email: values.email.trim(),
@@ -333,8 +333,14 @@ export async function patchAdminUser(
   if (body.phone && !body.mobile) body.mobile = body.phone;
   if (body.mobile && !body.phone) body.phone = body.mobile;
 
-  if (!body.name && (body.firstName || body.lastName)) {
-    body.name = [body.firstName, body.lastName].filter(Boolean).join(" ").trim();
+  const payloadFirstName = toPayloadFirstName({
+    firstName: body.firstName,
+    lastName: body.lastName,
+    name: body.name,
+  });
+  if (payloadFirstName) {
+    body.firstName = payloadFirstName;
+    body.name = payloadFirstName;
   }
 
   const { data } = await adminModuleClient.patch<ApiResponse<unknown>>(

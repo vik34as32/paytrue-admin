@@ -19,7 +19,10 @@ import {
   downloadReportPdf,
   reportFilename,
 } from "@/lib/reportExport";
-import { fetchServiceStatement } from "@/services/serviceStatementApi";
+import {
+  enrichStatementRetailer,
+  fetchServiceStatement,
+} from "@/services/serviceStatementApi";
 import { listAllRetailers } from "@/services/superAdminApi";
 import {
   AepsTxnFilter,
@@ -107,12 +110,56 @@ function maskAccount(value?: string | null) {
   return `XXXXXXXX${digits.slice(-4)}`;
 }
 
+function onlyDigits(value?: string | null) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function phoneQueryFromSearch(value?: string) {
+  const digits = onlyDigits(value);
+  return digits.length >= 10 ? digits.slice(-10) : "";
+}
+
+type RetailerCatalogItem = {
+  id: string;
+  name: string;
+  mobile: string;
+  userCode?: string;
+};
+
+function RetailerCell({
+  name,
+  mobile,
+  userCode,
+}: {
+  name?: string | null;
+  mobile?: string | null;
+  userCode?: string | null;
+}) {
+  if (!name && !mobile && !userCode) return <span>—</span>;
+  return (
+    <div className="min-w-[140px]">
+      <p className="truncate font-medium" title={name || undefined}>
+        {name || "Retailer"}
+      </p>
+      <p className="truncate text-xs tabular-nums text-muted" title={mobile || undefined}>
+        {mobile || "—"}
+      </p>
+      {userCode ? (
+        <p className="truncate text-[11px] text-muted">{userCode}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SuperAdminServiceStatementView() {
   const [service, setService] = useState<StatementServiceTab>("DMT3");
   const [aepsType, setAepsType] = useState<AepsTxnFilter>("CASH_WITHDRAWAL");
   const [retailers, setRetailers] = useState<
     { value: string; label: string }[]
   >([{ value: "", label: "All retailers" }]);
+  const [retailerCatalog, setRetailerCatalog] = useState<RetailerCatalogItem[]>(
+    []
+  );
   const [retailerId, setRetailerId] = useState("");
   const [rows, setRows] = useState<StatementRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,18 +184,25 @@ export function SuperAdminServiceStatementView() {
       try {
         const list = await listAllRetailers();
         if (cancelled) return;
+        const catalog = list.map((r) => {
+          const name =
+            r.name ||
+            [r.firstName, r.lastName].filter(Boolean).join(" ") ||
+            "Retailer";
+          const mobile = r.mobile || r.phone || "";
+          return {
+            id: r.id,
+            name,
+            mobile,
+            userCode: r.userCode,
+          };
+        });
+        setRetailerCatalog(catalog);
         setRetailers([
           { value: "", label: "All retailers" },
-          ...list.map((r) => ({
+          ...catalog.map((r) => ({
             value: r.id,
-            label: [
-              r.name ||
-                [r.firstName, r.lastName].filter(Boolean).join(" ") ||
-                "Retailer",
-              r.userCode,
-            ]
-              .filter(Boolean)
-              .join(" · "),
+            label: [r.name, r.userCode, r.mobile].filter(Boolean).join(" · "),
           })),
         ]);
       } catch {
@@ -160,6 +214,35 @@ export function SuperAdminServiceStatementView() {
     };
   }, []);
 
+  const resolvedRetailerQuery = useMemo(() => {
+    const phone = phoneQueryFromSearch(debouncedSearch);
+    const matched = phone
+      ? retailerCatalog.find(
+          (r) => onlyDigits(r.mobile).slice(-10) === phone
+        )
+      : undefined;
+    return {
+      retailerId: retailerId || matched?.id || undefined,
+      search: matched ? undefined : debouncedSearch || undefined,
+      mobile: matched || retailerId ? undefined : phone || undefined,
+    };
+  }, [debouncedSearch, retailerCatalog, retailerId]);
+
+  const withRetailer = useCallback(
+    (row: StatementRow) =>
+      enrichStatementRetailer(
+        {
+          ...row,
+          retailerId:
+            row.retailerId ||
+            resolvedRetailerQuery.retailerId ||
+            row.retailer?.id,
+        },
+        retailerCatalog
+      ),
+    [resolvedRetailerQuery.retailerId, retailerCatalog]
+  );
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -167,16 +250,17 @@ export function SuperAdminServiceStatementView() {
         page: pageIndex + 1,
         limit: PAGE_SIZE,
         service,
-        retailerId: retailerId || undefined,
+        retailerId: resolvedRetailerQuery.retailerId,
         status: status || undefined,
-        search: debouncedSearch || undefined,
+        search: resolvedRetailerQuery.search,
+        mobile: resolvedRetailerQuery.mobile,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         sortOrder: "desc",
         transactionType:
           service === "AEPS" && aepsType ? aepsType : undefined,
       });
-      setRows(result.items);
+      setRows(result.items.map(withRetailer));
       setTotal(result.pagination.total);
       setPageCount(Math.max(1, result.pagination.totalPages));
     } catch (error) {
@@ -191,9 +275,9 @@ export function SuperAdminServiceStatementView() {
     pageIndex,
     service,
     aepsType,
-    retailerId,
+    resolvedRetailerQuery,
+    withRetailer,
     status,
-    debouncedSearch,
     fromDate,
     toDate,
   ]);
@@ -207,6 +291,19 @@ export function SuperAdminServiceStatementView() {
   }, [service, aepsType, retailerId, status, debouncedSearch, fromDate, toDate]);
 
   const columns = useMemo<ColumnDef<StatementRow, unknown>[]>(() => {
+    const retailerColumn: ColumnDef<StatementRow, unknown> = {
+      id: "retailer",
+      header: "Retailer",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <RetailerCell
+          name={row.original.retailer?.name}
+          mobile={row.original.retailer?.mobile}
+          userCode={row.original.retailer?.userCode}
+        />
+      ),
+    };
+
     const baseStart: ColumnDef<StatementRow, unknown>[] = [
       {
         id: "dateTime",
@@ -304,25 +401,11 @@ export function SuperAdminServiceStatementView() {
         },
         {
           id: "mobile",
-          header: "Mobile",
+          header: "Customer Mobile",
           enableSorting: false,
           cell: ({ row }) => row.original.customerMobile || "—",
         },
-        {
-          id: "retailer",
-          header: "Retailer",
-          enableSorting: false,
-          cell: ({ row }) => {
-            const r = row.original.retailer;
-            if (!r) return "—";
-            return (
-              <div className="min-w-0">
-                <p className="truncate font-medium">{r.name}</p>
-                <p className="truncate text-xs text-muted">{r.userCode || ""}</p>
-              </div>
-            );
-          },
-        },
+        retailerColumn,
         {
           id: "txnKind",
           header: "Type",
@@ -468,6 +551,7 @@ export function SuperAdminServiceStatementView() {
             </div>
           ),
         },
+        retailerColumn,
         {
           id: "bank",
           header: "Beneficiary",
@@ -570,21 +654,7 @@ export function SuperAdminServiceStatementView() {
           </span>
         ),
       },
-      {
-        id: "retailer",
-        header: "Retailer",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const r = row.original.retailer;
-          if (!r) return "—";
-          return (
-            <div className="min-w-0">
-              <p className="truncate font-medium">{r.name}</p>
-              <p className="truncate text-xs text-muted">{r.userCode || ""}</p>
-            </div>
-          );
-        },
-      },
+      retailerColumn,
       {
         id: "status",
         header: "Status",
@@ -647,9 +717,10 @@ export function SuperAdminServiceStatementView() {
   const statementQueryBase = useMemo(
     () => ({
       service,
-      retailerId: retailerId || undefined,
+      retailerId: resolvedRetailerQuery.retailerId,
       status: status || undefined,
-      search: debouncedSearch || undefined,
+      search: resolvedRetailerQuery.search,
+      mobile: resolvedRetailerQuery.mobile,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
       sortOrder: "desc" as const,
@@ -659,9 +730,8 @@ export function SuperAdminServiceStatementView() {
     [
       service,
       aepsType,
-      retailerId,
+      resolvedRetailerQuery,
       status,
-      debouncedSearch,
       fromDate,
       toDate,
     ]
@@ -692,6 +762,8 @@ export function SuperAdminServiceStatementView() {
       Reference: row.reference || "",
       Service: row.service || "",
       Status: row.status || "",
+      "Retailer Name": row.retailer?.name || "",
+      "Retailer Phone": row.retailer?.mobile || "",
       Remitter: row.customerName || "",
       Beneficiary: row.beneficiaryName || "",
       Bank: row.bankName || "",
@@ -711,14 +783,14 @@ export function SuperAdminServiceStatementView() {
       page: 1,
       limit: 100,
     });
-    const all = [...first.items];
+    const all = first.items.map(withRetailer);
     for (let page = 2; page <= first.pagination.totalPages; page += 1) {
       const next = await fetchServiceStatement({
         ...statementQueryBase,
         page,
         limit: first.pagination.limit || 100,
       });
-      all.push(...next.items);
+      all.push(...next.items.map(withRetailer));
     }
     return all;
   };
@@ -860,7 +932,7 @@ export function SuperAdminServiceStatementView() {
               label="Search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search Txn ID, remitter, UTR, reference..."
+              placeholder="Search Txn ID, retailer phone, remitter, UTR..."
             />
           </div>
           <Input
@@ -875,6 +947,12 @@ export function SuperAdminServiceStatementView() {
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />
+          <Select
+            label="Retailer"
+            value={retailerId}
+            onChange={(e) => setRetailerId(e.target.value)}
+            options={retailers}
+          />
           {service === "DMT3" ? (
             <Select
               label="Status"
@@ -882,14 +960,7 @@ export function SuperAdminServiceStatementView() {
               onChange={(e) => setStatus(e.target.value)}
               options={STATUS_OPTIONS}
             />
-          ) : (
-            <Select
-              label="Retailer"
-              value={retailerId}
-              onChange={(e) => setRetailerId(e.target.value)}
-              options={retailers}
-            />
-          )}
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">

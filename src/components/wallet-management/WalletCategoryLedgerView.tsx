@@ -14,6 +14,7 @@ import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import { WalletRoleBadge } from "@/components/wallet-management/WalletRoleBadge";
 import { WalletStatusBadge } from "@/components/wallet-management/WalletStatusBadge";
 import { WalletHoldFreezeLedgerView } from "@/components/wallet-management/WalletHoldFreezeLedgerView";
+import { UserCommissionHistoryModal } from "@/components/wallet-management/UserCommissionHistoryModal";
 import { ROUTES } from "@/constants";
 import { WALLET_ROLE_OPTIONS } from "@/schemas/wallet-filter.schema";
 import {
@@ -151,6 +152,7 @@ function WalletCategoryBalanceLedgerView({
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<WalletUserRole | "">("");
   const [pageIndex, setPageIndex] = useState(0);
+  const [historyUser, setHistoryUser] = useState<WalletUser | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -467,7 +469,9 @@ function WalletCategoryBalanceLedgerView({
         subtitle={
           type === "users"
             ? "User details with outlet, PAN and Aadhaar. Filter by role."
-            : meta.subtitle
+            : type === "commission"
+              ? "Click a row to see commission history — who the commission came from."
+              : meta.subtitle
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -560,6 +564,14 @@ function WalletCategoryBalanceLedgerView({
         minTableWidth={type === "users" ? 1200 : 1100}
         tone="report"
         stickyHeader
+        onRowClick={
+          type === "commission" ? (user) => setHistoryUser(user) : undefined
+        }
+      />
+      <UserCommissionHistoryModal
+        open={Boolean(historyUser)}
+        user={historyUser}
+        onClose={() => setHistoryUser(null)}
       />
     </div>
   );

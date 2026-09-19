@@ -85,7 +85,10 @@ function mapSummaryListItem(
     name,
     userCode: (raw.userCode as string | undefined) ?? undefined,
     email: (raw.email as string | undefined) ?? undefined,
-    mobile: (raw.mobile as string | undefined) ?? undefined,
+    mobile:
+      (raw.mobile as string | undefined) ||
+      (raw.phone as string | undefined) ||
+      undefined,
     userType: role,
     walletBalance: Number(
       raw.mainWallet ?? raw.walletBalance ?? raw.availableBalance ?? 0
