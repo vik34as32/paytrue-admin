@@ -216,9 +216,18 @@ export function normalizeStatementRow(raw: unknown): StatementRow {
     service,
     serviceType: (obj.serviceType as string) || undefined,
     ledgerNo: String(
-      obj.ledgerNo ?? obj.reference ?? obj.referenceId ?? obj.id ?? "—"
+      obj.ledgerNo ??
+        obj.reference ??
+        obj.transactionId ??
+        obj.referenceId ??
+        obj.id ??
+        "—"
     ),
-    reference: (obj.reference as string) || (obj.referenceId as string) || null,
+    reference:
+      (obj.reference as string) ||
+      (obj.transactionId as string) ||
+      (obj.referenceId as string) ||
+      null,
     description: (obj.description as string) || null,
     message: (obj.message as string) || null,
     status: String(obj.status || "PENDING").toUpperCase(),
@@ -484,6 +493,15 @@ export function canUpdateDmt3Status(status?: string | null): boolean {
   return String(status || "").toUpperCase() === "PROCESSING";
 }
 
+export const canUpdateDmtStatus = canUpdateDmt3Status;
+
+function dmtStatusBody(payload: Dmt3StatusUpdatePayload): Dmt3StatusUpdatePayload {
+  const body: Dmt3StatusUpdatePayload = { status: payload.status };
+  const remark = payload.remark?.trim();
+  if (remark) body.remark = remark;
+  return body;
+}
+
 export async function updateDmt3TransactionStatus(
   transactionId: string,
   payload: Dmt3StatusUpdatePayload
@@ -493,13 +511,49 @@ export async function updateDmt3TransactionStatus(
     throw new Error("Invalid DMT3 transaction id");
   }
 
-  const body: Dmt3StatusUpdatePayload = { status: payload.status };
-  const remark = payload.remark?.trim();
-  if (remark) body.remark = remark;
+  const { data } = await superAdminClient.patch<
+    ApiResponse<Dmt3StatusUpdateResult>
+  >(`/dmt3/admin/transactions/${id}/status`, dmtStatusBody(payload));
+
+  return (data.data || {}) as Dmt3StatusUpdateResult;
+}
+
+export function resolveDmtTransactionId(row: {
+  id?: string | null;
+  ledgerId?: string | null;
+  ledgerNo?: string | null;
+  reference?: string | null;
+}): string {
+  const candidates = [row.reference, row.ledgerNo, row.id, row.ledgerId]
+    .map((value) => String(value || "").trim())
+    .filter((value) => value && value !== "—");
+
+  const reference = candidates.find(
+    (value) => /^DMT\d+/i.test(value) && value.length <= 64
+  );
+  if (reference) return reference;
+
+  const uuid = candidates.find((value) => UUID_RE.test(value));
+  if (uuid) return uuid;
+
+  const anyId = candidates.find((value) => value.length >= 1 && value.length <= 64);
+  if (anyId) return anyId;
+
+  throw new Error("Invalid DMT transaction id");
+}
+
+export async function updateDmtTransactionStatus(
+  transactionId: string,
+  payload: Dmt3StatusUpdatePayload
+): Promise<Dmt3StatusUpdateResult> {
+  const id = transactionId.trim();
+  if (!id || id.length > 64) {
+    throw new Error("Invalid DMT transaction id");
+  }
 
   const { data } = await superAdminClient.patch<
     ApiResponse<Dmt3StatusUpdateResult>
-  >(`/dmt3/admin/transactions/${id}/status`, body);
+  >(`/dmt/admin/transactions/${encodeURIComponent(id)}/status`, dmtStatusBody(payload));
 
   return (data.data || {}) as Dmt3StatusUpdateResult;
 }

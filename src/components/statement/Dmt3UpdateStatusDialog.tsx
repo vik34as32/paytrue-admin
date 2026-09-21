@@ -6,7 +6,7 @@ import { Button } from "@/components/common/Button";
 import { Select } from "@/components/common/Select";
 import { Textarea } from "@/components/common/Textarea";
 import { formatCurrency } from "@/lib/utils";
-import { Dmt3ManualStatus, StatementRow } from "@/types/serviceStatement";
+import { DmtManualStatus, StatementRow } from "@/types/serviceStatement";
 
 const STATUS_OPTIONS = [
   { value: "SUCCESS", label: "SUCCESS" },
@@ -16,21 +16,26 @@ const STATUS_OPTIONS = [
 interface Dmt3UpdateStatusDialogProps {
   isOpen: boolean;
   row: StatementRow | null;
+  variant?: "DMT" | "DMT3";
   isSubmitting?: boolean;
   onClose: () => void;
-  onConfirm: (status: Dmt3ManualStatus, remark?: string) => void | Promise<void>;
+  onConfirm: (status: DmtManualStatus, remark?: string) => void | Promise<void>;
 }
 
 export function Dmt3UpdateStatusDialog({
   isOpen,
   row,
+  variant = "DMT3",
   isSubmitting,
   onClose,
   onConfirm,
 }: Dmt3UpdateStatusDialogProps) {
-  const [status, setStatus] = useState<Dmt3ManualStatus>("FAILED");
+  const [status, setStatus] = useState<DmtManualStatus>("FAILED");
   const [remark, setRemark] = useState("");
   const [error, setError] = useState("");
+  const isDmt = variant === "DMT";
+  const remarkMax = isDmt ? 255 : 240;
+  const remarkMin = isDmt ? 1 : 3;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -43,12 +48,14 @@ export function Dmt3UpdateStatusDialog({
   const remarkRequired = status === "FAILED";
 
   const submit = async () => {
-    if (remarkRequired && trimmed.length < 3) {
-      setError("Remark is required (min 3 characters) for FAILED");
+    if (remarkRequired && trimmed.length < remarkMin) {
+      setError(
+        `Remark is required (min ${remarkMin} character${remarkMin > 1 ? "s" : ""}) for FAILED`
+      );
       return;
     }
-    if (trimmed && (trimmed.length < 3 || trimmed.length > 240)) {
-      setError("Remark must be 3–240 characters");
+    if (trimmed && (trimmed.length < remarkMin || trimmed.length > remarkMax)) {
+      setError(`Remark must be ${remarkMin}–${remarkMax} characters`);
       return;
     }
     setError("");
@@ -61,7 +68,7 @@ export function Dmt3UpdateStatusDialog({
       onClose={() => {
         if (!isSubmitting) onClose();
       }}
-      title="Change DMT3 status"
+      title={isDmt ? "Change DMT status" : "Change DMT3 status"}
       subtitle="Only PROCESSING transactions can be marked SUCCESS or FAILED."
       size="md"
       footer={
@@ -116,7 +123,7 @@ export function Dmt3UpdateStatusDialog({
             label="New status"
             value={status}
             onChange={(e) => {
-              setStatus(e.target.value as Dmt3ManualStatus);
+              setStatus(e.target.value as DmtManualStatus);
               setError("");
             }}
             options={STATUS_OPTIONS}
@@ -125,7 +132,7 @@ export function Dmt3UpdateStatusDialog({
           <Textarea
             label={remarkRequired ? "Remark (required)" : "Remark (optional)"}
             value={remark}
-            maxLength={240}
+            maxLength={remarkMax}
             error={error}
             placeholder={
               status === "FAILED"
@@ -140,7 +147,9 @@ export function Dmt3UpdateStatusDialog({
 
           <p className="text-xs leading-relaxed text-muted">
             {status === "FAILED"
-              ? "FAILED refunds the wallet and rolls back commission (same as fail API). Repeat FAILED will not refund again."
+              ? isDmt
+                ? "FAILED refunds the original MAIN debit (amount + charge). Repeat FAILED will not refund again."
+                : "FAILED refunds the wallet and rolls back commission (same as fail API). Repeat FAILED will not refund again."
               : "SUCCESS does not debit or refund. Use this only when the bank payout is already complete."}
           </p>
         </div>

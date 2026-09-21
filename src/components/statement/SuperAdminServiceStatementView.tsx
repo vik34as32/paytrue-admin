@@ -24,7 +24,9 @@ import {
   canUpdateDmt3Status,
   enrichStatementRetailer,
   fetchServiceStatement,
+  resolveDmtTransactionId,
   updateDmt3TransactionStatus,
+  updateDmtTransactionStatus,
 } from "@/services/serviceStatementApi";
 import { listAllRetailers } from "@/services/superAdminApi";
 import {
@@ -302,15 +304,23 @@ export function SuperAdminServiceStatementView() {
       if (!statusRow) return;
       setStatusSaving(true);
       try {
-        const result = await updateDmt3TransactionStatus(statusRow.id, {
-          status: nextStatus,
-          remark,
-        });
+        const isDmt3 =
+          service === "DMT3" ||
+          String(statusRow.service || "").toUpperCase().includes("DMT3");
+        const result = isDmt3
+          ? await updateDmt3TransactionStatus(statusRow.id, {
+              status: nextStatus,
+              remark,
+            })
+          : await updateDmtTransactionStatus(
+              resolveDmtTransactionId(statusRow),
+              { status: nextStatus, remark }
+            );
         const applied = String(result.status || nextStatus).toUpperCase();
         toast.success(
           applied === "FAILED" && result.refundProcessed
             ? `Marked FAILED · refund ${formatCurrency(result.refundAmount || 0)}`
-            : `DMT3 status updated to ${applied}`
+            : `${isDmt3 ? "DMT3" : "DMT"} status updated to ${applied}`
         );
         setStatusRow(null);
         await load();
@@ -318,13 +328,13 @@ export function SuperAdminServiceStatementView() {
         toast.error(
           error instanceof Error
             ? error.message
-            : "Failed to update DMT3 status"
+            : "Failed to update transaction status"
         );
       } finally {
         setStatusSaving(false);
       }
     },
-    [statusRow, load]
+    [statusRow, load, service]
   );
 
   const columns = useMemo<ColumnDef<StatementRow, unknown>[]>(() => {
@@ -793,6 +803,30 @@ export function SuperAdminServiceStatementView() {
             ? money(row.original.closingBalance)
             : "—",
       },
+      ...(service === "DMT"
+        ? [
+            {
+              id: "actions",
+              header: "Action",
+              enableSorting: false,
+              cell: ({ row }) =>
+                canUpdateDmt3Status(row.original.status) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="whitespace-nowrap"
+                    onClick={() => setStatusRow(row.original)}
+                  >
+                    <Pencil className="size-3.5" />
+                    Change
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted">—</span>
+                ),
+            } satisfies ColumnDef<StatementRow, unknown>,
+          ]
+        : []),
     ];
   }, [service]);
 
@@ -1145,7 +1179,7 @@ export function SuperAdminServiceStatementView() {
               : service === "DMT3"
                 ? 1720
                 : service === "DMT"
-                ? 1580
+                ? 1680
                 : 1200
           }
           tone="report"
@@ -1156,6 +1190,7 @@ export function SuperAdminServiceStatementView() {
       <Dmt3UpdateStatusDialog
         isOpen={Boolean(statusRow)}
         row={statusRow}
+        variant={service === "DMT" ? "DMT" : "DMT3"}
         isSubmitting={statusSaving}
         onClose={() => {
           if (!statusSaving) setStatusRow(null);

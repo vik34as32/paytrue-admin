@@ -60,16 +60,20 @@ export interface StatementListResult {
   };
 }
 
-export type Dmt3ManualStatus = "SUCCESS" | "FAILED";
+export type DmtManualStatus = "SUCCESS" | "FAILED";
+export type Dmt3ManualStatus = DmtManualStatus;
 
 export interface Dmt3StatusUpdatePayload {
-  status: Dmt3ManualStatus;
+  status: DmtManualStatus;
   remark?: string;
 }
 
 export interface Dmt3StatusUpdateResult {
   id?: string;
+  transactionId?: string;
+  oldStatus?: string;
   status?: string;
+  walletAction?: string;
   refundProcessed?: boolean;
   refundAmount?: number;
   originalAmount?: number;
