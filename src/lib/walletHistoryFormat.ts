@@ -51,7 +51,6 @@ export function toWalletHistoryExportRows(
     "Current Balance": resolveCurrentBalance(record),
     "Topup Balance": resolveTopupAmount(record),
     "Updated Balance": resolveUpdatedBalance(record),
-    Remarks: record.remarks || "",
   }));
 }
 

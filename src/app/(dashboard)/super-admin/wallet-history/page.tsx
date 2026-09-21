@@ -214,11 +214,6 @@ export default function WalletHistoryPage() {
         />
       ),
     },
-    {
-      accessorKey: "remarks",
-      header: "Remarks",
-      cell: ({ row }) => row.original.remarks || "—",
-    },
   ];
 
   if (!hasSuperAdminWalletAccess) return null;
