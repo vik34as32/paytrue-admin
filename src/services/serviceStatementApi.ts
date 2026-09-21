@@ -1,6 +1,8 @@
 import { superAdminClient, superAdminModuleClient } from "@/lib/api/client";
 import { ApiResponse } from "@/types";
 import {
+  Dmt3StatusUpdatePayload,
+  Dmt3StatusUpdateResult,
   StatementListResult,
   StatementQueryParams,
   StatementRetailer,
@@ -463,6 +465,33 @@ async function fetchDmt3AdminStatement(
     items,
     pagination,
   };
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function canUpdateDmt3Status(status?: string | null): boolean {
+  return String(status || "").toUpperCase() === "PROCESSING";
+}
+
+export async function updateDmt3TransactionStatus(
+  transactionId: string,
+  payload: Dmt3StatusUpdatePayload
+): Promise<Dmt3StatusUpdateResult> {
+  const id = transactionId.trim();
+  if (!UUID_RE.test(id)) {
+    throw new Error("Invalid DMT3 transaction id");
+  }
+
+  const body: Dmt3StatusUpdatePayload = { status: payload.status };
+  const remark = payload.remark?.trim();
+  if (remark) body.remark = remark;
+
+  const { data } = await superAdminClient.patch<
+    ApiResponse<Dmt3StatusUpdateResult>
+  >(`/dmt3/admin/transactions/${id}/status`, body);
+
+  return (data.data || {}) as Dmt3StatusUpdateResult;
 }
 
 export async function fetchServiceStatement(

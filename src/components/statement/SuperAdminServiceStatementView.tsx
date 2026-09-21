@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import { Copy, RefreshCw } from "lucide-react";
+import { Copy, Pencil, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/common/Card";
@@ -13,6 +13,7 @@ import { Select } from "@/components/common/Select";
 import { DataTable } from "@/components/tables/DataTable";
 import { ReportExportBar } from "@/components/tables/ReportExportBar";
 import { BankLogoName } from "@/components/common/BankLogoName";
+import { Dmt3UpdateStatusDialog } from "@/components/statement/Dmt3UpdateStatusDialog";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   downloadReportExcel,
@@ -20,12 +21,15 @@ import {
   reportFilename,
 } from "@/lib/reportExport";
 import {
+  canUpdateDmt3Status,
   enrichStatementRetailer,
   fetchServiceStatement,
+  updateDmt3TransactionStatus,
 } from "@/services/serviceStatementApi";
 import { listAllRetailers } from "@/services/superAdminApi";
 import {
   AepsTxnFilter,
+  Dmt3ManualStatus,
   StatementRow,
   StatementServiceTab,
 } from "@/types/serviceStatement";
@@ -47,6 +51,7 @@ const AEPS_SUB_TABS: { key: AepsTxnFilter; label: string }[] = [
 const STATUS_OPTIONS = [
   { value: "", label: "All Status" },
   { value: "SUCCESS", label: "Success" },
+  { value: "PROCESSING", label: "Processing" },
   { value: "PENDING", label: "Pending" },
   { value: "FAILED", label: "Failed" },
   { value: "REVERSED", label: "Reversed" },
@@ -172,6 +177,8 @@ export function SuperAdminServiceStatementView() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [exportLoading, setExportLoading] = useState(false);
+  const [statusRow, setStatusRow] = useState<StatementRow | null>(null);
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -289,6 +296,36 @@ export function SuperAdminServiceStatementView() {
   useEffect(() => {
     setPageIndex(0);
   }, [service, aepsType, retailerId, status, debouncedSearch, fromDate, toDate]);
+
+  const handleUpdateDmt3Status = useCallback(
+    async (nextStatus: Dmt3ManualStatus, remark?: string) => {
+      if (!statusRow) return;
+      setStatusSaving(true);
+      try {
+        const result = await updateDmt3TransactionStatus(statusRow.id, {
+          status: nextStatus,
+          remark,
+        });
+        const applied = String(result.status || nextStatus).toUpperCase();
+        toast.success(
+          applied === "FAILED" && result.refundProcessed
+            ? `Marked FAILED · refund ${formatCurrency(result.refundAmount || 0)}`
+            : `DMT3 status updated to ${applied}`
+        );
+        setStatusRow(null);
+        await load();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to update DMT3 status"
+        );
+      } finally {
+        setStatusSaving(false);
+      }
+    },
+    [statusRow, load]
+  );
 
   const columns = useMemo<ColumnDef<StatementRow, unknown>[]>(() => {
     const retailerColumn: ColumnDef<StatementRow, unknown> = {
@@ -657,6 +694,26 @@ export function SuperAdminServiceStatementView() {
               </span>
             ) : (
               "—"
+            ),
+        },
+        {
+          id: "actions",
+          header: "Action",
+          enableSorting: false,
+          cell: ({ row }) =>
+            canUpdateDmt3Status(row.original.status) ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="whitespace-nowrap"
+                onClick={() => setStatusRow(row.original)}
+              >
+                <Pencil className="size-3.5" />
+                Change
+              </Button>
+            ) : (
+              <span className="text-xs text-muted">—</span>
             ),
         },
       ];
@@ -1085,7 +1142,9 @@ export function SuperAdminServiceStatementView() {
           minTableWidth={
             service === "AEPS"
               ? 1500
-              : service === "DMT3" || service === "DMT"
+              : service === "DMT3"
+                ? 1720
+                : service === "DMT"
                 ? 1580
                 : 1200
           }
@@ -1093,6 +1152,16 @@ export function SuperAdminServiceStatementView() {
           stickyHeader
         />
       </Card>
+
+      <Dmt3UpdateStatusDialog
+        isOpen={Boolean(statusRow)}
+        row={statusRow}
+        isSubmitting={statusSaving}
+        onClose={() => {
+          if (!statusSaving) setStatusRow(null);
+        }}
+        onConfirm={handleUpdateDmt3Status}
+      />
     </div>
   );
 }
