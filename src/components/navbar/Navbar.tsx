@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/common/Input";
 import Link from "next/link";
+import { PortalGreeting } from "@/components/navbar/PortalGreeting";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -76,43 +77,46 @@ export function Navbar({ onMenuClick, sidebarCollapsed }: NavbarProps) {
   return (
     <header
       className={cn(
-        "fixed top-0 z-30 flex h-16 items-center border-b border-border bg-navbar/95 backdrop-blur-md px-4 transition-all duration-300 lg:px-6",
+        "fixed top-0 z-30 flex h-16 items-center border-b px-4 transition-all duration-300 lg:px-6",
+        "border-white/10 bg-navbar/95 text-navbar-foreground backdrop-blur-md",
         "right-0 left-0",
         sidebarCollapsed ? "lg:left-[80px]" : "lg:left-[260px]"
       )}
     >
-      <div className="flex w-full items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="rounded-lg p-2 text-muted transition-colors hover:bg-background hover:text-foreground lg:hidden"
+            className="rounded-lg p-2 text-navbar-muted transition-colors hover:bg-white/10 hover:text-navbar-foreground lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden w-72 md:block">
+          <PortalGreeting name={displayUser?.name} compact />
+          <div className="hidden w-56 xl:block">
             <Input
-              placeholder="Search transactions, users..."
+              placeholder="Search..."
               icon={<Search className="h-4 w-4" />}
+              className="border-white/15 bg-white/10 text-navbar-foreground placeholder:text-navbar-muted"
             />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           {displayUser && (
-            <div className="hidden items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary sm:flex">
-              <Wallet className="h-3.5 w-3.5" />
+            <div className="hidden items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-sm font-semibold text-navbar-foreground sm:flex">
+              <Wallet className="h-3.5 w-3.5 text-[color:var(--portal-accent)]" />
               {formatCurrency(headerBalance)}
             </div>
           )}
 
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="rounded-xl p-2 text-muted transition-colors hover:bg-background hover:text-foreground"
+            className="rounded-xl p-2 text-navbar-muted transition-colors hover:bg-white/10 hover:text-navbar-foreground"
           >
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
-          <button className="relative rounded-xl p-2 text-muted transition-colors hover:bg-background hover:text-foreground">
+          <button className="relative rounded-xl p-2 text-navbar-muted transition-colors hover:bg-white/10 hover:text-navbar-foreground">
             <Bell className="h-5 w-5" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-red" />
           </button>
@@ -120,7 +124,7 @@ export function Navbar({ onMenuClick, sidebarCollapsed }: NavbarProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-background"
+              className="flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white/10"
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-primary to-secondary text-sm font-bold text-white">
                 {displayUser?.avatar ? (
@@ -134,8 +138,8 @@ export function Navbar({ onMenuClick, sidebarCollapsed }: NavbarProps) {
                 )}
               </div>
               <div className="hidden text-left lg:block">
-                <p className="text-sm font-semibold text-foreground">{displayUser?.name}</p>
-                <p className="text-xs text-muted">{displayUser ? ROLES[displayUser.role] : ""}</p>
+                <p className="text-sm font-semibold text-navbar-foreground">{displayUser?.name}</p>
+                <p className="text-xs text-navbar-muted">{displayUser ? ROLES[displayUser.role] : ""}</p>
               </div>
             </button>
 

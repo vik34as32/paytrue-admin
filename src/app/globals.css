@@ -1,25 +1,75 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f7fe;
-  --foreground: #1b2559;
+  --background: #eef2f7;
+  --foreground: #10203a;
   --card: #ffffff;
-  --card-foreground: #1b2559;
-  --primary: #4318ff;
+  --card-foreground: #10203a;
+  --primary: #1d4ed8;
   --primary-foreground: #ffffff;
-  --secondary: #868cff;
-  --muted: #a3aed0;
-  --border: #e9edf7;
-  --sidebar: #ffffff;
-  --navbar: #ffffff;
-  --accent-green: #05cd99;
-  --accent-orange: #ffb547;
-  --accent-red: #ee5d50;
+  --secondary: #c5a059;
+  --muted: #5b6b88;
+  --border: #d7e0ee;
+  --sidebar: #071428;
+  --sidebar-foreground: #eaf0fa;
+  --sidebar-muted: #93a4c3;
+  --navbar: #0c1d3a;
+  --navbar-foreground: #f4f7fb;
+  --navbar-muted: #b7c4dc;
+  --accent-green: #059669;
+  --accent-orange: #d4a017;
+  --accent-red: #e11d48;
   --glass: rgba(255, 255, 255, 0.08);
   --glass-border: rgba(255, 255, 255, 0.12);
   --app-header-height: 4rem;
   --app-sidebar-width: 260px;
   --app-sidebar-width-collapsed: 80px;
+  --portal-accent: #c5a059;
+  --portal-chip: rgba(255, 255, 255, 0.08);
+  --portal-chip-icon: rgba(197, 160, 89, 0.16);
+  --portal-line: rgba(255, 255, 255, 0.12);
+}
+
+.portal-sa {
+  --background: #e8eef8;
+  --foreground: #0f1c3d;
+  --card: #ffffff;
+  --card-foreground: #0f1c3d;
+  --primary: #1d4ed8;
+  --secondary: #c5a059;
+  --muted: #4d5f80;
+  --border: #d3deef;
+  --sidebar: #071428;
+  --sidebar-foreground: #eaf0fa;
+  --sidebar-muted: #93a4c3;
+  --navbar: #0c1d3a;
+  --navbar-foreground: #f4f7fb;
+  --navbar-muted: #b7c4dc;
+  --portal-accent: #d4af37;
+  --portal-chip: rgba(255, 255, 255, 0.1);
+  --portal-chip-icon: rgba(212, 175, 55, 0.18);
+  --portal-line: rgba(255, 255, 255, 0.14);
+}
+
+.portal-admin {
+  --background: #f4eee6;
+  --foreground: #1c1208;
+  --card: #fffdf9;
+  --card-foreground: #1c1208;
+  --primary: #f75f0c;
+  --secondary: #0f766e;
+  --muted: #6b6258;
+  --border: #eadfd0;
+  --sidebar: #102f33;
+  --sidebar-foreground: #f6f1ea;
+  --sidebar-muted: #b7c8c4;
+  --navbar: #14363b;
+  --navbar-foreground: #fffaf4;
+  --navbar-muted: #d4c4b2;
+  --portal-accent: #f75f0c;
+  --portal-chip: rgba(255, 255, 255, 0.1);
+  --portal-chip-icon: rgba(247, 95, 12, 0.2);
+  --portal-line: rgba(255, 255, 255, 0.14);
 }
 
 .dark {
@@ -33,7 +83,11 @@
   --muted: #94a3b8;
   --border: #1e293b;
   --sidebar: #0f172a;
+  --sidebar-foreground: #e8ecf4;
+  --sidebar-muted: #94a3b8;
   --navbar: #0f172a;
+  --navbar-foreground: #e8ecf4;
+  --navbar-muted: #94a3b8;
   --glass: rgba(15, 23, 42, 0.6);
   --glass-border: rgba(59, 130, 246, 0.15);
 }
@@ -49,7 +103,11 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
   --color-navbar: var(--navbar);
+  --color-navbar-foreground: var(--navbar-foreground);
+  --color-navbar-muted: var(--navbar-muted);
   --color-accent-green: var(--accent-green);
   --color-accent-orange: var(--accent-orange);
   --color-accent-red: var(--accent-red);
@@ -143,6 +201,25 @@ html.modal-open body {
 
 .page-subtitle {
   @apply mt-1 text-sm text-muted;
+}
+
+.portal-sa main {
+  background:
+    radial-gradient(1100px 420px at 0% -8%, rgba(29, 78, 216, 0.16), transparent 55%),
+    radial-gradient(900px 380px at 100% 0%, rgba(197, 160, 89, 0.14), transparent 50%),
+    linear-gradient(180deg, #dce6f5 0%, #eef3fa 42%, #e7eef8 100%);
+}
+
+.portal-admin main {
+  background:
+    radial-gradient(1100px 420px at 0% -8%, rgba(15, 118, 110, 0.14), transparent 55%),
+    radial-gradient(900px 380px at 100% 0%, rgba(247, 95, 12, 0.14), transparent 50%),
+    linear-gradient(180deg, #f3e6d6 0%, #faf6f0 42%, #f4eee6 100%);
+}
+
+.portal-sa .data-surface,
+.portal-admin .data-surface {
+  color: var(--card-foreground);
 }
 
 /* Classic top-down hierarchy org chart (MD → DD → RT) */

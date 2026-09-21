@@ -137,12 +137,12 @@ export function Sidebar({
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-full flex-col border-r border-border bg-sidebar transition-all duration-300",
+          "fixed left-0 top-0 z-50 flex h-full flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground transition-all duration-300",
           collapsed ? "w-[80px]" : "w-[260px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5">
+        <div className="flex h-16 items-center justify-between border-b border-white/10 bg-transparent px-5">
   {!collapsed && (
     <Link
       href={homeHref}
@@ -161,11 +161,11 @@ export function Sidebar({
       {/* Brand */}
       <div className="flex flex-col leading-none">
         <h1 className="text-2xl font-extrabold tracking-tight">
-          <span className="text-[#001F5B]">
+          <span className="text-white">
             Pay
           </span>
 
-          <span className="bg-gradient-to-r from-[#0A84FF] to-[#0057D9] bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-[#F7D774] to-[#C5A059] bg-clip-text text-transparent">
             true 
           </span>
         </h1>
@@ -179,7 +179,7 @@ export function Sidebar({
 
   <button
     onClick={onToggle}
-    className="hidden rounded-xl border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition-all duration-200 hover:bg-slate-50 hover:text-[#1E88FF] hover:shadow-md lg:flex"
+    className="hidden rounded-xl border border-white/15 bg-white/5 p-2 text-sidebar-muted shadow-sm transition-all duration-200 hover:bg-white/10 hover:text-white lg:flex"
   >
     {collapsed ? (
       <ChevronRight className="h-5 w-5" />
@@ -207,7 +207,7 @@ export function Sidebar({
             return (
               <div key={item.href}>
                 {showSection && !collapsed ? (
-                  <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
                     {section}
                   </p>
                 ) : null}
@@ -222,7 +222,7 @@ export function Sidebar({
                       "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                       isActive
                         ? "bg-primary text-white shadow-lg shadow-primary/25"
-                        : "text-muted hover:bg-background hover:text-foreground"
+                        : "text-sidebar-muted hover:bg-white/8 hover:text-sidebar-foreground"
                     )}
                     title={collapsed ? item.label : undefined}
                   >
@@ -254,7 +254,7 @@ export function Sidebar({
           {userRole === "admin" && !isSuperAdmin && groups.length ? (
             <div className="pt-2">
               {!collapsed ? (
-                <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
                   Services
                 </p>
               ) : (
@@ -284,7 +284,9 @@ export function Sidebar({
                     }}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
-                      granted ? "text-muted hover:bg-background hover:text-foreground" : "text-slate-400"
+                      granted
+                        ? "text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground"
+                        : "text-sidebar-muted/60"
                     )}
                   >
                     <Lock className={cn("h-5 w-5", granted && "hidden")} />
@@ -304,10 +306,10 @@ export function Sidebar({
           ) : null}
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div className="border-t border-white/10 p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-accent-red transition-all hover:bg-accent-red/10"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-300 transition-all hover:bg-rose-500/15"
           >
             <LogOut className="h-5 w-5" />
             {!collapsed && <span>Logout</span>}
