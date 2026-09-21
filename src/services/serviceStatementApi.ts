@@ -46,37 +46,67 @@ function pickMobile(obj: Record<string, unknown>): string | null {
   return String(value);
 }
 
+function pickLongestText(...values: unknown[]): string | null {
+  const texts = values
+    .map((value) => (value == null ? "" : String(value).trim()))
+    .filter(Boolean);
+  if (!texts.length) return null;
+  return texts.sort((a, b) => b.length - a.length)[0];
+}
+
 function normalizeRetailer(raw: unknown): StatementRetailer | null {
   const obj = asRecord(raw);
   const id = obj.id ?? obj._id ?? obj.userId ?? obj.retailerId;
   const mobile = pickMobile(obj);
-  const name =
-    (obj.name as string) ||
-    [obj.firstName, obj.lastName].filter(Boolean).join(" ") ||
-    (obj.userCode as string) ||
-    (obj.retailerName as string) ||
-    "";
+  const name = pickLongestText(
+    obj.name,
+    obj.fullName,
+    obj.retailerName,
+    [obj.firstName, obj.lastName].filter(Boolean).join(" "),
+    obj.userCode
+  );
   if (!id && !name && !mobile) return null;
   return {
     id: id ? String(id) : "",
     name: name || "Retailer",
-    userCode: (obj.userCode as string) || null,
+    userCode:
+      (obj.userCode as string) ||
+      (obj.retailerCode as string) ||
+      null,
     mobile,
     email: (obj.email as string) || null,
     status: (obj.status as string) || null,
   };
 }
 
+function mergeRetailer(
+  ...parts: Array<StatementRetailer | null>
+): StatementRetailer | null {
+  const list = parts.filter((item): item is StatementRetailer => Boolean(item));
+  if (!list.length) return null;
+  const first = list[0];
+  return {
+    id: list.find((item) => item.id)?.id || first.id,
+    name: pickLongestText(...list.map((item) => item.name)) || first.name,
+    userCode: list.find((item) => item.userCode)?.userCode || null,
+    mobile: pickLongestText(...list.map((item) => item.mobile)) || first.mobile,
+    email: list.find((item) => item.email)?.email || null,
+    status: list.find((item) => item.status)?.status || null,
+  };
+}
+
 function retailerFromRow(obj: Record<string, unknown>): StatementRetailer | null {
-  return (
-    normalizeRetailer(obj.retailer) ||
-    normalizeRetailer(obj.user) ||
-    normalizeRetailer(obj.createdBy) ||
-    normalizeRetailer(obj.outletUser) ||
+  return mergeRetailer(
+    normalizeRetailer(obj.retailer),
+    normalizeRetailer(obj.user),
+    normalizeRetailer(obj.createdBy),
+    normalizeRetailer(obj.outletUser),
     normalizeRetailer({
       id: obj.retailerId ?? obj.userId,
-      name: obj.retailerName ?? obj.userName ?? obj.outletName,
-      mobile: obj.retailerMobile ?? obj.retailerPhone ?? obj.userMobile,
+      name: obj.retailerName ?? obj.userName,
+      fullName: obj.retailerName,
+      mobile: obj.retailerMobile ?? obj.userMobile,
+      phone: obj.retailerPhone ?? obj.phone,
       userCode: obj.retailerCode ?? obj.userCode,
     })
   );
@@ -95,12 +125,9 @@ export function enrichStatementRetailer(
   const id = row.retailerId || row.retailer?.id || "";
   const match = id ? catalog.find((item) => item.id === id) : undefined;
   const mobile =
-    row.retailer?.mobile || match?.mobile || match?.phone || null;
+    pickLongestText(row.retailer?.mobile, match?.mobile, match?.phone) || null;
   const name =
-    (row.retailer?.name && row.retailer.name !== "Retailer"
-      ? row.retailer.name
-      : null) ||
-    match?.name ||
+    pickLongestText(row.retailer?.name, match?.name) ||
     row.retailer?.name ||
     null;
   if (!id && !name && !mobile) return row;

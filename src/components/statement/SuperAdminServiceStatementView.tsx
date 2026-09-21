@@ -137,15 +137,15 @@ function RetailerCell({
 }) {
   if (!name && !mobile && !userCode) return <span>—</span>;
   return (
-    <div className="min-w-[140px]">
-      <p className="truncate font-medium" title={name || undefined}>
+    <div className="min-w-[220px] max-w-[280px]">
+      <p className="whitespace-normal break-words font-medium leading-snug">
         {name || "Retailer"}
       </p>
-      <p className="truncate text-xs tabular-nums text-muted" title={mobile || undefined}>
+      <p className="mt-0.5 whitespace-nowrap font-mono text-sm tabular-nums text-foreground">
         {mobile || "—"}
       </p>
       {userCode ? (
-        <p className="truncate text-[11px] text-muted">{userCode}</p>
+        <p className="mt-0.5 text-[11px] text-muted">{userCode}</p>
       ) : null}
     </div>
   );
@@ -301,6 +301,28 @@ export function SuperAdminServiceStatementView() {
           mobile={row.original.retailer?.mobile}
           userCode={row.original.retailer?.userCode}
         />
+      ),
+    };
+
+    const retailerNameColumn: ColumnDef<StatementRow, unknown> = {
+      id: "retailerName",
+      header: "Retailer Name",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="block min-w-[180px] max-w-[260px] whitespace-normal break-words font-medium leading-snug">
+          {row.original.retailer?.name || "—"}
+        </span>
+      ),
+    };
+
+    const retailerPhoneColumn: ColumnDef<StatementRow, unknown> = {
+      id: "retailerPhone",
+      header: "Retailer Phone",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <span className="whitespace-nowrap font-mono text-sm tabular-nums">
+          {row.original.retailer?.mobile || "—"}
+        </span>
       ),
     };
 
@@ -551,7 +573,8 @@ export function SuperAdminServiceStatementView() {
             </div>
           ),
         },
-        retailerColumn,
+        retailerNameColumn,
+        retailerPhoneColumn,
         {
           id: "bank",
           header: "Beneficiary",
@@ -654,7 +677,9 @@ export function SuperAdminServiceStatementView() {
           </span>
         ),
       },
-      retailerColumn,
+      ...(service === "DMT"
+        ? [retailerNameColumn, retailerPhoneColumn]
+        : [retailerColumn]),
       {
         id: "status",
         header: "Status",
@@ -1058,7 +1083,11 @@ export function SuperAdminServiceStatementView() {
           pageSize={PAGE_SIZE}
           totalRows={total}
           minTableWidth={
-            service === "AEPS" ? 1500 : service === "DMT3" ? 1380 : 1200
+            service === "AEPS"
+              ? 1500
+              : service === "DMT3" || service === "DMT"
+                ? 1580
+                : 1200
           }
           tone="report"
           stickyHeader
