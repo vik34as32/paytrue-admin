@@ -10,7 +10,9 @@ import { ApiResponse } from "@/types";
 import {
   WalletListPagination,
   WalletListSummary,
+  WalletRoleBalanceTotals,
   WalletUser,
+  WalletUserRole,
   WalletUsersListParams,
   WalletUsersListResult,
 } from "@/types/wallet";
@@ -262,6 +264,17 @@ export function normalizeWalletUser(raw: Record<string, unknown>): WalletUser {
   };
 }
 
+function emptyRoleTotals(): WalletRoleBalanceTotals {
+  return {
+    totalRetailerBalance: 0,
+    totalDistributorBalance: 0,
+    totalMasterDistributorBalance: 0,
+    retailerCount: 0,
+    distributorCount: 0,
+    masterDistributorCount: 0,
+  };
+}
+
 function emptySummary(): WalletListSummary {
   return {
     totalUsers: 0,
@@ -272,6 +285,160 @@ function emptySummary(): WalletListSummary {
     totalFrozenBalance: 0,
     totalAvailableBalance: 0,
     totalBalance: 0,
+    ...emptyRoleTotals(),
+    hasRoleTotals: false,
+  };
+}
+
+function readMoney(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const n = Number(value.replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of [
+      "totalBalance",
+      "balance",
+      "amount",
+      "total",
+      "mainWallet",
+      "walletBalance",
+    ]) {
+      const nested = readMoney(obj[key]);
+      if (nested != null) return nested;
+    }
+  }
+  return null;
+}
+
+function readCount(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of ["count", "users", "totalUsers", "userCount"]) {
+      const nested = readCount(obj[key]);
+      if (nested != null) return nested;
+    }
+    return null;
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function pickFirstAmount(
+  source: Record<string, unknown>,
+  keys: string[]
+): number | null {
+  for (const key of keys) {
+    if (!(key in source)) continue;
+    const amount = readMoney(source[key]);
+    if (amount != null) return amount;
+  }
+  return null;
+}
+
+function pickNestedRole(
+  source: Record<string, unknown>,
+  role: WalletUserRole
+): { balance: number | null; count: number | null; present: boolean } {
+  const buckets = [
+    source.byRole,
+    source.roles,
+    source.roleTotals,
+    source.balancesByRole,
+    source.roleWise,
+    source.totalsByRole,
+    source.roleBalances,
+  ];
+  const aliases = [
+    role,
+    role.toLowerCase(),
+    role.replace(/_/g, ""),
+    role === "MASTER_DISTRIBUTOR" ? "masterDistributor" : role.toLowerCase(),
+    role === "MASTER_DISTRIBUTOR" ? "md" : "",
+  ].filter(Boolean);
+
+  for (const bucket of buckets) {
+    if (!bucket || typeof bucket !== "object" || Array.isArray(bucket)) continue;
+    const obj = bucket as Record<string, unknown>;
+    for (const alias of aliases) {
+      if (!(alias in obj)) continue;
+      return {
+        balance: readMoney(obj[alias]),
+        count: readCount(obj[alias]),
+        present: true,
+      };
+    }
+  }
+  return { balance: null, count: null, present: false };
+}
+
+function extractRoleTotals(raw: Record<string, unknown>): {
+  totals: WalletRoleBalanceTotals;
+  hasRoleTotals: boolean;
+} {
+  const retailerNested = pickNestedRole(raw, "RETAILER");
+  const distributorNested = pickNestedRole(raw, "DISTRIBUTOR");
+  const masterNested = pickNestedRole(raw, "MASTER_DISTRIBUTOR");
+
+  const retailerBalance =
+    retailerNested.balance ??
+    pickFirstAmount(raw, [
+      "totalRetailerBalance",
+      "retailerBalance",
+      "totalRetailerWalletBalance",
+      "retailerTotalBalance",
+    ]);
+  const distributorBalance =
+    distributorNested.balance ??
+    pickFirstAmount(raw, [
+      "totalDistributorBalance",
+      "distributorBalance",
+      "totalDistributorWalletBalance",
+      "distributorTotalBalance",
+    ]);
+  const masterBalance =
+    masterNested.balance ??
+    pickFirstAmount(raw, [
+      "totalMasterDistributorBalance",
+      "masterDistributorBalance",
+      "totalMasterDistributorWalletBalance",
+      "mdBalance",
+      "totalMdBalance",
+    ]);
+
+  const hasRoleTotals =
+    retailerNested.present ||
+    distributorNested.present ||
+    masterNested.present ||
+    retailerBalance != null ||
+    distributorBalance != null ||
+    masterBalance != null;
+
+  return {
+    hasRoleTotals,
+    totals: {
+      totalRetailerBalance: retailerBalance ?? 0,
+      totalDistributorBalance: distributorBalance ?? 0,
+      totalMasterDistributorBalance: masterBalance ?? 0,
+      retailerCount:
+        retailerNested.count ??
+        readCount(raw.retailerCount ?? raw.totalRetailers) ??
+        0,
+      distributorCount:
+        distributorNested.count ??
+        readCount(raw.distributorCount ?? raw.totalDistributors) ??
+        0,
+      masterDistributorCount:
+        masterNested.count ??
+        readCount(
+          raw.masterDistributorCount ?? raw.totalMasterDistributors
+        ) ??
+        0,
+    },
   };
 }
 
@@ -311,6 +478,20 @@ function summarizeFromItems(
       totalMainWalletBalance +
       totalCommissionWalletBalance +
       totalAepsWalletBalance,
+    totalRetailerBalance: items
+      .filter((i) => i.role === "RETAILER")
+      .reduce((s, i) => s + i.totalBalance, 0),
+    totalDistributorBalance: items
+      .filter((i) => i.role === "DISTRIBUTOR")
+      .reduce((s, i) => s + i.totalBalance, 0),
+    totalMasterDistributorBalance: items
+      .filter((i) => i.role === "MASTER_DISTRIBUTOR")
+      .reduce((s, i) => s + i.totalBalance, 0),
+    retailerCount: items.filter((i) => i.role === "RETAILER").length,
+    distributorCount: items.filter((i) => i.role === "DISTRIBUTOR").length,
+    masterDistributorCount: items.filter((i) => i.role === "MASTER_DISTRIBUTOR")
+      .length,
+    hasRoleTotals: false,
   };
 }
 
@@ -339,6 +520,7 @@ function normalizeSummary(
           s.totalFrozenAmount ??
           s.frozenBalance
       );
+      const roleTotals = extractRoleTotals(s);
       return {
         totalUsers: toNumber(s.totalUsers ?? totalUsers),
         totalMainWalletBalance,
@@ -357,6 +539,8 @@ function normalizeSummary(
               totalCommissionWalletBalance +
               totalAepsWalletBalance
         ),
+        ...roleTotals.totals,
+        hasRoleTotals: roleTotals.hasRoleTotals,
       };
     }
   }
@@ -470,6 +654,71 @@ export async function fetchWalletUsers(
   } catch (error) {
     throw new Error(getErrorMessage(error));
   }
+}
+
+async function sumRoleBalance(
+  role: WalletUserRole,
+  globalTotal: number
+): Promise<{ balance: number; count: number }> {
+  const first = await fetchWalletUsers({ page: 1, limit: 100, role });
+  const count = first.pagination.total || first.items.length;
+  const summaryBalance = first.summary.totalBalance;
+  const looksRoleSpecific =
+    first.summary.hasRoleTotals ||
+    (summaryBalance > 0 && Math.abs(summaryBalance - globalTotal) > 0.009);
+
+  if (looksRoleSpecific) {
+    const roleField =
+      role === "RETAILER"
+        ? first.summary.totalRetailerBalance
+        : role === "DISTRIBUTOR"
+          ? first.summary.totalDistributorBalance
+          : first.summary.totalMasterDistributorBalance;
+    return {
+      balance: first.summary.hasRoleTotals ? roleField : summaryBalance,
+      count,
+    };
+  }
+
+  let balance = first.items.reduce((sum, item) => sum + item.totalBalance, 0);
+  const pages = Math.min(Math.max(first.pagination.totalPages, 1), 50);
+  for (let page = 2; page <= pages; page += 1) {
+    const next = await fetchWalletUsers({ page, limit: 100, role });
+    balance += next.items.reduce((sum, item) => sum + item.totalBalance, 0);
+  }
+  return { balance, count };
+}
+
+/** Network-wide retailer / distributor / master distributor wallet totals. */
+export async function fetchWalletRoleBalanceTotals(): Promise<WalletRoleBalanceTotals> {
+  const overview = await fetchWalletUsers({ page: 1, limit: 1 });
+  if (overview.summary.hasRoleTotals) {
+    return {
+      totalRetailerBalance: overview.summary.totalRetailerBalance,
+      totalDistributorBalance: overview.summary.totalDistributorBalance,
+      totalMasterDistributorBalance:
+        overview.summary.totalMasterDistributorBalance,
+      retailerCount: overview.summary.retailerCount,
+      distributorCount: overview.summary.distributorCount,
+      masterDistributorCount: overview.summary.masterDistributorCount,
+    };
+  }
+
+  const globalTotal = overview.summary.totalBalance;
+  const [retailer, distributor, master] = await Promise.all([
+    sumRoleBalance("RETAILER", globalTotal),
+    sumRoleBalance("DISTRIBUTOR", globalTotal),
+    sumRoleBalance("MASTER_DISTRIBUTOR", globalTotal),
+  ]);
+
+  return {
+    totalRetailerBalance: retailer.balance,
+    totalDistributorBalance: distributor.balance,
+    totalMasterDistributorBalance: master.balance,
+    retailerCount: retailer.count,
+    distributorCount: distributor.count,
+    masterDistributorCount: master.count,
+  };
 }
 
 /** GET /api/v1/wallet/users/:userId — Admin + Super Admin */

@@ -4,7 +4,7 @@ import {
   keepPreviousData,
   useQuery,
 } from "@tanstack/react-query";
-import { fetchWalletUsers } from "@/services/wallet.service";
+import { fetchWalletRoleBalanceTotals, fetchWalletUsers } from "@/services/wallet.service";
 import { WalletUsersListParams } from "@/types/wallet";
 
 export const walletKeys = {
@@ -13,6 +13,7 @@ export const walletKeys = {
     [...walletKeys.all, "users", params] as const,
   details: (userId: string) =>
     [...walletKeys.all, "details", userId] as const,
+  roleTotals: () => [...walletKeys.all, "role-totals"] as const,
 };
 
 export function useWalletUsers(params: WalletUsersListParams, enabled = true) {
@@ -21,6 +22,17 @@ export function useWalletUsers(params: WalletUsersListParams, enabled = true) {
     queryFn: () => fetchWalletUsers(params),
     enabled,
     placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+}
+
+export function useWalletRoleBalanceTotals(enabled = true) {
+  return useQuery({
+    queryKey: walletKeys.roleTotals(),
+    queryFn: fetchWalletRoleBalanceTotals,
+    enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
     retry: 1,

@@ -8,16 +8,21 @@ import {
   CircleDollarSign,
   Landmark,
   Snowflake,
+  Store,
+  Building2,
+  Network,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatCurrency, cn } from "@/lib/utils";
-import { WalletListSummary } from "@/types/wallet";
+import { WalletListSummary, WalletUserRole } from "@/types/wallet";
 import { WalletCategoryLedgerType } from "@/types/walletCategoryLedger";
 
 interface WalletSummaryCardsProps {
   summary: WalletListSummary;
   isLoading?: boolean;
+  roleTotalsLoading?: boolean;
   onCardClick?: (type: WalletCategoryLedgerType) => void;
+  onRoleClick?: (role: WalletUserRole) => void;
 }
 
 const CARDS = [
@@ -88,12 +93,45 @@ const CARDS = [
   },
 ] as const;
 
+const ROLE_CARDS = [
+  {
+    key: "retailer",
+    role: "RETAILER" as const,
+    label: "Total Retailer Balance",
+    icon: Store,
+    accent: "from-violet-500/15 to-violet-500/5 text-violet-600",
+    amount: (s: WalletListSummary) => s.totalRetailerBalance,
+    count: (s: WalletListSummary) => s.retailerCount,
+  },
+  {
+    key: "distributor",
+    role: "DISTRIBUTOR" as const,
+    label: "Total Distributor Balance",
+    icon: Network,
+    accent: "from-cyan-500/15 to-cyan-500/5 text-cyan-600",
+    amount: (s: WalletListSummary) => s.totalDistributorBalance,
+    count: (s: WalletListSummary) => s.distributorCount,
+  },
+  {
+    key: "master",
+    role: "MASTER_DISTRIBUTOR" as const,
+    label: "Total Master Distributor Balance",
+    icon: Building2,
+    accent: "from-amber-500/15 to-amber-500/5 text-amber-700",
+    amount: (s: WalletListSummary) => s.totalMasterDistributorBalance,
+    count: (s: WalletListSummary) => s.masterDistributorCount,
+  },
+] as const;
+
 export function WalletSummaryCards({
   summary,
   isLoading,
+  roleTotalsLoading,
   onCardClick,
+  onRoleClick,
 }: WalletSummaryCardsProps) {
   return (
+    <div className="space-y-3">
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[1600px]:grid-cols-7">
       {CARDS.map((card, index) => {
         const Icon = card.icon;
@@ -152,6 +190,58 @@ export function WalletSummaryCards({
           </motion.div>
         );
       })}
+    </div>
+
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      {ROLE_CARDS.map((card, index) => {
+        const Icon = card.icon;
+        const count = card.count(summary);
+        return (
+          <motion.div
+            key={card.key}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, delay: 0.12 + index * 0.04 }}
+            role={onRoleClick ? "button" : undefined}
+            tabIndex={onRoleClick ? 0 : undefined}
+            onClick={() => onRoleClick?.(card.role)}
+            onKeyDown={(event) => {
+              if (!onRoleClick) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onRoleClick(card.role);
+              }
+            }}
+            className={cn(
+              "rounded-2xl border border-border bg-gradient-to-br p-4 shadow-sm transition",
+              card.accent,
+              onRoleClick &&
+                "cursor-pointer hover:border-primary/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            )}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                {card.label}
+              </p>
+              <span className="rounded-xl bg-card/80 p-2 shadow-sm">
+                <Icon className="h-4 w-4" />
+              </span>
+            </div>
+            {roleTotalsLoading ? (
+              <div className="h-7 w-28 animate-pulse rounded-lg bg-muted/25" />
+            ) : (
+              <p className="text-xl font-bold tracking-tight text-foreground">
+                {formatCurrency(card.amount(summary))}
+              </p>
+            )}
+            <p className="mt-2 text-[11px] font-medium text-muted">
+              {count.toLocaleString("en-IN")} users
+              {onRoleClick ? " · Filter list →" : ""}
+            </p>
+          </motion.div>
+        );
+      })}
+    </div>
     </div>
   );
 }

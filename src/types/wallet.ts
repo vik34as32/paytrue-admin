@@ -118,6 +118,23 @@ export interface WalletListSummary {
   totalAvailableBalance: number;
   /** Main + commission + AEPS */
   totalBalance: number;
+  totalRetailerBalance: number;
+  totalDistributorBalance: number;
+  totalMasterDistributorBalance: number;
+  retailerCount: number;
+  distributorCount: number;
+  masterDistributorCount: number;
+  /** True when API sent role-wise totals (not inferred from the current page). */
+  hasRoleTotals?: boolean;
+}
+
+export interface WalletRoleBalanceTotals {
+  totalRetailerBalance: number;
+  totalDistributorBalance: number;
+  totalMasterDistributorBalance: number;
+  retailerCount: number;
+  distributorCount: number;
+  masterDistributorCount: number;
 }
 
 export interface WalletListPagination {

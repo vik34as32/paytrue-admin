@@ -18,7 +18,7 @@ import { WalletLienActionModal } from "@/components/wallet-management/WalletLien
 import { WalletFreezeActionModal } from "@/components/wallet-management/WalletFreezeActionModal";
 import { WalletRowAction } from "@/components/wallet-management/WalletActionButtons";
 import { WalletLoadingSkeleton } from "@/components/wallet-management/WalletLoadingSkeleton";
-import { useWalletUsers, walletKeys } from "@/hooks/useWalletUsers";
+import { useWalletRoleBalanceTotals, useWalletUsers, walletKeys } from "@/hooks/useWalletUsers";
 import { ROUTES } from "@/constants";
 import { WalletFilterValues } from "@/schemas/wallet-filter.schema";
 import {
@@ -38,6 +38,7 @@ import {
   WalletSortBy,
   WalletSortOrder,
   WalletUser,
+  WalletUserRole,
   WalletUsersListParams,
 } from "@/types/wallet";
 import { WalletCategoryLedgerType } from "@/types/walletCategoryLedger";
@@ -93,6 +94,14 @@ export function WalletManagementView({
       router.push(`${base}?type=${type}`);
     },
     [router, scope]
+  );
+
+  const handleRoleCardClick = useCallback(
+    (role: WalletUserRole) => {
+      form.setValue("role", role);
+      form.setValue("page", 1);
+    },
+    [form]
   );
 
   const [searchInput, setSearchInput] = useState("");
@@ -156,6 +165,12 @@ export function WalletManagementView({
     refetch,
   } = useWalletUsers(queryParams);
 
+  const {
+    data: roleTotals,
+    isLoading: roleTotalsLoading,
+    isFetching: roleTotalsFetching,
+  } = useWalletRoleBalanceTotals();
+
   useEffect(() => {
     if (isError && error) {
       toast.error(error.message || "Failed to load wallets");
@@ -163,7 +178,7 @@ export function WalletManagementView({
   }, [isError, error]);
 
   const items = data?.items ?? [];
-  const summary = data?.summary ?? {
+  const summary = {
     totalUsers: 0,
     totalMainWalletBalance: 0,
     totalCommissionWalletBalance: 0,
@@ -172,6 +187,14 @@ export function WalletManagementView({
     totalFrozenBalance: 0,
     totalAvailableBalance: 0,
     totalBalance: 0,
+    totalRetailerBalance: 0,
+    totalDistributorBalance: 0,
+    totalMasterDistributorBalance: 0,
+    retailerCount: 0,
+    distributorCount: 0,
+    masterDistributorCount: 0,
+    ...(data?.summary ?? {}),
+    ...(roleTotals ?? {}),
   };
   const pagination = data?.pagination ?? {
     total: 0,
@@ -478,7 +501,9 @@ export function WalletManagementView({
           <WalletSummaryCards
             summary={summary}
             isLoading={isFetching && !data}
+            roleTotalsLoading={roleTotalsLoading || (roleTotalsFetching && !roleTotals)}
             onCardClick={handleSummaryCardClick}
+            onRoleClick={handleRoleCardClick}
           />
 
           <WalletToolbar
