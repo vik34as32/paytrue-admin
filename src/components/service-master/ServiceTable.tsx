@@ -133,7 +133,7 @@ export function ServiceTable({
   );
 
   return (
-    <Card sx={{ overflow: "hidden" }}>
+    <Card className="pt-grid-shell" sx={{ overflow: "hidden", border: 0, boxShadow: "none", background: "transparent" }}>
       <Box sx={{ width: "100%", minHeight: 480 }}>
         <DataGrid
           rows={rows}

@@ -8,17 +8,19 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants = {
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/25 active:scale-[0.98]",
+    "bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90 hover:-translate-y-px active:scale-[0.98]",
   secondary:
-    "bg-secondary text-white hover:bg-secondary/90 active:scale-[0.98]",
+    "bg-secondary text-white shadow-lg shadow-secondary/20 hover:bg-secondary/90 hover:-translate-y-px active:scale-[0.98]",
   outline:
-    "border border-border bg-card text-foreground hover:bg-background hover:border-primary/30 active:scale-[0.98]",
-  ghost: "text-muted hover:text-foreground hover:bg-background",
-  danger: "bg-accent-red text-white hover:bg-accent-red/90 active:scale-[0.98]",
+    "border border-border bg-card text-foreground shadow-sm hover:border-primary/35 hover:bg-primary/5 hover:text-primary hover:-translate-y-px hover:shadow-md active:scale-[0.98]",
+  ghost:
+    "text-muted hover:text-primary hover:bg-primary/8 active:scale-[0.98]",
+  danger:
+    "bg-accent-red text-white shadow-lg shadow-accent-red/20 hover:bg-accent-red/90 hover:-translate-y-px active:scale-[0.98]",
 };
 
 const sizes = {
-  sm: "h-8 px-3 text-xs rounded-lg",
+  sm: "h-9 px-3.5 text-xs rounded-xl font-semibold",
   md: "h-10 px-4 text-sm rounded-xl",
   lg: "h-12 px-6 text-base rounded-xl",
 };

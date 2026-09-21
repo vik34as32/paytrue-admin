@@ -1085,3 +1085,347 @@ html.modal-open body {
   background: rgba(22, 119, 255, 0.12) !important;
 }
 
+/* ── Premium DataTable ── */
+.pt-table__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pt-table__shell {
+  position: relative;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, #94a3b8);
+  border-radius: 1.35rem;
+  background: var(--card);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 32px rgba(15, 23, 42, 0.07);
+}
+
+.pt-table__accent {
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--primary),
+    var(--portal-accent),
+    var(--secondary)
+  );
+}
+
+.pt-table__grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.pt-table__th {
+  padding: 0.85rem 1rem;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e8eef8;
+  background: linear-gradient(180deg, #13233f 0%, #0c1a33 100%);
+  white-space: nowrap;
+  user-select: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.portal-admin .pt-table__th {
+  background: linear-gradient(180deg, #173f44 0%, #102f33 100%);
+}
+
+.pt-table__th--sort {
+  cursor: pointer;
+}
+
+.pt-table__th--sort:hover {
+  color: #fff;
+  background: linear-gradient(180deg, #1a2f52 0%, #10203d 100%);
+}
+
+.pt-table__sort {
+  display: inline-flex;
+  color: var(--portal-accent);
+}
+
+.pt-table__td {
+  padding: 0.95rem 1rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--card-foreground);
+  vertical-align: middle;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.pt-table__row {
+  background: var(--card);
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pt-table__row--alt {
+  background: color-mix(in srgb, var(--background) 55%, var(--card));
+}
+
+.pt-table__row:hover {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  box-shadow: inset 3px 0 0 var(--portal-accent);
+}
+
+.pt-table__row--click {
+  cursor: pointer;
+}
+
+.pt-table__row--skel td {
+  box-shadow: none;
+}
+
+.pt-table__pulse {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e8eef5 0%, #f8fafc 50%, #e8eef5 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.pt-table__empty {
+  padding: 3.25rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.pt-table__empty p {
+  margin-top: 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.pt-table__empty > span:last-child {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+}
+
+.pt-table__empty-icon {
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color: var(--primary);
+}
+
+.pt-table__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  border-radius: 1.15rem;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card) 88%, #fff),
+    color-mix(in srgb, var(--background) 70%, var(--card))
+  );
+}
+
+.pt-table__meta p {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.pt-table__meta span {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pt-table__pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pt-page-btn,
+.pt-page-num {
+  display: inline-flex;
+  height: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0 0.75rem;
+  transition: 0.16s ease;
+}
+
+.pt-page-num {
+  min-width: 2.15rem;
+  padding: 0 0.4rem;
+}
+
+.pt-page-btn:hover:not(:disabled),
+.pt-page-num:hover {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.pt-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pt-table__pages {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+}
+
+.pt-page-num--on {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary) 92%, #fff),
+    var(--primary)
+  );
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.pt-table__rows {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pt-table__rows select {
+  height: 2.15rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0 0.55rem;
+  font-weight: 700;
+  outline: none;
+}
+
+.pt-table__rows select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+/* Action chips inside every table */
+.pt-table td button,
+.pt-icon-btn {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.pt-icon-btn {
+  display: inline-flex;
+  height: 2.15rem;
+  width: 2.15rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.pt-icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.1);
+}
+
+.pt-table td .inline-flex button,
+.pt-table td button.h-8,
+.pt-table td button.h-9 {
+  border-radius: 0.75rem;
+}
+
+.pt-table td button:hover {
+  transform: translateY(-1px);
+}
+
+/* Ant Design + MUI grids */
+.commission-table-shell .ant-table-wrapper,
+.pt-grid-shell {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.06);
+}
+
+.commission-table-shell .ant-table-thead > tr > th {
+  background: #0c1a33 !important;
+  color: #e8eef8 !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.commission-table-shell .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--primary) 6%, #fff) !important;
+}
+
+.pt-grid-shell .MuiDataGrid-root {
+  border: 0 !important;
+  font-family: inherit !important;
+}
+
+.pt-grid-shell .MuiDataGrid-columnHeaders {
+  background: linear-gradient(180deg, #13233f 0%, #0c1a33 100%) !important;
+  color: #e8eef8 !important;
+}
+
+.pt-grid-shell .MuiDataGrid-columnHeaderTitle {
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.pt-grid-shell .MuiDataGrid-row:hover {
+  background: color-mix(in srgb, var(--primary) 6%, transparent) !important;
+}
+
+.pt-grid-shell .MuiIconButton-root {
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: #fff;
+}
+
+.dark .pt-table__th,
+.dark .portal-admin .pt-table__th {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+}
+
+.dark .pt-icon-btn,
+.dark .pt-grid-shell .MuiIconButton-root {
+  background: var(--card);
+  color: var(--foreground);
+}
+

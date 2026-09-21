@@ -93,7 +93,7 @@ export function SuperAdminUserActionsMenu({
         disabled={actions.disabled}
         onClick={() => setOpen((prev) => !prev)}
         className={cn(
-          "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors duration-150",
+          "pt-icon-btn",
           "hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40",
           "disabled:cursor-not-allowed disabled:opacity-50",

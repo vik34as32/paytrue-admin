@@ -14,8 +14,15 @@ import {
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/common/Input";
-import { Button } from "@/components/common/Button";
-import { HiChevronLeft, HiChevronRight, HiSearch } from "react-icons/hi";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronDown,
+  Inbox,
+  Search,
+} from "lucide-react";
 
 type ColumnAlign = "left" | "center" | "right";
 
@@ -34,12 +41,10 @@ interface DataTableProps<T> {
   onPageChange?: (pageIndex: number) => void;
   pageSizeOptions?: number[];
   onPageSizeChange?: (pageSize: number) => void;
-  /** Total records across all pages (for "Showing X to Y of Z") */
   totalRows?: number;
   manualSorting?: boolean;
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
-  /** `report` = Wallet Credit History style (default). `network` kept for compatibility. */
   tone?: "default" | "network" | "report";
   stickyHeader?: boolean;
   minTableWidth?: number;
@@ -135,12 +140,9 @@ export function DataTable<T>({
   const range = useMemo(() => {
     if (!filteredCount) return { from: 0, to: 0, total: 0 };
     const from = pageIndex * pageSize + 1;
-    const to = Math.min(
-      (pageIndex + 1) * pageSize,
-      manualPagination ? filteredCount : filteredCount
-    );
+    const to = Math.min((pageIndex + 1) * pageSize, filteredCount);
     return { from, to: Math.min(to, filteredCount), total: filteredCount };
-  }, [filteredCount, pageIndex, pageSize, manualPagination]);
+  }, [filteredCount, pageIndex, pageSize]);
 
   const totalPages = Math.max(1, table.getPageCount() || 1);
   const pageButtons = useMemo(() => {
@@ -155,16 +157,22 @@ export function DataTable<T>({
     return Array.from({ length: maxButtons }, (_, i) => start + i);
   }, [pageIndex, totalPages]);
 
+  const goToPage = (index: number) => {
+    if (manualPagination) onPageChange?.(index);
+    else table.setPageIndex(index);
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="pt-table space-y-3">
       {!hideSearch && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="w-full sm:max-w-md">
+        <div className="pt-table__toolbar">
+          <div className="w-full sm:max-w-sm">
             <Input
               placeholder={searchPlaceholder}
-              icon={<HiSearch className="h-4 w-4" />}
+              icon={<Search className="h-4 w-4" />}
               value={searchValue ?? globalFilter}
               onChange={(e) => handleSearch(e.target.value)}
+              className="h-10 rounded-2xl border-border/80 bg-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]"
             />
           </div>
         </div>
@@ -172,31 +180,32 @@ export function DataTable<T>({
 
       <div
         className={cn(
-          "overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.04)] dark:border-border dark:bg-card",
+          "pt-table__shell",
           stickyHeader && "max-h-[min(70vh,720px)] overflow-y-auto"
         )}
       >
-        <table className="w-full border-collapse" style={{ minWidth: minTableWidth }}>
+        <div className="pt-table__accent" />
+        <table
+          className="pt-table__grid"
+          style={{ minWidth: minTableWidth }}
+        >
           <thead className={cn(stickyHeader && "sticky top-0 z-20")}>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr
-                key={headerGroup.id}
-                className="border-b border-slate-200 bg-slate-800 shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)] dark:border-border dark:bg-slate-900"
-              >
+              <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const align = (
                     header.column.columnDef.meta as
                       | { align?: ColumnAlign }
                       | undefined
                   )?.align;
+                  const sorted = header.column.getIsSorted();
                   return (
                     <th
                       key={header.id}
                       className={cn(
-                        "px-4 py-3.5 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-100 select-none",
+                        "pt-table__th",
                         getAlignClass(align),
-                        header.column.getCanSort() &&
-                          "cursor-pointer hover:text-white"
+                        header.column.getCanSort() && "pt-table__th--sort"
                       )}
                       style={{
                         width: header.column.getSize()
@@ -207,7 +216,7 @@ export function DataTable<T>({
                     >
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1",
+                          "inline-flex items-center gap-1.5",
                           align === "right" && "w-full justify-end",
                           align === "center" && "w-full justify-center"
                         )}
@@ -216,8 +225,17 @@ export function DataTable<T>({
                           header.column.columnDef.header,
                           header.getContext()
                         )}
-                        {header.column.getIsSorted() === "asc" && " ↑"}
-                        {header.column.getIsSorted() === "desc" && " ↓"}
+                        {header.column.getCanSort() ? (
+                          <span className="pt-table__sort" aria-hidden>
+                            {sorted === "asc" ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : sorted === "desc" ? (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronsUpDown className="h-3.5 w-3.5 opacity-45" />
+                            )}
+                          </span>
+                        ) : null}
                       </span>
                     </th>
                   );
@@ -227,33 +245,26 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {isLoading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr
-                  key={i}
-                  className={cn(
-                    "border-b border-slate-100 dark:border-border",
-                    i % 2 === 1 && "bg-slate-50/80 dark:bg-muted/20"
-                  )}
-                >
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="pt-table__row pt-table__row--skel">
                   {columns.map((_, j) => (
-                    <td key={j} className="px-4 py-4">
-                      <div className="h-4 animate-pulse rounded bg-slate-200/80 dark:bg-border" />
+                    <td key={j} className="pt-table__td">
+                      <div
+                        className="pt-table__pulse"
+                        style={{ width: `${46 + ((i + j) % 4) * 12}%` }}
+                      />
                     </td>
                   ))}
                 </tr>
               ))
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-16 text-center text-muted"
-                >
-                  <p className="text-sm font-medium text-slate-700 dark:text-foreground">
-                    No data found
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Try adjusting your search criteria
-                  </p>
+                <td colSpan={columns.length} className="pt-table__empty">
+                  <span className="pt-table__empty-icon">
+                    <Inbox className="h-6 w-6" />
+                  </span>
+                  <p>No records to show</p>
+                  <span>Try a different search or filter</span>
                 </td>
               </tr>
             ) : (
@@ -261,17 +272,12 @@ export function DataTable<T>({
                 <tr
                   key={row.id}
                   onClick={
-                    onRowClick
-                      ? () => onRowClick(row.original)
-                      : undefined
+                    onRowClick ? () => onRowClick(row.original) : undefined
                   }
                   className={cn(
-                    "border-b border-slate-100 transition-colors duration-150 last:border-b-0 dark:border-border",
-                    rowIndex % 2 === 0
-                      ? "bg-white dark:bg-card"
-                      : "bg-slate-50/90 dark:bg-muted/15",
-                    "hover:bg-sky-50/70 dark:hover:bg-primary/5",
-                    onRowClick && "cursor-pointer"
+                    "pt-table__row",
+                    rowIndex % 2 === 1 && "pt-table__row--alt",
+                    onRowClick && "pt-table__row--click"
                   )}
                 >
                   {row.getVisibleCells().map((cell) => {
@@ -283,11 +289,7 @@ export function DataTable<T>({
                     return (
                       <td
                         key={cell.id}
-                        className={cn(
-                          "px-4 py-4 text-sm text-slate-900 align-middle dark:text-foreground",
-                          "min-h-[68px]",
-                          getAlignClass(align)
-                        )}
+                        className={cn("pt-table__td", getAlignClass(align))}
                       >
                         {flexRender(
                           cell.column.columnDef.cell,
@@ -303,88 +305,68 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-slate-50/80 px-4 py-3 dark:border-border dark:bg-muted/20 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-0.5">
-          <p className="text-sm font-semibold text-slate-800 dark:text-foreground">
+      <div className="pt-table__foot">
+        <div className="pt-table__meta">
+          <p>
             Showing{" "}
-            <span className="tabular-nums text-slate-950 dark:text-foreground">
-              {range.from}
-            </span>
+            <strong className="tabular-nums">{range.from}</strong>
             –
-            <span className="tabular-nums text-slate-950 dark:text-foreground">
-              {range.to}
-            </span>{" "}
-            of{" "}
-            <span className="tabular-nums text-slate-950 dark:text-foreground">
-              {range.total}
-            </span>{" "}
-            records
+            <strong className="tabular-nums">{range.to}</strong> of{" "}
+            <strong className="tabular-nums">{range.total}</strong>
           </p>
-          <p className="text-xs text-slate-500 dark:text-muted">
-            Page{" "}
-            <span className="font-semibold tabular-nums text-slate-700 dark:text-foreground">
-              {pageIndex + 1}
-            </span>{" "}
-            of{" "}
-            <span className="font-semibold tabular-nums text-slate-700 dark:text-foreground">
-              {totalPages}
-            </span>
-          </p>
+          <span>
+            Page <b className="tabular-nums">{pageIndex + 1}</b> /{" "}
+            <b className="tabular-nums">{totalPages}</b>
+          </span>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
+        <div className="pt-table__pager">
+          <button
+            type="button"
+            className="pt-page-btn"
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="!h-9 !rounded-xl"
           >
-            <HiChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4" />
             Prev
-          </Button>
+          </button>
 
-          {pageButtons.map((i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => {
-                if (manualPagination) onPageChange?.(i);
-                else table.setPageIndex(i);
-              }}
-              className={cn(
-                "flex h-9 min-w-9 items-center justify-center rounded-xl px-2.5 text-xs font-bold transition-all duration-150",
-                pageIndex === i
-                  ? "bg-slate-900 text-white shadow-md shadow-slate-900/20 dark:bg-primary"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-border dark:bg-card dark:text-foreground"
-              )}
-            >
-              {i + 1}
-            </button>
-          ))}
+          <div className="pt-table__pages">
+            {pageButtons.map((i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => goToPage(i)}
+                className={cn(
+                  "pt-page-num",
+                  pageIndex === i && "pt-page-num--on"
+                )}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
 
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
+            className="pt-page-btn"
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="!h-9 !rounded-xl"
           >
             Next
-            <HiChevronRight className="h-4 w-4" />
-          </Button>
+            <ChevronRight className="h-4 w-4" />
+          </button>
 
           {pageSizeOptions?.length && onPageSizeChange ? (
-            <label className="ml-1 flex items-center gap-2 text-sm text-slate-500">
-              <span className="hidden sm:inline">Rows</span>
+            <label className="pt-table__rows">
+              <span>Rows</span>
               <select
-                className="h-9 rounded-xl border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-900 outline-none focus:border-slate-400 dark:border-border dark:bg-card dark:text-foreground"
                 value={pageSize}
                 onChange={(e) => onPageSizeChange(Number(e.target.value))}
               >
                 {pageSizeOptions.map((size) => (
                   <option key={size} value={size}>
-                    {size} / page
+                    {size}
                   </option>
                 ))}
               </select>
