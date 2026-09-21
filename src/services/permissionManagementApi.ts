@@ -1,24 +1,21 @@
-import { superAdminClient, superAdminModuleClient } from "@/lib/api/client";
+import { adminClient, superAdminClient } from "@/lib/api/client";
 import { getAdmins } from "@/services/superAdminApi";
 import {
   getPublicNetworkUsers,
   type PublicNetworkUserType,
 } from "@/services/publicNetworkUsersApi";
 import { getAdminDisplayName, getAdminId } from "@/services/admin";
-import {
-  getDefaultEnabledSlugs,
-  getModuleOptionsForRole,
-  getPermissionModulesForRole,
-  PERMISSION_ROLE_OPTIONS,
-} from "@/constants/permissionModules";
+import { PERMISSION_ROLE_OPTIONS } from "@/constants/permissionModules";
 import type {
+  CreatePermissionPayload,
+  PermissionDefinitionStatus,
   PermissionRoleType,
   PermissionUserOption,
-  UserPermissionState,
+  ServicePermission,
+  UpdatePermissionPayload,
+  UserPermissionSnapshot,
 } from "@/types/permissions";
 import type { ApiResponse } from "@/types";
-
-const LOCAL_STORE_KEY = "paytrue.userPermissions.v1";
 
 function roleLabel(role: PermissionRoleType): string {
   return (
@@ -27,50 +24,145 @@ function roleLabel(role: PermissionRoleType): string {
   );
 }
 
-function readLocalStore(): Record<string, UserPermissionState> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(LOCAL_STORE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, UserPermissionState>;
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalStore(store: Record<string, UserPermissionState>) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LOCAL_STORE_KEY, JSON.stringify(store));
-}
-
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object"
     ? (value as Record<string, unknown>)
     : {};
 }
 
-function extractSlugs(payload: unknown): string[] {
+function unwrap(payload: unknown): unknown {
   const obj = asRecord(payload);
-  const candidates = [
-    obj.enabledSlugs,
-    obj.permissionSlugs,
-    obj.permissions,
-    obj.slugs,
-  ];
+  if (obj.data !== undefined) return unwrap(obj.data);
+  return payload;
+}
 
+function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  const obj = asRecord(value);
+  for (const key of [
+    "permissions",
+    "items",
+    "rows",
+    "list",
+    "records",
+    "content",
+    "result",
+  ]) {
+    if (Array.isArray(obj[key])) return obj[key] as unknown[];
+  }
+  return [];
+}
+
+function toStatus(value: unknown): PermissionDefinitionStatus {
+  const raw = String(value ?? "").toUpperCase();
+  if (
+    raw === "INACTIVE" ||
+    raw === "DISABLED" ||
+    raw === "DELETED" ||
+    raw === "FALSE"
+  ) {
+    return "INACTIVE";
+  }
+  return "ACTIVE";
+}
+
+export function normalizePermission(raw: unknown): ServicePermission | null {
+  const obj = asRecord(raw);
+  const nested = asRecord(obj.permission);
+  const source = Object.keys(nested).length ? { ...nested, ...obj } : obj;
+  const id = String(
+    source.id ?? source.permissionId ?? source._id ?? ""
+  ).trim();
+  const key = String(
+    source.key ??
+      source.permissionKey ??
+      source.slug ??
+      source.permission_slug ??
+      ""
+  )
+    .trim()
+    .toUpperCase();
+  const name = String(
+    source.name ?? source.serviceName ?? source.label ?? key ?? ""
+  ).trim();
+  if (!id && !key) return null;
+  const assignedRaw =
+    source.assignedUsersCount ??
+    source.usersAssigned ??
+    source.userCount ??
+    source.assignedCount ??
+    source.assignedUsers;
+  const assignedUsersCount = Array.isArray(assignedRaw)
+    ? assignedRaw.length
+    : Number(assignedRaw ?? 0) || 0;
+
+  return {
+    id: id || key,
+    name: name || key,
+    key,
+    serviceType: String(
+      source.serviceType ?? source.service ?? source.module ?? "OTHER"
+    ).trim() || "OTHER",
+    description: String(source.description ?? source.details ?? "").trim(),
+    status: source.isDeleted === true ? "INACTIVE" : toStatus(source.status),
+    assignedUsersCount,
+  };
+}
+
+function normalizePermissionList(payload: unknown): ServicePermission[] {
+  const unwrapped = unwrap(payload);
+  const rows = asArray(unwrapped);
+  const list: ServicePermission[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (typeof row === "string" || typeof row === "number") {
+      const key = String(row).trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      list.push({
+        id: key,
+        name: key,
+        key: key.toUpperCase(),
+        serviceType: "OTHER",
+        description: "",
+        status: "ACTIVE",
+        assignedUsersCount: 0,
+      });
+      continue;
+    }
+    const item = normalizePermission(row);
+    if (!item) continue;
+    const dedupe = item.id || item.key;
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    list.push(item);
+  }
+  return list;
+}
+
+function extractPermissionIds(payload: unknown): string[] {
+  const unwrapped = unwrap(payload);
+  const obj = asRecord(unwrapped);
+  const candidates = [
+    obj.permissionIds,
+    obj.ids,
+    obj.enabledPermissionIds,
+    obj.enabledIds,
+  ];
   for (const candidate of candidates) {
     if (!Array.isArray(candidate)) continue;
-    return candidate
-      .map((item) => {
-        if (typeof item === "string") return item;
-        const row = asRecord(item);
-        return String(row.slug ?? row.permissionSlug ?? row.id ?? "");
-      })
-      .filter(Boolean);
+    return candidate.map((item) => String(item)).filter(Boolean);
   }
 
-  return [];
+  const list = normalizePermissionList(unwrapped);
+  return list.map((item) => item.id).filter(Boolean);
+}
+
+function toSaveIds(ids: string[]): number[] | string[] {
+  if (ids.every((id) => /^\d+$/.test(id))) {
+    return ids.map((id) => Number(id));
+  }
+  return ids;
 }
 
 /** Load users for a role from existing Super Admin / public APIs. */
@@ -117,117 +209,203 @@ export async function listPermissionUsersByRole(
   }));
 }
 
-/**
- * Fetch enabled permission slugs for a user.
- * Tries live API first, then local persistence, then role defaults.
- */
-export async function getUserPermissionState(
-  userId: string,
-  role: PermissionRoleType
-): Promise<UserPermissionState> {
-  const endpoints = [
-    () =>
-      superAdminModuleClient.get<ApiResponse<unknown>>(
-        `/users/${userId}/permissions`
-      ),
-    () =>
-      superAdminClient.get<ApiResponse<unknown>>(
-        `/users/${userId}/permissions`
-      ),
-  ];
+export async function getPermissions(): Promise<ServicePermission[]> {
+  const { data } = await superAdminClient.get<ApiResponse<unknown> | unknown>(
+    "/permissions"
+  );
+  return normalizePermissionList(data);
+}
 
-  for (const request of endpoints) {
-    try {
-      const { data } = await request();
-      const slugs = extractSlugs(data.data ?? data);
-      if (slugs.length || data.success) {
-        return {
-          userId,
-          enabledSlugs: slugs,
-          updatedAt: new Date().toISOString(),
-        };
-      }
-    } catch {
-      // Try next endpoint / fallback
-    }
+export async function getPermissionById(
+  permissionId: string
+): Promise<ServicePermission> {
+  const { data } = await superAdminClient.get<ApiResponse<unknown> | unknown>(
+    `/permissions/${permissionId}`
+  );
+  const item = normalizePermission(unwrap(data));
+  if (!item) {
+    throw new Error("Permission not found");
   }
+  return item;
+}
 
-  const local = readLocalStore()[userId];
-  if (local) return local;
+export async function createPermission(
+  payload: CreatePermissionPayload
+): Promise<ServicePermission> {
+  const body = {
+    name: payload.name.trim(),
+    serviceName: payload.name.trim(),
+    permissionKey: payload.permissionKey.trim().toUpperCase(),
+    key: payload.permissionKey.trim().toUpperCase(),
+    serviceType: payload.serviceType.trim(),
+    service: payload.serviceType.trim(),
+    description: payload.description?.trim() || undefined,
+    status: payload.status || "ACTIVE",
+  };
+  const { data } = await superAdminClient.post<ApiResponse<unknown> | unknown>(
+    "/permissions",
+    body
+  );
+  return (
+    normalizePermission(unwrap(data)) || {
+      id: "",
+      name: body.name,
+      key: body.key,
+      serviceType: body.serviceType,
+      description: body.description || "",
+      status: body.status,
+      assignedUsersCount: 0,
+    }
+  );
+}
 
+export async function updatePermission(
+  permissionId: string,
+  payload: UpdatePermissionPayload
+): Promise<ServicePermission> {
+  const body: Record<string, unknown> = {};
+  if (payload.name !== undefined) {
+    body.name = payload.name.trim();
+    body.serviceName = payload.name.trim();
+  }
+  if (payload.permissionKey !== undefined) {
+    const key = payload.permissionKey.trim().toUpperCase();
+    body.permissionKey = key;
+    body.key = key;
+  }
+  if (payload.serviceType !== undefined) {
+    body.serviceType = payload.serviceType.trim();
+    body.service = payload.serviceType.trim();
+  }
+  if (payload.description !== undefined) {
+    body.description = payload.description.trim();
+  }
+  if (payload.status !== undefined) {
+    body.status = payload.status;
+  }
+  const { data } = await superAdminClient.put<ApiResponse<unknown> | unknown>(
+    `/permissions/${permissionId}`,
+    body
+  );
+  const item = normalizePermission(unwrap(data));
+  if (item) return item;
+  return getPermissionById(permissionId);
+}
+
+export async function deletePermission(permissionId: string): Promise<void> {
+  await superAdminClient.delete(`/permissions/${permissionId}`);
+}
+
+export async function getUserPermissions(
+  userId: string
+): Promise<UserPermissionSnapshot> {
+  const { data } = await superAdminClient.get<ApiResponse<unknown> | unknown>(
+    `/permissions/users/${userId}`
+  );
+  const permissions = normalizePermissionList(data);
+  const permissionIds = extractPermissionIds(data);
   return {
     userId,
-    enabledSlugs: getDefaultEnabledSlugs(role),
-    updatedAt: undefined,
+    permissionIds: permissionIds.length
+      ? permissionIds
+      : permissions.map((item) => item.id),
+    permissions,
   };
 }
 
-/**
- * Persist user permissions.
- * Tries live API; on failure stores locally so UI remains fully usable.
- */
-export async function saveUserPermissionState(
+export async function assignUserPermissions(
   userId: string,
-  enabledSlugs: string[]
-): Promise<UserPermissionState> {
-  const body = {
-    permissionSlugs: enabledSlugs,
-    enabledSlugs,
-    permissions: enabledSlugs,
-  };
+  permissionIds: string[]
+): Promise<UserPermissionSnapshot> {
+  await superAdminClient.post(`/permissions/users/${userId}`, {
+    permissionIds: toSaveIds(permissionIds),
+  });
+  return getUserPermissions(userId);
+}
 
-  const endpoints = [
-    () =>
-      superAdminModuleClient.put<ApiResponse<unknown>>(
-        `/users/${userId}/permissions`,
-        body
-      ),
-    () =>
-      superAdminClient.put<ApiResponse<unknown>>(
-        `/users/${userId}/permissions`,
-        body
-      ),
-    () =>
-      superAdminClient.post<ApiResponse<unknown>>(
-        `/users/${userId}/permissions`,
-        body
-      ),
-  ];
+export async function updateUserPermissions(
+  userId: string,
+  permissionIds: string[]
+): Promise<UserPermissionSnapshot> {
+  await superAdminClient.put(`/permissions/users/${userId}`, {
+    permissionIds: toSaveIds(permissionIds),
+  });
+  return getUserPermissions(userId);
+}
 
-  for (const request of endpoints) {
-    try {
-      await request();
-      const state: UserPermissionState = {
-        userId,
-        enabledSlugs,
-        updatedAt: new Date().toISOString(),
-      };
-      const store = readLocalStore();
-      store[userId] = state;
-      writeLocalStore(store);
-      return state;
-    } catch {
-      // Try next / local fallback
-    }
-  }
+export async function removeUserPermission(
+  userId: string,
+  permissionId: string
+): Promise<void> {
+  await superAdminClient.delete(
+    `/permissions/users/${userId}/${permissionId}`
+  );
+}
 
-  const state: UserPermissionState = {
+export async function checkPermission(permissionKey: string): Promise<boolean> {
+  const key = permissionKey.trim().toUpperCase();
+  const { data } = await superAdminClient.get<ApiResponse<unknown> | unknown>(
+    `/permissions/check/${encodeURIComponent(key)}`
+  );
+  const unwrapped = unwrap(data);
+  if (typeof unwrapped === "boolean") return unwrapped;
+  const obj = asRecord(unwrapped);
+  if (typeof obj.allowed === "boolean") return obj.allowed;
+  if (typeof obj.hasPermission === "boolean") return obj.hasPermission;
+  if (typeof obj.enabled === "boolean") return obj.enabled;
+  return Boolean(obj.success ?? true);
+}
+
+export async function getMyUserPermissions(
+  userId: string
+): Promise<UserPermissionSnapshot> {
+  const { data } = await adminClient.get<ApiResponse<unknown> | unknown>(
+    `/permissions/users/${userId}`
+  );
+  const permissions = normalizePermissionList(data);
+  const permissionIds = extractPermissionIds(data);
+  return {
     userId,
-    enabledSlugs,
-    updatedAt: new Date().toISOString(),
+    permissionIds: permissionIds.length
+      ? permissionIds
+      : permissions.map((item) => item.id),
+    permissions,
   };
-  const store = readLocalStore();
-  store[userId] = state;
-  writeLocalStore(store);
-  return state;
 }
 
-export function listPermissionModules(role?: PermissionRoleType) {
-  if (!role) return [];
-  return getPermissionModulesForRole(role);
+export async function getMyPermissionsCatalog(): Promise<ServicePermission[]> {
+  const { data } = await adminClient.get<ApiResponse<unknown> | unknown>(
+    "/permissions"
+  );
+  return normalizePermissionList(data);
 }
 
-export function listPermissionModuleOptions(role?: PermissionRoleType) {
-  if (!role) return [{ value: "", label: "All Modules" }];
-  return getModuleOptionsForRole(role);
+export async function checkMyPermission(
+  permissionKey: string
+): Promise<boolean> {
+  const key = permissionKey.trim().toUpperCase();
+  const { data } = await adminClient.get<ApiResponse<unknown> | unknown>(
+    `/permissions/check/${encodeURIComponent(key)}`
+  );
+  const unwrapped = unwrap(data);
+  if (typeof unwrapped === "boolean") return unwrapped;
+  const obj = asRecord(unwrapped);
+  if (typeof obj.allowed === "boolean") return obj.allowed;
+  if (typeof obj.hasPermission === "boolean") return obj.hasPermission;
+  if (typeof obj.enabled === "boolean") return obj.enabled;
+  return Boolean(obj.success ?? true);
+}
+
+export function groupPermissionsByService(items: ServicePermission[]) {
+  const groups = new Map<string, ServicePermission[]>();
+  for (const item of items) {
+    const type = item.serviceType || "OTHER";
+    const list = groups.get(type) || [];
+    list.push(item);
+    groups.set(type, list);
+  }
+  return Array.from(groups.entries()).map(([serviceType, permissions]) => ({
+    serviceType,
+    permissions,
+  }));
 }

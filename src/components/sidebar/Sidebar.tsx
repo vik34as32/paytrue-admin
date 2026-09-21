@@ -37,7 +37,9 @@ import { logoutUser } from "@/store/api/authApi";
 import { superAdminLogout } from "@/store/api/superAdminAuthApi";
 import { useRouter } from "next/navigation";
 import { useRoleAccess } from "@/hooks/useAuth";
+import { usePermissionAccess } from "@/components/permissions/PermissionAccessProvider";
 import { UserRole } from "@/types";
+import { toast } from "sonner";
 
 const iconMap: Record<string, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-5 w-5" />,
@@ -85,6 +87,8 @@ export function Sidebar({
   const superAdminAuth = useAppSelector((state) => state.superAdminAuth);
   const { canTransferBalance, canApproveRequests, canRequestBalance } =
     useRoleAccess();
+  const { isHrefAllowed, notifyLocked, groups, permissionKeys, isSuperAdmin } =
+    usePermissionAccess();
 
   const userRole: UserRole = superAdminAuth.isAuthenticated
     ? "super_admin"
@@ -198,6 +202,7 @@ export function Sidebar({
                 ? (prev.section as string | undefined)
                 : undefined;
             const showSection = !!section && section !== prevSection;
+            const granted = isHrefAllowed(item.href);
 
             return (
               <div key={item.href}>
@@ -209,23 +214,94 @@ export function Sidebar({
                 {showSection && collapsed ? (
                   <div className="my-2 border-t border-border/70" />
                 ) : null}
-                <Link
-                  href={item.href}
-                  onClick={onMobileClose}
-                  className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                    isActive
-                      ? "bg-primary text-white shadow-lg shadow-primary/25"
-                      : "text-muted hover:bg-background hover:text-foreground"
-                  )}
-                  title={collapsed ? item.label : undefined}
-                >
-                  {iconMap[item.icon]}
-                  {!collapsed && <span>{item.label}</span>}
-                </Link>
+                {granted ? (
+                  <Link
+                    href={item.href}
+                    onClick={onMobileClose}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
+                      isActive
+                        ? "bg-primary text-white shadow-lg shadow-primary/25"
+                        : "text-muted hover:bg-background hover:text-foreground"
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    {iconMap[item.icon]}
+                    {!collapsed && <span>{item.label}</span>}
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    title="You don't have permission to use this service."
+                    onClick={() => notifyLocked()}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400"
+                  >
+                    {iconMap[item.icon]}
+                    {!collapsed && (
+                      <span className="flex flex-1 items-center justify-between gap-2">
+                        {item.label}
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide">
+                          <Lock className="h-3.5 w-3.5" />
+                          Locked
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
             );
           })}
+          {userRole === "admin" && !isSuperAdmin && groups.length ? (
+            <div className="pt-2">
+              {!collapsed ? (
+                <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Services
+                </p>
+              ) : (
+                <div className="my-2 border-t border-border/70" />
+              )}
+              {groups.map((group) => {
+                const granted = group.permissions.some((item) =>
+                  permissionKeys.some(
+                    (key) => key.toUpperCase() === item.key.toUpperCase()
+                  )
+                );
+                return (
+                  <button
+                    key={group.serviceType}
+                    type="button"
+                    title={
+                      granted
+                        ? group.serviceType
+                        : "You don't have permission to use this service."
+                    }
+                    onClick={() => {
+                      if (!granted) {
+                        notifyLocked();
+                        return;
+                      }
+                      toast.message(`${group.serviceType} is enabled for your account.`);
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
+                      granted ? "text-muted hover:bg-background hover:text-foreground" : "text-slate-400"
+                    )}
+                  >
+                    <Lock className={cn("h-5 w-5", granted && "hidden")} />
+                    <ShieldCheck className={cn("h-5 w-5", !granted && "hidden")} />
+                    {!collapsed && (
+                      <span className="flex flex-1 items-center justify-between gap-2">
+                        {group.serviceType}
+                        <span className="text-[11px] font-semibold uppercase tracking-wide">
+                          {granted ? "Enabled" : "Locked"}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </nav>
 
         <div className="border-t border-border p-3">

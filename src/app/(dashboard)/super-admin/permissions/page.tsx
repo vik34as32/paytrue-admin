@@ -2,20 +2,21 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { PermissionManagementView } from "@/components/permissions/PermissionManagementView";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { ROUTES } from "@/constants";
 
-export default function SuperAdminPermissionManagementRedirectPage() {
+export default function SuperAdminPermissionsPage() {
   const router = useRouter();
   const { hasSuperAdminWalletAccess } = useSuperAdminAuth();
 
   useEffect(() => {
     if (!hasSuperAdminWalletAccess) {
       router.replace(ROUTES.superAdminLogin);
-      return;
     }
-    router.replace(ROUTES.superAdminPermissions);
   }, [hasSuperAdminWalletAccess, router]);
 
-  return null;
+  if (!hasSuperAdminWalletAccess) return null;
+
+  return <PermissionManagementView />;
 }

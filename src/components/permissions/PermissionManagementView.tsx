@@ -1,1347 +1,915 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
-  Alert,
-  App,
-  Button,
-  Checkbox,
-  Empty,
-  Modal,
-  Progress,
-  Select,
-  Skeleton,
-  Switch,
-  Tag,
-} from "antd";
+  CheckCircle2,
+  Lock,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/common/PageHeader";
+import { Card } from "@/components/common/Card";
+import { Button } from "@/components/common/Button";
+import { Input } from "@/components/common/Input";
+import { Select } from "@/components/common/Select";
+import { Badge } from "@/components/common/Badge";
+import { DataTable } from "@/components/tables/DataTable";
+import { Modal } from "@/components/modals/Modal";
+import { ServicePermissionForm } from "@/components/permissions/ServicePermissionForm";
 import {
-  CheckSquareOutlined,
-  BorderOutlined,
-  ExpandAltOutlined,
-  ShrinkOutlined,
-  CopyOutlined,
-  SnippetsOutlined,
-  UserSwitchOutlined,
-  SaveOutlined,
-  ReloadOutlined,
-  CloseOutlined,
-  SearchOutlined,
-  SafetyCertificateOutlined,
-  WalletOutlined,
-  BankOutlined,
-  MobileOutlined,
-  ThunderboltOutlined,
-  TeamOutlined,
-  FileProtectOutlined,
-  AppstoreOutlined,
-  DownOutlined,
-  RightOutlined,
-  CrownOutlined,
-  ShopOutlined,
-  UserOutlined,
-  LoginOutlined,
-  BellOutlined,
-} from "@ant-design/icons";
-import { motion, AnimatePresence } from "framer-motion";
-import { CommissionAntdProvider } from "@/components/commission/CommissionAntdProvider";
+  AccessSummary,
+  ManageAccessDrawer,
+} from "@/components/permissions/ManageAccessDrawer";
+import { getServiceIcon } from "@/components/permissions/serviceIcons";
 import {
-  PERMISSION_ROLE_OPTIONS,
-  PERMISSION_STATUS_OPTIONS,
-  getAllPermissionSlugs,
-} from "@/constants/permissionModules";
+  isActiveStatus,
+  maskMobile,
+} from "@/components/permissions/permissionDisplay";
 import {
-  getUserPermissionState,
-  listPermissionModuleOptions,
-  listPermissionModules,
+  createPermission,
+  deletePermission,
+  getPermissions,
+  getUserPermissions,
+  groupPermissionsByService,
   listPermissionUsersByRole,
-  saveUserPermissionState,
+  updatePermission,
+  updateUserPermissions,
 } from "@/services/permissionManagementApi";
-import { cn, formatDate } from "@/lib/utils";
+import { PERMISSION_ROLE_OPTIONS } from "@/constants/permissionModules";
+import { cn } from "@/lib/utils";
 import type {
-  PermissionFiltersValue,
-  PermissionModuleDef,
+  CreatePermissionPayload,
   PermissionRoleType,
-  PermissionStatusFilter,
   PermissionUserOption,
+  ServicePermission,
 } from "@/types/permissions";
 
-const EMPTY_FILTERS: PermissionFiltersValue = {
-  role: "",
-  userId: "",
-  module: "",
-  status: "ALL",
-};
+type MainTab = "services" | "users";
+type CatalogView = "table" | "grouped";
 
-const CLIPBOARD_PREFIX = "paytrue-permissions:";
+export function PermissionManagementView() {
+  const queryClient = useQueryClient();
+  const [tab, setTab] = useState<MainTab>("services");
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [catalogView, setCatalogView] = useState<CatalogView>("table");
 
-const MODULE_ICON: Record<string, ReactNode> = {
-  common_dashboard: <AppstoreOutlined />,
-  common_wallet: <WalletOutlined />,
-  common_profile: <UserOutlined />,
-  common_fund_request: <BankOutlined />,
-  common_reports: <FileProtectOutlined />,
-  common_login_methods: <LoginOutlined />,
-  common_notifications: <BellOutlined />,
-  admin_users: <TeamOutlined />,
-  admin_wallet: <WalletOutlined />,
-  admin_fund: <BankOutlined />,
-  admin_bank: <BankOutlined />,
-  admin_commission: <ThunderboltOutlined />,
-  admin_services: <AppstoreOutlined />,
-  md_network: <TeamOutlined />,
-  md_wallet: <WalletOutlined />,
-  md_fund: <BankOutlined />,
-  md_transactions: <FileProtectOutlined />,
-  dd_network: <TeamOutlined />,
-  dd_wallet: <WalletOutlined />,
-  dd_fund: <BankOutlined />,
-  dd_transactions: <FileProtectOutlined />,
-  rt_aeps: <SafetyCertificateOutlined />,
-  rt_dmt: <BankOutlined />,
-  rt_upi_atm: <MobileOutlined />,
-  rt_recharge: <MobileOutlined />,
-  rt_bbps: <ThunderboltOutlined />,
-  rt_matm: <ShopOutlined />,
-  rt_other_services: <AppstoreOutlined />,
-};
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [editing, setEditing] = useState<ServicePermission | null>(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-const ROLE_ACCENT: Record<
-  PermissionRoleType,
-  { gradient: string; soft: string; chip: string; icon: ReactNode }
-> = {
-  ADMIN: {
-    gradient: "from-[#4318FF] to-[#6B8CFF]",
-    soft: "bg-[#4318FF]/8 text-[#4318FF] border-[#4318FF]/20",
-    chip: "geekblue",
-    icon: <CrownOutlined />,
-  },
-  MASTER_DISTRIBUTOR: {
-    gradient: "from-[#0E9F6E] to-[#31C48D]",
-    soft: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
-    chip: "green",
-    icon: <TeamOutlined />,
-  },
-  DISTRIBUTOR: {
-    gradient: "from-[#1C64F2] to-[#3F83F8]",
-    soft: "bg-blue-500/10 text-blue-700 border-blue-500/20",
-    chip: "blue",
-    icon: <ShopOutlined />,
-  },
-  RETAILER: {
-    gradient: "from-[#E3A008] to-[#FACA15]",
-    soft: "bg-amber-500/10 text-amber-700 border-amber-500/25",
-    chip: "gold",
-    icon: <MobileOutlined />,
-  },
-};
-
-function initials(name: string): string {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || "")
-    .join("");
-}
-
-function PermissionManagementContent() {
-  const { message, modal } = App.useApp();
-
-  const [draftFilters, setDraftFilters] =
-    useState<PermissionFiltersValue>(EMPTY_FILTERS);
-  const [appliedFilters, setAppliedFilters] =
-    useState<PermissionFiltersValue>(EMPTY_FILTERS);
-
-  const [users, setUsers] = useState<PermissionUserOption[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState<string | null>(null);
-
-  const [selectedUser, setSelectedUser] = useState<PermissionUserOption | null>(
+  const [disableTarget, setDisableTarget] = useState<ServicePermission | null>(
     null
   );
-  const [enabledSlugs, setEnabledSlugs] = useState<string[]>([]);
-  const [baselineSlugs, setBaselineSlugs] = useState<string[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
-  const [permissionsError, setPermissionsError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [disabling, setDisabling] = useState(false);
 
-  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
-  const [findUserOpen, setFindUserOpen] = useState(true);
-  const [cloneOpen, setCloneOpen] = useState(false);
-  const [cloneRole, setCloneRole] = useState<PermissionRoleType | "">("");
-  const [cloneUsers, setCloneUsers] = useState<PermissionUserOption[]>([]);
-  const [cloneUserId, setCloneUserId] = useState<string>("");
-  const [cloneLoading, setCloneLoading] = useState(false);
+  const [roleTab, setRoleTab] = useState<PermissionRoleType>("ADMIN");
+  const [userSearch, setUserSearch] = useState("");
+  const [userStatus, setUserStatus] = useState("ALL");
+  const [userService, setUserService] = useState("ALL");
 
-  const activeRole = selectedUser?.role || draftFilters.role || "";
-
-  const modules = useMemo(
-    () => (activeRole ? listPermissionModules(activeRole) : []),
-    [activeRole]
+  const [manageUser, setManageUser] = useState<PermissionUserOption | null>(
+    null
   );
-  const moduleOptions = useMemo(
-    () => listPermissionModuleOptions(activeRole || undefined),
-    [activeRole]
+  const [manageOpen, setManageOpen] = useState(false);
+  const [savingAccess, setSavingAccess] = useState(false);
+
+  const catalogQuery = useQuery({
+    queryKey: ["permissions", "catalog"],
+    queryFn: getPermissions,
+  });
+  const catalog = useMemo(
+    () => catalogQuery.data ?? [],
+    [catalogQuery.data]
   );
-  const allSlugs = useMemo(() => getAllPermissionSlugs(modules), [modules]);
-
-  useEffect(() => {
-    setExpandedKeys(modules.map((module) => module.key));
-  }, [modules]);
-
-  const isDirty = useMemo(() => {
-    if (!selectedUser) return false;
-    if (enabledSlugs.length !== baselineSlugs.length) return true;
-    const baseline = new Set(baselineSlugs);
-    return enabledSlugs.some((slug) => !baseline.has(slug));
-  }, [baselineSlugs, enabledSlugs, selectedUser]);
-
-  const loadUsersForRole = useCallback(async (role: PermissionRoleType | "") => {
-    if (!role) {
-      setUsers([]);
-      setUsersError(null);
-      return;
-    }
-    setUsersLoading(true);
-    setUsersError(null);
-    try {
-      const list = await listPermissionUsersByRole(role);
-      setUsers(list);
-    } catch (err) {
-      setUsers([]);
-      setUsersError(
-        err instanceof Error ? err.message : "Failed to load users"
-      );
-    } finally {
-      setUsersLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadUsersForRole(draftFilters.role);
-  }, [draftFilters.role, loadUsersForRole]);
-
-  useEffect(() => {
-    if (!cloneRole) {
-      setCloneUsers([]);
-      return;
-    }
-    setCloneLoading(true);
-    void listPermissionUsersByRole(cloneRole)
-      .then(setCloneUsers)
-      .catch(() => setCloneUsers([]))
-      .finally(() => setCloneLoading(false));
-  }, [cloneRole]);
-
-  const loadUserPermissions = useCallback(
-    async (user: PermissionUserOption) => {
-      setPermissionsLoading(true);
-      setPermissionsError(null);
-      try {
-        const state = await getUserPermissionState(user.id, user.role);
-        const allowed = new Set(
-          getAllPermissionSlugs(listPermissionModules(user.role))
-        );
-        const slugs = state.enabledSlugs.filter((slug) => allowed.has(slug));
-        setEnabledSlugs(slugs);
-        setBaselineSlugs(slugs);
-      } catch (err) {
-        setEnabledSlugs([]);
-        setBaselineSlugs([]);
-        setPermissionsError(
-          err instanceof Error ? err.message : "Failed to load permissions"
-        );
-      } finally {
-        setPermissionsLoading(false);
-      }
-    },
-    []
-  );
-
-  const handleSearch = async () => {
-    if (!draftFilters.role) {
-      message.warning("Please select a role");
-      return;
-    }
-    if (!draftFilters.userId) {
-      message.warning("Please select a user");
-      return;
-    }
-
-    const user = users.find((item) => item.id === draftFilters.userId) || null;
-    if (!user) {
-      message.error("Selected user not found");
-      return;
-    }
-
-    setAppliedFilters({ ...draftFilters });
-    setSelectedUser(user);
-    setFindUserOpen(false);
-    await loadUserPermissions(user);
-  };
-
-  const handleResetFilters = () => {
-    setDraftFilters(EMPTY_FILTERS);
-    setAppliedFilters(EMPTY_FILTERS);
-    setSelectedUser(null);
-    setEnabledSlugs([]);
-    setBaselineSlugs([]);
-    setPermissionsError(null);
-    setUsers([]);
-    setFindUserOpen(true);
-  };
-
-  const toggleSlug = (slug: string, checked: boolean) => {
-    setEnabledSlugs((prev) => {
-      if (checked) return prev.includes(slug) ? prev : [...prev, slug];
-      return prev.filter((item) => item !== slug);
-    });
-  };
-
-  const setModuleEnabled = (module: PermissionModuleDef, enabled: boolean) => {
-    const moduleSlugs = module.permissions.map((item) => item.slug);
-    setEnabledSlugs((prev) => {
-      const without = prev.filter((slug) => !moduleSlugs.includes(slug));
-      return enabled ? [...without, ...moduleSlugs] : without;
-    });
-  };
-
-  const enableAll = () => setEnabledSlugs([...allSlugs]);
-  const disableAll = () => setEnabledSlugs([]);
-  const expandAll = () => setExpandedKeys(modules.map((module) => module.key));
-  const collapseAll = () => setExpandedKeys([]);
-
-  const toggleExpanded = (key: string) => {
-    setExpandedKeys((prev) =>
-      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
-    );
-  };
-
-  const handleCopy = async () => {
-    if (!selectedUser) return;
-    const payload = `${CLIPBOARD_PREFIX}${JSON.stringify(enabledSlugs)}`;
-    try {
-      await navigator.clipboard.writeText(payload);
-      message.success("Permissions copied");
-    } catch {
-      message.error("Unable to copy permissions");
-    }
-  };
-
-  const handlePaste = async () => {
-    if (!selectedUser) return;
-    try {
-      const text = (await navigator.clipboard.readText()).trim();
-      if (!text.startsWith(CLIPBOARD_PREFIX)) {
-        message.warning("Clipboard does not contain permission data");
-        return;
-      }
-      const parsed = JSON.parse(
-        text.slice(CLIPBOARD_PREFIX.length)
-      ) as unknown;
-      if (!Array.isArray(parsed)) throw new Error("Invalid payload");
-      const valid = new Set(allSlugs);
-      const next = parsed
-        .filter((item): item is string => typeof item === "string")
-        .filter((slug) => valid.has(slug));
-      setEnabledSlugs(next);
-      message.success("Permissions pasted");
-    } catch {
-      message.error("Unable to paste permissions");
-    }
-  };
-
-  const roleTitle =
-    PERMISSION_ROLE_OPTIONS.find((option) => option.value === activeRole)
-      ?.label || "Role";
-
-  const handleCloneApply = async () => {
-    if (!selectedUser || !cloneUserId) {
-      message.warning("Select a source user to clone from");
-      return;
-    }
-    const source = cloneUsers.find((user) => user.id === cloneUserId);
-    if (!source) return;
-    try {
-      const state = await getUserPermissionState(source.id, source.role);
-      const allowed = new Set(allSlugs);
-      const next = state.enabledSlugs.filter((slug) => allowed.has(slug));
-      setEnabledSlugs(next);
-      setCloneOpen(false);
-      setCloneRole("");
-      setCloneUserId("");
-      message.success(
-        `Permissions cloned from ${source.name} (${next.length} applicable to ${roleTitle})`
-      );
-    } catch {
-      message.error("Unable to clone permissions");
-    }
-  };
-
-  const handleSave = () => {
-    if (!selectedUser) return;
-
-    modal.confirm({
-      title: "Update Permissions",
-      content: `Are you sure you want to update permissions for ${selectedUser.name}?`,
-      okText: "Yes, Update",
-      cancelText: "Cancel",
-      okButtonProps: { type: "primary", className: "!h-10 !rounded-xl" },
-      cancelButtonProps: { className: "!h-10 !rounded-xl" },
-      centered: true,
-      onOk: async () => {
-        setSaving(true);
-        try {
-          const saved = await saveUserPermissionState(
-            selectedUser.id,
-            enabledSlugs
-          );
-          setEnabledSlugs(saved.enabledSlugs);
-          setBaselineSlugs(saved.enabledSlugs);
-          message.success("Permissions updated successfully.");
-        } catch {
-          message.error("Unable to update permissions.");
-          throw new Error("save failed");
-        } finally {
-          setSaving(false);
-        }
-      },
-    });
-  };
-
-  const handleResetPermissions = () => {
-    setEnabledSlugs([...baselineSlugs]);
-    message.info("Changes discarded");
-  };
-
-  const filteredModules = useMemo(() => {
-    const moduleFilter = appliedFilters.module;
-    const status = appliedFilters.status as PermissionStatusFilter;
-    const enabledSet = new Set(enabledSlugs);
-
-    return modules
-      .filter((module) => !moduleFilter || module.key === moduleFilter)
-      .map((module) => {
-        const permissions = module.permissions.filter((permission) => {
-          const enabled = enabledSet.has(permission.slug);
-          if (status === "ENABLED") return enabled;
-          if (status === "DISABLED") return !enabled;
-          return true;
-        });
-        return { ...module, permissions };
-      })
-      .filter((module) => module.permissions.length > 0 || status === "ALL");
-  }, [appliedFilters.module, appliedFilters.status, enabledSlugs, modules]);
-
-  const filteredCommonModules = useMemo(
-    () => filteredModules.filter((module) => module.section !== "role"),
-    [filteredModules]
-  );
-  const filteredRoleModules = useMemo(
-    () => filteredModules.filter((module) => module.section === "role"),
-    [filteredModules]
-  );
-
-  const enabledCount = enabledSlugs.filter((slug) =>
-    allSlugs.includes(slug)
-  ).length;
-  const totalCount = allSlugs.length;
-  const coverage =
-    totalCount > 0 ? Math.round((enabledCount / totalCount) * 100) : 0;
-
-  const userSelectOptions = useMemo(
-    () =>
-      users.map((user) => ({
-        value: user.id,
-        label: `${user.name}${user.mobile ? ` — ${user.mobile}` : ""}${
-          user.userCode ? ` (${user.userCode})` : ""
-        }`,
-      })),
-    [users]
-  );
-
-  const accent = activeRole
-    ? ROLE_ACCENT[activeRole as PermissionRoleType]
+  const catalogLoading = catalogQuery.isLoading;
+  const catalogError = catalogQuery.error
+    ? catalogQuery.error instanceof Error
+      ? catalogQuery.error.message
+      : "Failed to load permissions"
     : null;
 
+  const usersQuery = useQuery({
+    queryKey: ["permissions", "users", roleTab],
+    queryFn: () => listPermissionUsersByRole(roleTab),
+    enabled: tab === "users",
+  });
+  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const usersLoading = usersQuery.isLoading;
+  const usersError = usersQuery.error
+    ? usersQuery.error instanceof Error
+      ? usersQuery.error.message
+      : "Failed to load users"
+    : null;
+
+  const userIds = users.map((user) => user.id).join(",");
+  const userAccessQuery = useQuery({
+    queryKey: ["permissions", "user-access", roleTab, userIds],
+    enabled: tab === "users" && users.length > 0,
+    queryFn: async () => {
+      const next: Record<string, string[]> = {};
+      await Promise.all(
+        users.map(async (user) => {
+          try {
+            next[user.id] = (await getUserPermissions(user.id)).permissionIds;
+          } catch {
+            next[user.id] = [];
+          }
+        })
+      );
+      return next;
+    },
+  });
+  const userAccess = useMemo(
+    () => userAccessQuery.data ?? {},
+    [userAccessQuery.data]
+  );
+  const accessLoadingIds = useMemo(
+    () => (userAccessQuery.isLoading ? users.map((user) => user.id) : []),
+    [userAccessQuery.isLoading, users]
+  );
+
+  const manageQuery = useQuery({
+    queryKey: ["permissions", "user", manageUser?.id],
+    enabled: Boolean(manageOpen && manageUser?.id),
+    queryFn: () => getUserPermissions(manageUser!.id),
+  });
+
+  const loadCatalog = () => catalogQuery.refetch();
+  const loadUsers = () => usersQuery.refetch();
+
+  const serviceTypes = useMemo(
+    () =>
+      Array.from(new Set(catalog.map((item) => item.serviceType))).sort(),
+    [catalog]
+  );
+
+  const filteredCatalog = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return catalog.filter((item) => {
+      if (typeFilter !== "ALL" && item.serviceType !== typeFilter) return false;
+      if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
+      if (!query) return true;
+      return [item.name, item.key, item.serviceType, item.description]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [catalog, search, statusFilter, typeFilter]);
+
+  const kpis = useMemo(() => {
+    const active = catalog.filter((item) => item.status === "ACTIVE").length;
+    const assigned = catalog.reduce(
+      (sum, item) => sum + (item.assignedUsersCount || 0),
+      0
+    );
+    return {
+      total: catalog.length,
+      active,
+      inactive: catalog.length - active,
+      assigned,
+    };
+  }, [catalog]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    return users.filter((user) => {
+      if (userStatus !== "ALL") {
+        const active = isActiveStatus(user.status);
+        if (userStatus === "ACTIVE" && !active) return false;
+        if (userStatus === "INACTIVE" && active) return false;
+      }
+      if (userService !== "ALL") {
+        const ids = new Set(userAccess[user.id] || []);
+        const hasService = catalog.some(
+          (item) => item.serviceType === userService && ids.has(item.id)
+        );
+        if (!hasService) return false;
+      }
+      if (!query) return true;
+      return [user.name, user.mobile, user.email, user.userCode, user.role]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [catalog, userAccess, userSearch, userService, userStatus, users]);
+
+  const openCreate = () => {
+    setFormMode("create");
+    setEditing(null);
+    setFormError(null);
+    setFormOpen(true);
+  };
+
+  const openEdit = (item: ServicePermission) => {
+    setFormMode("edit");
+    setEditing(item);
+    setFormError(null);
+    setFormOpen(true);
+  };
+
+  const handleSubmit = async (payload: CreatePermissionPayload) => {
+    setFormSubmitting(true);
+    setFormError(null);
+    try {
+      if (formMode === "create") {
+        await createPermission(payload);
+        toast.success("Permission created successfully");
+      } else if (editing) {
+        await updatePermission(editing.id, payload);
+        toast.success("Permission updated successfully");
+      }
+      setFormOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    } catch (error) {
+      setFormError(
+        error instanceof Error ? error.message : "Unable to save permission"
+      );
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleDisable = async () => {
+    if (!disableTarget) return;
+    setDisabling(true);
+    try {
+      await deletePermission(disableTarget.id);
+      toast.success("Permission disabled successfully");
+      setDisableTarget(null);
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to disable permission"
+      );
+    } finally {
+      setDisabling(false);
+    }
+  };
+
+  const handleEnable = useCallback(async (item: ServicePermission) => {
+    try {
+      await updatePermission(item.id, { status: "ACTIVE" });
+      toast.success("Permission updated successfully");
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to enable permission"
+      );
+    }
+  }, [queryClient]);
+
+  const openManage = useCallback((user: PermissionUserOption) => {
+    setManageUser(user);
+    setManageOpen(true);
+  }, []);
+
+  const saveManage = async (permissionIds: string[]) => {
+    if (!manageUser) return;
+    setSavingAccess(true);
+    try {
+      await updateUserPermissions(manageUser.id, permissionIds);
+      toast.success("Permissions updated successfully.");
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      setManageOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to save permissions"
+      );
+    } finally {
+      setSavingAccess(false);
+    }
+  };
+
+  const catalogColumns = useMemo<ColumnDef<ServicePermission, unknown>[]>(
+    () => [
+      {
+        accessorKey: "serviceType",
+        header: "Service",
+        cell: ({ row }) => {
+          const Icon = getServiceIcon(row.original.serviceType);
+          return (
+            <span className="inline-flex items-center gap-2 font-medium">
+              <Icon className="h-4 w-4 text-primary" />
+              {row.original.serviceType}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "name",
+        header: "Permission",
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium text-foreground">{row.original.name}</p>
+            <p className="font-mono text-[11px] text-muted">
+              {row.original.key}
+            </p>
+          </div>
+        ),
+      },
+      { accessorKey: "serviceType", header: "Service Type", id: "type" },
+      {
+        accessorKey: "description",
+        header: "Description",
+        cell: ({ row }) => (
+          <span className="text-muted">
+            {row.original.description || "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge
+            variant={row.original.status === "ACTIVE" ? "active" : "inactive"}
+          >
+            {row.original.status === "ACTIVE" ? "Active" : "Disabled"}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: "assignedUsersCount",
+        header: "Users Assigned",
+        cell: ({ row }) => `${row.original.assignedUsersCount || 0} users`,
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => openEdit(row.original)}
+            >
+              Edit
+            </Button>
+            {row.original.status === "ACTIVE" ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDisableTarget(row.original)}
+              >
+                Disable
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => void handleEnable(row.original)}
+              >
+                Enable
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [handleEnable]
+  );
+
+  const userColumns = useMemo<ColumnDef<PermissionUserOption, unknown>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: "User",
+        cell: ({ row }) => (
+          <div>
+            <p className="font-medium text-foreground">{row.original.name}</p>
+            <p className="text-[11px] text-muted">{row.original.userCode}</p>
+          </div>
+        ),
+      },
+      { accessorKey: "roleLabel", header: "Role" },
+      {
+        accessorKey: "mobile",
+        header: "Mobile",
+        cell: ({ row }) => maskMobile(row.original.mobile),
+      },
+      {
+        id: "services",
+        header: "Assigned Services",
+        enableSorting: false,
+        cell: ({ row }) =>
+          accessLoadingIds.includes(row.original.id) ? (
+            <span className="text-xs text-muted">Loading…</span>
+          ) : (
+            <AccessSummary
+              catalog={catalog}
+              enabledIds={userAccess[row.original.id] || []}
+            />
+          ),
+      },
+      {
+        id: "count",
+        header: "Permission Count",
+        cell: ({ row }) =>
+          `${(userAccess[row.original.id] || []).length} permissions`,
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={isActiveStatus(row.original.status) ? "active" : "inactive"}>
+            {row.original.status || "Unknown"}
+          </Badge>
+        ),
+      },
+      {
+        id: "action",
+        header: "Action",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Button size="sm" onClick={() => openManage(row.original)}>
+            Manage Access
+          </Button>
+        ),
+      },
+    ],
+    [accessLoadingIds, catalog, openManage, userAccess]
+  );
+
   return (
-    <div className="page-container relative space-y-6 pb-8">
-      {/* Ambient background */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] overflow-hidden rounded-b-[40px]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(67,24,255,0.14),transparent_50%),radial-gradient(ellipse_at_top_right,rgba(5,205,153,0.10),transparent_45%),linear-gradient(180deg,#f4f7fe_0%,transparent_100%)] dark:bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.18),transparent_50%),linear-gradient(180deg,#0a0f1e_0%,transparent_100%)]" />
-        <div
-          className="absolute inset-0 opacity-[0.035] dark:opacity-[0.06]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(27,37,89,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(27,37,89,0.5) 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumb="Settings"
+        title="Permission Management"
+        subtitle="Control service access for Admins, Master Distributors, Distributors and Retailers."
+        action={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Add Service
+          </Button>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi
+          label="Total Services"
+          value={kpis.total}
+          icon={<ShieldCheck className="h-4 w-4" />}
+        />
+        <Kpi
+          label="Active Services"
+          value={kpis.active}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <Kpi
+          label="Inactive Services"
+          value={kpis.inactive}
+          icon={<Lock className="h-4 w-4" />}
+        />
+        <Kpi
+          label="Total Assigned Permissions"
+          value={kpis.assigned}
+          icon={<Users className="h-4 w-4" />}
         />
       </div>
 
-      {/* Hero */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="overflow-hidden rounded-3xl border border-white/60 bg-white/80 shadow-[0_20px_60px_-28px_rgba(67,24,255,0.35)] backdrop-blur-xl dark:border-border dark:bg-card/80"
-      >
-        <div className="relative px-6 py-7 sm:px-8">
-          <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-gradient-to-br from-[#4318FF]/20 to-[#05CD99]/10 blur-2xl" />
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                Dashboard / Permission Management
-              </p>
-              <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4318FF] to-[#6B8CFF] text-2xl text-white shadow-lg shadow-[#4318FF]/30">
-                  <SafetyCertificateOutlined />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                    Permission Management
-                  </h1>
-                  <p className="mt-1.5 text-sm leading-relaxed text-muted">
-                    Enterprise access control for Admin, Master Distributor,
-                    Distributor & Retailer — toggle any fintech feature in one
-                    click.
-                  </p>
-                </div>
-              </div>
-            </div>
+      <div className="flex gap-2 border-b border-border">
+        <TabButton active={tab === "services"} onClick={() => setTab("services")}>
+          Services
+        </TabButton>
+        <TabButton active={tab === "users"} onClick={() => setTab("users")}>
+          User Access
+        </TabButton>
+      </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              {[
-                "Role-based catalogs",
-                "Common + specific",
-                "Live TRUE / FALSE",
-              ].map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-[11px] font-semibold text-primary"
-                >
-                  {chip}
-                </span>
-              ))}
+      {tab === "services" ? (
+        <Card padding={false} className="p-4 sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end">
+            <Input
+              label="Search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search service, key or description"
+            />
+            <Select
+              label="Service Type"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+              options={[
+                { value: "ALL", label: "All types" },
+                ...serviceTypes.map((item) => ({ value: item, label: item })),
+              ]}
+            />
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              options={[
+                { value: "ALL", label: "All" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "INACTIVE", label: "Inactive" },
+              ]}
+            />
+            <div className="flex gap-2">
               <Button
-                type="primary"
-                size="large"
-                icon={<SearchOutlined />}
-                className="!h-10 !rounded-xl !font-semibold shadow-md shadow-primary/25"
-                onClick={() => setFindUserOpen(true)}
+                variant={catalogView === "table" ? "primary" : "outline"}
+                size="sm"
+                onClick={() => setCatalogView("table")}
               >
-                Find User
+                Table
               </Button>
-              {isDirty ? (
-                <Tag color="orange" className="m-0 rounded-full px-3 py-0.5">
-                  Unsaved changes
-                </Tag>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      <Modal
-        open={findUserOpen}
-        onCancel={() => setFindUserOpen(false)}
-        footer={null}
-        width={920}
-        centered
-        destroyOnClose
-        className="permission-find-user-modal"
-        styles={{
-          body: { paddingTop: 8 },
-        }}
-        title={
-          <div className="flex items-center gap-3 pr-8">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <SearchOutlined />
-            </div>
-            <div>
-              <p className="text-base font-bold text-foreground">Find User</p>
-              <p className="text-[11px] font-normal text-muted">
-                Select role → user → load permission matrix
-              </p>
-            </div>
-          </div>
-        }
-      >
-        <div className="grid gap-3 pt-2 md:grid-cols-2">
-          <FilterField label="Role">
-            <Select
-              className="w-full permission-select"
-              size="large"
-              placeholder="Select role"
-              value={draftFilters.role || undefined}
-              allowClear
-              options={PERMISSION_ROLE_OPTIONS.map((option) => ({
-                value: option.value,
-                label: (
-                  <span className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "flex h-6 w-6 items-center justify-center rounded-lg text-xs",
-                        ROLE_ACCENT[option.value].soft
-                      )}
-                    >
-                      {ROLE_ACCENT[option.value].icon}
-                    </span>
-                    {option.label}
-                  </span>
-                ),
-              }))}
-              onChange={(value) =>
-                setDraftFilters((prev) => ({
-                  ...prev,
-                  role: (value as PermissionRoleType) || "",
-                  userId: "",
-                }))
-              }
-            />
-          </FilterField>
-
-          <FilterField label="User">
-            <Select
-              className="w-full"
-              size="large"
-              showSearch
-              allowClear
-              placeholder={
-                !draftFilters.role
-                  ? "Select role first"
-                  : usersLoading
-                    ? "Loading users..."
-                    : "Search name / mobile / code"
-              }
-              disabled={!draftFilters.role || usersLoading}
-              loading={usersLoading}
-              optionFilterProp="label"
-              value={draftFilters.userId || undefined}
-              options={userSelectOptions}
-              onChange={(value) =>
-                setDraftFilters((prev) => ({
-                  ...prev,
-                  userId: value || "",
-                }))
-              }
-              notFoundContent={
-                usersError ? "Failed to load users" : "No users found"
-              }
-            />
-          </FilterField>
-
-          <FilterField label="Module">
-            <Select
-              className="w-full"
-              size="large"
-              placeholder="All modules"
-              value={draftFilters.module || ""}
-              options={moduleOptions}
-              onChange={(value) =>
-                setDraftFilters((prev) => ({
-                  ...prev,
-                  module: value || "",
-                }))
-              }
-            />
-          </FilterField>
-
-          <FilterField label="Status">
-            <Select
-              className="w-full"
-              size="large"
-              value={draftFilters.status}
-              options={[...PERMISSION_STATUS_OPTIONS]}
-              onChange={(value) =>
-                setDraftFilters((prev) => ({
-                  ...prev,
-                  status: value as PermissionStatusFilter,
-                }))
-              }
-            />
-          </FilterField>
-        </div>
-
-        {usersError ? (
-          <Alert
-            className="mt-4 rounded-2xl"
-            type="error"
-            showIcon
-            message={usersError}
-            action={
               <Button
-                size="small"
-                onClick={() => void loadUsersForRole(draftFilters.role)}
+                variant={catalogView === "grouped" ? "primary" : "outline"}
+                size="sm"
+                onClick={() => setCatalogView("grouped")}
               >
+                Grouped
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadCatalog()}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {catalogError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-8 text-center">
+              <p className="text-sm text-red-700">{catalogError}</p>
+              <Button className="mt-3" size="sm" onClick={() => void loadCatalog()}>
                 Retry
               </Button>
-            }
-          />
-        ) : null}
+            </div>
+          ) : catalogView === "table" ? (
+            <div className="hidden md:block">
+              <DataTable
+                data={filteredCatalog}
+                columns={catalogColumns}
+                hideSearch
+                isLoading={catalogLoading}
+                searchPlaceholder="Search services"
+              />
+            </div>
+          ) : null}
 
-        <div className="mt-5 flex flex-wrap gap-2 border-t border-border/60 pt-4">
-          <Button
-            type="primary"
-            size="large"
-            icon={<SearchOutlined />}
-            className="!h-11 !rounded-xl !px-6 !font-semibold shadow-md shadow-primary/25"
-            onClick={() => void handleSearch()}
-          >
-            Load Permissions
-          </Button>
-          <Button
-            size="large"
-            icon={<ReloadOutlined />}
-            className="!h-11 !rounded-xl"
-            onClick={handleResetFilters}
-          >
-            Reset
-          </Button>
-        </div>
-      </Modal>
-
-      {!selectedUser ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="rounded-3xl border border-dashed border-primary/25 bg-white/70 px-6 py-16 text-center shadow-sm backdrop-blur dark:bg-card/60"
-        >
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4318FF]/15 to-[#05CD99]/15 text-2xl text-primary">
-            <SafetyCertificateOutlined />
-          </div>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              <span className="text-muted">
-                Open <strong className="text-foreground">Find User</strong> to
-                select a role and load the permission matrix
-              </span>
-            }
-          >
-            <Button
-              type="primary"
-              size="large"
-              icon={<SearchOutlined />}
-              className="!mt-2 !h-11 !rounded-xl !font-semibold"
-              onClick={() => setFindUserOpen(true)}
-            >
-              Find User
-            </Button>
-          </Empty>
-        </motion.div>
-      ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={selectedUser.id}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-5"
-          >
-            {/* User + coverage */}
-            <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-              <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-[0_16px_40px_-28px_rgba(27,37,89,0.5)] dark:bg-card">
-                <div
-                  className={cn(
-                    "h-1.5 w-full bg-gradient-to-r",
-                    accent?.gradient || "from-primary to-secondary"
-                  )}
-                />
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-                    <div
-                      className={cn(
-                        "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-bold text-white shadow-lg",
-                        accent?.gradient || "from-primary to-secondary"
-                      )}
-                    >
-                      {initials(selectedUser.name) || "U"}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate text-xl font-bold text-foreground">
-                          {selectedUser.name}
-                        </h2>
-                        <Tag
-                          color={accent?.chip || "purple"}
-                          className="m-0 rounded-full px-2.5"
-                        >
-                          {selectedUser.roleLabel}
-                        </Tag>
-                        <Tag
-                          color={
-                            (selectedUser.status || "").toUpperCase() ===
-                            "ACTIVE"
-                              ? "success"
-                              : "default"
-                          }
-                          className="m-0 rounded-full"
-                        >
-                          {selectedUser.status || "—"}
-                        </Tag>
-                      </div>
-                      <p className="mt-1 font-mono text-[11px] text-muted">
-                        {selectedUser.id}
-                      </p>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        <MetaChip label="Mobile" value={selectedUser.mobile || "—"} />
-                        <MetaChip label="Email" value={selectedUser.email || "—"} />
-                        <MetaChip
-                          label="Created"
-                          value={
-                            selectedUser.createdAt
-                              ? formatDate(selectedUser.createdAt)
-                              : "—"
-                          }
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-border bg-gradient-to-br from-white to-[#f4f7fe] p-5 shadow-[0_16px_40px_-28px_rgba(67,24,255,0.35)] dark:from-card dark:to-card">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-                  Access Coverage
-                </p>
-                <div className="mt-3 flex items-center gap-5">
-                  <Progress
-                    type="dashboard"
-                    percent={coverage}
-                    size={108}
-                    strokeColor={{
-                      "0%": "#4318FF",
-                      "100%": "#05CD99",
-                    }}
-                    format={(percent) => (
-                      <span className="text-lg font-bold text-foreground">
-                        {percent}%
-                      </span>
-                    )}
+          {catalogError ? null : catalogView === "table" ? (
+            <div className="space-y-3 md:hidden">
+              {catalogLoading ? (
+                Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="h-28 animate-pulse rounded-2xl bg-slate-100"
                   />
-                  <div className="space-y-2">
-                    <StatLine
-                      label="Enabled"
-                      value={String(enabledCount)}
-                      tone="success"
-                    />
-                    <StatLine
-                      label="Disabled"
-                      value={String(Math.max(totalCount - enabledCount, 0))}
-                      tone="muted"
-                    />
-                    <StatLine
-                      label="Total"
-                      value={String(totalCount)}
-                      tone="primary"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick actions */}
-            <div className="rounded-3xl border border-border bg-white/90 p-4 shadow-sm backdrop-blur dark:bg-card">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-foreground">Quick Actions</p>
-                <span className="text-[11px] text-muted">
-                  Bulk controls for {roleTitle}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <ActionChip
-                  icon={<SearchOutlined />}
-                  label="Change User"
-                  onClick={() => setFindUserOpen(true)}
-                  highlight
-                />
-                <ActionChip
-                  icon={<CheckSquareOutlined />}
-                  label="Enable All"
-                  onClick={enableAll}
-                />
-                <ActionChip
-                  icon={<BorderOutlined />}
-                  label="Disable All"
-                  onClick={disableAll}
-                />
-                <ActionChip
-                  icon={<ExpandAltOutlined />}
-                  label="Expand All"
-                  onClick={expandAll}
-                />
-                <ActionChip
-                  icon={<ShrinkOutlined />}
-                  label="Collapse All"
-                  onClick={collapseAll}
-                />
-                <ActionChip
-                  icon={<CopyOutlined />}
-                  label="Copy"
-                  onClick={() => void handleCopy()}
-                />
-                <ActionChip
-                  icon={<SnippetsOutlined />}
-                  label="Paste"
-                  onClick={() => void handlePaste()}
-                />
-                <ActionChip
-                  icon={<UserSwitchOutlined />}
-                  label="Clone From User"
-                  onClick={() => setCloneOpen(true)}
-                  highlight
-                />
-              </div>
-            </div>
-
-            {/* Modules */}
-            <div className="space-y-4">
-              {permissionsLoading ? (
-                <div className="space-y-4 rounded-3xl border border-border bg-white p-6 dark:bg-card">
-                  <Skeleton active paragraph={{ rows: 4 }} />
-                  <Skeleton active paragraph={{ rows: 3 }} />
-                </div>
-              ) : permissionsError ? (
-                <Alert
-                  className="rounded-3xl"
-                  type="error"
-                  showIcon
-                  message={permissionsError}
-                  action={
-                    <Button
-                      size="small"
-                      onClick={() => void loadUserPermissions(selectedUser)}
-                    >
-                      Retry
-                    </Button>
-                  }
-                />
-              ) : filteredModules.length === 0 ? (
-                <div className="rounded-3xl border border-border bg-white py-12 dark:bg-card">
-                  <Empty description="No permissions match the selected filters" />
-                </div>
+                ))
+              ) : filteredCatalog.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted">
+                  No permissions found
+                </p>
               ) : (
-                <>
-                  {filteredCommonModules.length > 0 ? (
-                    <ModuleSection
-                      title="Common Permissions"
-                      subtitle="Shared across roles — still role-aware where needed"
-                      badge="COMMON"
-                      badgeClass="bg-primary/10 text-primary border-primary/20"
-                      modules={filteredCommonModules}
-                      enabledSlugs={enabledSlugs}
-                      expandedKeys={expandedKeys}
-                      onToggleExpand={toggleExpanded}
-                      onToggleSlug={toggleSlug}
-                      onSetModuleEnabled={setModuleEnabled}
-                    />
-                  ) : null}
-
-                  {filteredRoleModules.length > 0 ? (
-                    <ModuleSection
-                      title={`${roleTitle} Specific`}
-                      subtitle={`Exclusive fintech controls for ${roleTitle}`}
-                      badge={roleTitle.toUpperCase()}
-                      badgeClass={
-                        accent?.soft ||
-                        "bg-primary/10 text-primary border-primary/20"
-                      }
-                      modules={filteredRoleModules}
-                      enabledSlugs={enabledSlugs}
-                      expandedKeys={expandedKeys}
-                      onToggleExpand={toggleExpanded}
-                      onToggleSlug={toggleSlug}
-                      onSetModuleEnabled={setModuleEnabled}
-                    />
-                  ) : null}
-                </>
+                filteredCatalog.map((item) => (
+                  <article
+                    key={item.id}
+                    className="rounded-2xl border border-border p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-muted">
+                          {item.serviceType}
+                        </p>
+                        <p className="font-semibold text-foreground">
+                          {item.name}
+                        </p>
+                        <p className="font-mono text-[11px] text-muted">
+                          {item.key}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          item.status === "ACTIVE" ? "active" : "inactive"
+                        }
+                      >
+                        {item.status === "ACTIVE" ? "Active" : "Disabled"}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted">
+                      {item.description || "—"}
+                    </p>
+                    <p className="mt-2 text-xs text-muted">
+                      {item.assignedUsersCount || 0} users
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEdit(item)}
+                      >
+                        Edit
+                      </Button>
+                      {item.status === "ACTIVE" ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setDisableTarget(item)}
+                        >
+                          Disable
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void handleEnable(item)}
+                        >
+                          Enable
+                        </Button>
+                      )}
+                    </div>
+                  </article>
+                ))
               )}
             </div>
-
-            {/* Sticky footer — stays in page flow so modules never hide underneath */}
-            <div className="sticky bottom-0 z-40 mt-2 rounded-3xl border border-border/80 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_-12px_rgba(27,37,89,0.28)] backdrop-blur-xl dark:bg-card/95 sm:px-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {isDirty
-                      ? "You have unsaved permission changes"
-                      : "All permissions synced"}
-                  </p>
-                  <p className="text-[11px] text-muted">
-                    {enabledCount} enabled · {totalCount - enabledCount}{" "}
-                    disabled · {coverage}% coverage
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="primary"
-                    size="large"
-                    icon={<SaveOutlined />}
-                    loading={saving}
-                    disabled={!isDirty || permissionsLoading}
-                    className="!h-11 !rounded-xl !px-6 !font-semibold shadow-md shadow-primary/25"
-                    onClick={handleSave}
-                  >
-                    Save Permissions
-                  </Button>
-                  <Button
-                    size="large"
-                    icon={<ReloadOutlined />}
-                    disabled={!isDirty || saving}
-                    className="!h-11 !rounded-xl"
-                    onClick={handleResetPermissions}
-                  >
-                    Reset
-                  </Button>
-                  <Button
-                    size="large"
-                    icon={<CloseOutlined />}
-                    disabled={saving}
-                    className="!h-11 !rounded-xl"
-                    onClick={handleResetFilters}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
+          ) : catalogLoading ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-40 animate-pulse rounded-2xl bg-slate-100"
+                />
+              ))}
             </div>
-          </motion.div>
-        </AnimatePresence>
+          ) : filteredCatalog.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted">
+              No permissions found
+            </p>
+          ) : (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {groupPermissionsByService(filteredCatalog).map((group) => {
+                const Icon = getServiceIcon(group.serviceType);
+                return (
+                  <section
+                    key={group.serviceType}
+                    className="rounded-2xl border border-border"
+                  >
+                    <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+                      <Icon className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold">
+                        {group.serviceType}
+                      </h3>
+                    </div>
+                    <ul className="divide-y divide-border">
+                      {group.permissions.map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex items-center justify-between gap-3 px-4 py-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{item.name}</p>
+                            <p className="text-xs text-muted">
+                              {item.description || item.key}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={
+                              item.status === "ACTIVE" ? "success" : "inactive"
+                            }
+                          >
+                            {item.status === "ACTIVE" ? "Active" : "Disabled"}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      ) : (
+        <Card padding={false} className="p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {PERMISSION_ROLE_OPTIONS.map((role) => (
+              <button
+                key={role.value}
+                type="button"
+                onClick={() => setRoleTab(role.value)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-sm font-medium",
+                  roleTab === role.value
+                    ? "bg-primary text-white"
+                    : "bg-slate-100 text-muted hover:text-foreground"
+                )}
+              >
+                {role.label}
+              </button>
+            ))}
+          </div>
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            <Input
+              label="Search User"
+              value={userSearch}
+              onChange={(event) => setUserSearch(event.target.value)}
+              placeholder="Name, mobile or code"
+            />
+            <Select
+              label="Status"
+              value={userStatus}
+              onChange={(event) => setUserStatus(event.target.value)}
+              options={[
+                { value: "ALL", label: "All" },
+                { value: "ACTIVE", label: "Active" },
+                { value: "INACTIVE", label: "Inactive" },
+              ]}
+            />
+            <Select
+              label="Service"
+              value={userService}
+              onChange={(event) => setUserService(event.target.value)}
+              options={[
+                { value: "ALL", label: "All services" },
+                ...serviceTypes.map((item) => ({ value: item, label: item })),
+              ]}
+            />
+          </div>
+          {usersError ? (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-8 text-center">
+              <p className="text-sm text-red-700">{usersError}</p>
+              <Button className="mt-3" size="sm" onClick={() => void loadUsers()}>
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <DataTable
+                  data={filteredUsers}
+                  columns={userColumns}
+                  hideSearch
+                  isLoading={usersLoading}
+                />
+              </div>
+              <div className="space-y-3 md:hidden">
+                {usersLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-32 animate-pulse rounded-2xl bg-slate-100"
+                    />
+                  ))
+                ) : filteredUsers.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted">
+                    No users found
+                  </p>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <article
+                      key={user.id}
+                      className="rounded-2xl border border-border p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold">{user.name}</p>
+                          <p className="text-xs text-muted">{user.roleLabel}</p>
+                          <p className="text-xs text-muted">
+                            {maskMobile(user.mobile)}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            isActiveStatus(user.status) ? "active" : "inactive"
+                          }
+                        >
+                          {user.status || "Unknown"}
+                        </Badge>
+                      </div>
+                      <div className="mt-3">
+                        <AccessSummary
+                          catalog={catalog}
+                          enabledIds={userAccess[user.id] || []}
+                        />
+                      </div>
+                      <Button
+                        className="mt-3 w-full"
+                        size="sm"
+                        onClick={() => openManage(user)}
+                      >
+                        Manage Access
+                      </Button>
+                    </article>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </Card>
       )}
 
-      <Modal
-        title={
-          <span className="flex items-center gap-2">
-            <UserSwitchOutlined className="text-primary" />
-            Clone From Another User
-          </span>
+      <ServicePermissionForm
+        key={`${formMode}-${editing?.id || "new"}-${formOpen ? "open" : "closed"}`}
+        open={formOpen}
+        mode={formMode}
+        existing={editing}
+        serviceTypes={serviceTypes}
+        submitting={formSubmitting}
+        error={formError}
+        onClose={() => setFormOpen(false)}
+        onSubmit={handleSubmit}
+      />
+
+      <ManageAccessDrawer
+        key={`${manageUser?.id || "none"}-${manageQuery.isLoading ? "loading" : "ready"}`}
+        open={manageOpen}
+        user={manageUser}
+        catalog={catalog}
+        enabledIds={manageQuery.data?.permissionIds || []}
+        loading={manageQuery.isLoading}
+        saving={savingAccess}
+        error={
+          manageQuery.error
+            ? manageQuery.error instanceof Error
+              ? manageQuery.error.message
+              : "Failed to load user permissions"
+            : null
         }
-        open={cloneOpen}
-        onCancel={() => {
-          setCloneOpen(false);
-          setCloneRole("");
-          setCloneUserId("");
-        }}
-        onOk={() => void handleCloneApply()}
-        okText="Clone Permissions"
-        centered
-        destroyOnClose
-        okButtonProps={{ className: "!rounded-xl" }}
-        cancelButtonProps={{ className: "!rounded-xl" }}
+        onClose={() => setManageOpen(false)}
+        onRetry={() => void manageQuery.refetch()}
+        onSave={saveManage}
+      />
+
+      <Modal
+        isOpen={Boolean(disableTarget)}
+        onClose={() => setDisableTarget(null)}
+        title="Disable Permission?"
+        subtitle={disableTarget?.name}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDisableTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              isLoading={disabling}
+              onClick={() => void handleDisable()}
+            >
+              Disable Permission
+            </Button>
+          </div>
+        }
       >
-        <div className="space-y-3 py-2">
-          <p className="text-sm text-muted">
-            Copy enabled permissions from another user into the current editor.
-            Only permissions valid for <strong>{roleTitle}</strong> will apply.
-          </p>
-          <FilterField label="Source Role">
-            <Select
-              className="w-full"
-              size="large"
-              placeholder="Select role"
-              options={PERMISSION_ROLE_OPTIONS}
-              value={cloneRole || undefined}
-              onChange={(value) => {
-                setCloneRole(value as PermissionRoleType);
-                setCloneUserId("");
-              }}
-            />
-          </FilterField>
-          <FilterField label="Source User">
-            <Select
-              className="w-full"
-              size="large"
-              showSearch
-              optionFilterProp="label"
-              loading={cloneLoading}
-              disabled={!cloneRole}
-              placeholder="Select source user"
-              value={cloneUserId || undefined}
-              options={cloneUsers.map((user) => ({
-                value: user.id,
-                label: `${user.name}${user.mobile ? ` — ${user.mobile}` : ""}`,
-              }))}
-              onChange={(value) => setCloneUserId(value || "")}
-            />
-          </FilterField>
-        </div>
+        <p className="text-sm text-muted">
+          Disabling this permission will prevent assigned users from using this
+          service.
+        </p>
       </Modal>
     </div>
   );
 }
 
-function FilterField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function MetaChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-2xl border border-border/80 bg-[#f8fafc] px-3 py-2.5 dark:bg-background/50">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-        {label}
-      </p>
-      <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function StatLine({
+function Kpi({
   label,
   value,
-  tone,
+  icon,
 }: {
   label: string;
-  value: string;
-  tone: "success" | "muted" | "primary";
+  value: number;
+  icon: React.ReactNode;
 }) {
-  const color =
-    tone === "success"
-      ? "text-[#05CD99]"
-      : tone === "primary"
-        ? "text-primary"
-        : "text-muted";
   return (
-    <div className="flex items-baseline gap-2">
-      <span className={cn("text-lg font-bold", color)}>{value}</span>
-      <span className="text-xs text-muted">{label}</span>
+    <div className="rounded-2xl border border-border bg-white px-4 py-3 shadow-[0px_4px_18px_rgba(112,144,176,0.06)]">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted">{label}</p>
+        <span className="text-primary">{icon}</span>
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight">{value}</p>
     </div>
   );
 }
 
-function ActionChip({
-  icon,
-  label,
+function TabButton({
+  active,
   onClick,
-  highlight = false,
+  children,
 }: {
-  icon: ReactNode;
-  label: string;
+  active: boolean;
   onClick: () => void;
-  highlight?: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-xs font-semibold transition",
-        highlight
-          ? "border-primary/30 bg-primary text-white shadow-md shadow-primary/25 hover:brightness-110"
-          : "border-border bg-white text-foreground hover:border-primary/40 hover:bg-primary/5 dark:bg-card"
+        "border-b-2 px-3 py-2 text-sm font-medium",
+        active
+          ? "border-primary text-primary"
+          : "border-transparent text-muted hover:text-foreground"
       )}
     >
-      {icon}
-      {label}
+      {children}
     </button>
-  );
-}
-
-function ModuleSection({
-  title,
-  subtitle,
-  badge,
-  badgeClass,
-  modules,
-  enabledSlugs,
-  expandedKeys,
-  onToggleExpand,
-  onToggleSlug,
-  onSetModuleEnabled,
-}: {
-  title: string;
-  subtitle: string;
-  badge: string;
-  badgeClass: string;
-  modules: PermissionModuleDef[];
-  enabledSlugs: string[];
-  expandedKeys: string[];
-  onToggleExpand: (key: string) => void;
-  onToggleSlug: (slug: string, checked: boolean) => void;
-  onSetModuleEnabled: (module: PermissionModuleDef, enabled: boolean) => void;
-}) {
-  return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2 px-1">
-        <div>
-          <div className="mb-1 flex items-center gap-2">
-            <span
-              className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wide",
-                badgeClass
-              )}
-            >
-              {badge}
-            </span>
-            <h3 className="text-base font-bold text-foreground">{title}</h3>
-          </div>
-          <p className="text-xs text-muted">{subtitle}</p>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {modules.map((module, index) => {
-          const open = expandedKeys.includes(module.key);
-          const moduleSlugs = module.permissions.map((item) => item.slug);
-          const enabledInModule = moduleSlugs.filter((slug) =>
-            enabledSlugs.includes(slug)
-          ).length;
-          const allEnabled =
-            moduleSlugs.length > 0 && enabledInModule === moduleSlugs.length;
-          const someEnabled = enabledInModule > 0 && !allEnabled;
-          const icon = MODULE_ICON[module.key] || <AppstoreOutlined />;
-
-          return (
-            <motion.div
-              key={module.key}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(index * 0.03, 0.2) }}
-              className="overflow-hidden rounded-3xl border border-border bg-white shadow-[0_10px_30px_-24px_rgba(27,37,89,0.55)] dark:bg-card"
-            >
-              <div className="flex flex-col gap-3 border-b border-border/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                <button
-                  type="button"
-                  onClick={() => onToggleExpand(module.key)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#4318FF]/12 to-[#05CD99]/10 text-base text-primary">
-                    {icon}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-bold text-foreground">
-                        {module.label}
-                      </span>
-                      <span className="rounded-full bg-[#f4f7fe] px-2 py-0.5 text-[10px] font-semibold text-muted dark:bg-background">
-                        {enabledInModule}/{moduleSlugs.length}
-                      </span>
-                    </span>
-                    {module.description ? (
-                      <span className="mt-0.5 block truncate text-[11px] text-muted">
-                        {module.description}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="ml-auto text-muted sm:hidden">
-                    {open ? <DownOutlined /> : <RightOutlined />}
-                  </span>
-                </button>
-
-                <div className="flex items-center gap-3 sm:pl-2">
-                  <label
-                    className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <Checkbox
-                      checked={allEnabled}
-                      indeterminate={someEnabled}
-                      onChange={(event) =>
-                        onSetModuleEnabled(module, event.target.checked)
-                      }
-                    />
-                    Entire module
-                  </label>
-                  <button
-                    type="button"
-                    className="hidden h-8 w-8 items-center justify-center rounded-lg border border-border text-muted hover:bg-primary/5 sm:inline-flex"
-                    onClick={() => onToggleExpand(module.key)}
-                  >
-                    {open ? <DownOutlined /> : <RightOutlined />}
-                  </button>
-                </div>
-              </div>
-
-              <AnimatePresence initial={false}>
-                {open ? (
-                  <motion.div
-                    key="body"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    <div className="grid gap-2.5 border-t border-border/60 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
-                      {module.permissions.map((permission) => {
-                        const checked = enabledSlugs.includes(permission.slug);
-                        return (
-                          <button
-                            key={permission.slug}
-                            type="button"
-                            onClick={() =>
-                              onToggleSlug(permission.slug, !checked)
-                            }
-                            className={cn(
-                              "group flex items-start justify-between gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-200",
-                              checked
-                                ? "border-primary/35 bg-gradient-to-br from-primary/8 to-[#05CD99]/5 shadow-[0_8px_20px_-14px_rgba(67,24,255,0.55)]"
-                                : "border-border bg-[#fbfcff] hover:border-primary/25 hover:bg-white dark:bg-background/40"
-                            )}
-                          >
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold text-foreground">
-                                {permission.label}
-                              </span>
-                              <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                                <span
-                                  className={cn(
-                                    "rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide",
-                                    checked
-                                      ? "bg-[#05CD99]/15 text-[#04966f]"
-                                      : "bg-muted/20 text-muted"
-                                  )}
-                                >
-                                  {checked ? "TRUE" : "FALSE"}
-                                </span>
-                                <span className="truncate font-mono text-[10px] text-muted">
-                                  {permission.slug}
-                                </span>
-                              </span>
-                            </span>
-                            <Switch
-                              size="small"
-                              checked={checked}
-                              onClick={(_, event) => event.stopPropagation()}
-                              onChange={(value) =>
-                                onToggleSlug(permission.slug, value)
-                              }
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </motion.div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-export function PermissionManagementView() {
-  return (
-    <CommissionAntdProvider>
-      <PermissionManagementContent />
-    </CommissionAntdProvider>
   );
 }

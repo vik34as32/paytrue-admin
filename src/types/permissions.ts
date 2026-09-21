@@ -4,6 +4,34 @@ export type PermissionRoleType =
   | "DISTRIBUTOR"
   | "RETAILER";
 
+export type PermissionDefinitionStatus = "ACTIVE" | "INACTIVE";
+
+export interface ServicePermission {
+  id: string;
+  name: string;
+  key: string;
+  serviceType: string;
+  description: string;
+  status: PermissionDefinitionStatus;
+  assignedUsersCount: number;
+}
+
+export interface CreatePermissionPayload {
+  name: string;
+  permissionKey: string;
+  serviceType: string;
+  description?: string;
+  status?: PermissionDefinitionStatus;
+}
+
+export type UpdatePermissionPayload = Partial<CreatePermissionPayload>;
+
+export interface UserPermissionSnapshot {
+  userId: string;
+  permissionIds: string[];
+  permissions: ServicePermission[];
+}
+
 export type PermissionStatusFilter = "ALL" | "ENABLED" | "DISABLED";
 
 export interface PermissionItemDef {
@@ -17,7 +45,6 @@ export interface PermissionModuleDef {
   label: string;
   description?: string;
   permissions: PermissionItemDef[];
-  /** UI grouping */
   section?: "common" | "role";
 }
 
@@ -31,17 +58,4 @@ export interface PermissionUserOption {
   status?: string;
   userCode?: string;
   createdAt?: string;
-}
-
-export interface UserPermissionState {
-  userId: string;
-  enabledSlugs: string[];
-  updatedAt?: string;
-}
-
-export interface PermissionFiltersValue {
-  role: PermissionRoleType | "";
-  userId: string;
-  module: string;
-  status: PermissionStatusFilter;
 }

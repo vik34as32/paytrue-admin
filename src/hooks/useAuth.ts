@@ -40,6 +40,7 @@ const SUPER_ADMIN_API_ROUTES = [
   ROUTES.superAdminServiceCharges,
   ROUTES.superAdminAepsLedger,
   ROUTES.superAdminPermissionManagement,
+  ROUTES.superAdminPermissions,
   ROUTES.superAdminIdVerification,
   ROUTES.superAdminCreateAdmin,
   ROUTES.superAdminWalletManagement,

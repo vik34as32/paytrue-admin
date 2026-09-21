@@ -8,6 +8,7 @@ import { useAuthGuard } from "@/hooks/useAuth";
 import { useAppSelector } from "@/hooks/useAppStore";
 import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
 import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
+import { PermissionAccessProvider } from "@/components/permissions/PermissionAccessProvider";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -25,6 +26,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <PermissionAccessProvider>
     <div className="h-screen overflow-hidden bg-background">
       <Sidebar
         collapsed={collapsed}
@@ -49,5 +51,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
     </div>
+    </PermissionAccessProvider>
   );
 }
