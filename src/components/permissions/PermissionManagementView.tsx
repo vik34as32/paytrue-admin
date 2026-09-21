@@ -26,10 +26,7 @@ import {
   ManageAccessDrawer,
 } from "@/components/permissions/ManageAccessDrawer";
 import { getServiceIcon } from "@/components/permissions/serviceIcons";
-import {
-  isActiveStatus,
-  maskMobile,
-} from "@/components/permissions/permissionDisplay";
+import { isActiveStatus } from "@/components/permissions/permissionDisplay";
 import {
   createPermission,
   deletePermission,
@@ -395,7 +392,7 @@ export function PermissionManagementView() {
       {
         accessorKey: "mobile",
         header: "Mobile",
-        cell: ({ row }) => maskMobile(row.original.mobile),
+        cell: ({ row }) => row.original.mobile || "—",
       },
       {
         id: "services",
@@ -775,7 +772,7 @@ export function PermissionManagementView() {
                           <p className="font-semibold">{user.name}</p>
                           <p className="text-xs text-muted">{user.roleLabel}</p>
                           <p className="text-xs text-muted">
-                            {maskMobile(user.mobile)}
+                            {user.mobile || "—"}
                           </p>
                         </div>
                         <Badge

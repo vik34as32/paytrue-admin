@@ -14,7 +14,6 @@ import { PermissionPanel } from "@/components/permissions/PermissionPanel";
 import { cn } from "@/lib/utils";
 import { groupPermissionsByService } from "@/services/permissionManagementApi";
 import { getServiceIcon } from "@/components/permissions/serviceIcons";
-import { maskMobile } from "@/components/permissions/permissionDisplay";
 import type {
   PermissionUserOption,
   ServicePermission,
@@ -145,7 +144,7 @@ export function ManageAccessDrawer({
                   {user.roleLabel}
                 </p>
                 <p className="mt-2 text-sm text-muted">
-                  Mobile: {maskMobile(user.mobile)}
+                  Mobile: {user.mobile || "—"}
                 </p>
               </div>
               <Badge
