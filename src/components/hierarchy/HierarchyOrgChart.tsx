@@ -94,8 +94,16 @@ function layoutTree(
     nextLeafX += hGap;
   }
 
-  const maxX = laid.reduce((m, n) => Math.max(m, n.x + nodeW), nodeW);
-  const maxY = laid.reduce((m, n) => Math.max(m, n.y + nodeH), nodeH);
+  const widthSeed: number = nodeW;
+  const heightSeed: number = nodeH;
+  const maxX = laid.reduce(
+    (m, n) => Math.max(m, n.x + widthSeed),
+    widthSeed
+  );
+  const maxY = laid.reduce(
+    (m, n) => Math.max(m, n.y + heightSeed),
+    heightSeed
+  );
 
   return {
     nodes: laid,
