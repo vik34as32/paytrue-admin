@@ -19,6 +19,16 @@ import type {
   ServicePermission,
 } from "@/types/permissions";
 
+function isAuthService(serviceType: string) {
+  return serviceType.trim().toUpperCase() === "AUTH";
+}
+
+function authPermissionIds(items: ServicePermission[]) {
+  return items
+    .filter((item) => isAuthService(item.serviceType))
+    .map((item) => item.id);
+}
+
 interface ManageAccessDrawerProps {
   open: boolean;
   user: PermissionUserOption | null;
@@ -86,15 +96,25 @@ export function ManageAccessDrawer({
     onClose();
   };
 
-  const toggle = (id: string) => {
-    setDraftIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+  const toggle = (item: ServicePermission) => {
+    setDraftIds((current) => {
+      if (current.includes(item.id)) {
+        return current.filter((id) => id !== item.id);
+      }
+      if (!isAuthService(item.serviceType)) {
+        return [...current, item.id];
+      }
+      const siblings = new Set(authPermissionIds(activeCatalog));
+      return [...current.filter((id) => !siblings.has(id)), item.id];
+    });
   };
 
-  const setGroup = (ids: string[], enabled: boolean) => {
+  const setGroup = (
+    groupType: string,
+    ids: string[],
+    enabled: boolean
+  ) => {
+    if (isAuthService(groupType) && enabled) return;
     setDraftIds((current) => {
       const next = new Set(current);
       for (const id of ids) {
@@ -103,6 +123,16 @@ export function ManageAccessDrawer({
       }
       return Array.from(next);
     });
+  };
+
+  const selectAll = () => {
+    const authIds = new Set(authPermissionIds(activeCatalog));
+    const keptAuth = draftIds.find((id) => authIds.has(id));
+    setDraftIds(
+      activeCatalog
+        .map((item) => item.id)
+        .filter((id) => !authIds.has(id) || id === keptAuth)
+    );
   };
 
   return (
@@ -173,9 +203,7 @@ export function ManageAccessDrawer({
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
-                setDraftIds(activeCatalog.map((item) => item.id))
-              }
+              onClick={selectAll}
             >
               Select All
             </Button>
@@ -217,6 +245,7 @@ export function ManageAccessDrawer({
             {groups.map((group) => {
               const Icon = getServiceIcon(group.serviceType);
               const ids = group.permissions.map((item) => item.id);
+              const exclusiveAuth = isAuthService(group.serviceType);
               const onCount = group.permissions.filter((item) =>
                 enabledSet.has(item.id)
               ).length;
@@ -239,21 +268,34 @@ export function ManageAccessDrawer({
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setGroup(ids, true)}
-                      >
-                        Enable All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setGroup(ids, false)}
-                      >
-                        Disable All
-                      </Button>
+                    <div className="flex flex-col items-end gap-1">
+                      {exclusiveAuth ? (
+                        <p className="text-[11px] text-muted">
+                          Only one login method can be enabled
+                        </p>
+                      ) : null}
+                      <div className="flex gap-2">
+                        {exclusiveAuth ? null : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setGroup(group.serviceType, ids, true)
+                            }
+                          >
+                            Enable All
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setGroup(group.serviceType, ids, false)
+                          }
+                        >
+                          Disable All
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <ul className="divide-y divide-border">
@@ -263,7 +305,7 @@ export function ManageAccessDrawer({
                         <li key={item.id}>
                           <button
                             type="button"
-                            onClick={() => toggle(item.id)}
+                            onClick={() => toggle(item)}
                             aria-pressed={enabled}
                             className={cn(
                               "flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
