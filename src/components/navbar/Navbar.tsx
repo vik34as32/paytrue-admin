@@ -19,10 +19,8 @@ import {
   Sun,
   Bell,
   Menu,
-  Search,
   Wallet,
 } from "lucide-react";
-import { Input } from "@/components/common/Input";
 import Link from "next/link";
 import { PortalGreeting } from "@/components/navbar/PortalGreeting";
 
@@ -92,13 +90,6 @@ export function Navbar({ onMenuClick, sidebarCollapsed }: NavbarProps) {
             <Menu className="h-5 w-5" />
           </button>
           <PortalGreeting name={displayUser?.name} compact />
-          <div className="hidden w-56 xl:block">
-            <Input
-              placeholder="Search..."
-              icon={<Search className="h-4 w-4" />}
-              className="border-white/15 bg-white/10 text-navbar-foreground placeholder:text-navbar-muted"
-            />
-          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -111,12 +102,12 @@ export function Navbar({ onMenuClick, sidebarCollapsed }: NavbarProps) {
 
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="rounded-xl p-2 text-navbar-muted transition-colors hover:bg-white/10 hover:text-navbar-foreground"
+            className="rounded-xl p-2 text-navbar-muted transition-all duration-200 hover:scale-105 hover:bg-white/10 hover:text-navbar-foreground"
           >
             {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
-          <button className="relative rounded-xl p-2 text-navbar-muted transition-colors hover:bg-white/10 hover:text-navbar-foreground">
+          <button className="relative rounded-xl p-2 text-navbar-muted transition-all duration-200 hover:scale-105 hover:bg-white/10 hover:text-navbar-foreground">
             <Bell className="h-5 w-5" />
             <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent-red" />
           </button>

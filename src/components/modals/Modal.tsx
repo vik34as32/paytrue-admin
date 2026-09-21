@@ -78,26 +78,27 @@ export function Modal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="app-overlay absolute inset-0"
             onClick={onClose}
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ type: "spring", stiffness: 380, damping: 32 }}
             className={cn(
-              "relative flex w-full max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl",
+              "premium-modal relative flex w-full max-h-[90vh] flex-col overflow-hidden rounded-2xl border border-border bg-card",
               sizes[size]
             )}
             onClick={(event) => event.stopPropagation()}
           >
+            <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-[color:var(--portal-accent)] to-secondary" />
             <div
               className={cn(
                 "flex shrink-0 items-start justify-between border-b px-6 py-4",
                 headerVariant === "brand"
                   ? "relative overflow-hidden border-emerald-500/20 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 text-white"
-                  : "border-border"
+                  : "border-border bg-gradient-to-b from-card to-background/40"
               )}
             >
               {headerVariant === "brand" ? (

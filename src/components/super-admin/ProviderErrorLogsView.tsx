@@ -455,7 +455,7 @@ export function ProviderErrorLogsView() {
       <PageHeader
         breadcrumb="Dashboard / Operations / Logs"
         title="Provider Error Logs"
-        subtitle="Failed NIFI, InstantPay & Finzeng API calls — client-ready audit trail (retained 7 days)"
+        subtitle="Is section ka kaam: jab NIFI, InstantPay ya Finzeng API fail hoti hai (timeout, network, HTTP error), woh yahan record hoti hai — successful calls yahan nahi aati. Support aur client ke saath incident explain karne ke liye. Logs 7 din baad auto-delete."
         action={
           <Button
             variant="outline"
@@ -476,11 +476,13 @@ export function ProviderErrorLogsView() {
               <ScrollText className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold">Operations transparency</p>
+              <p className="text-sm font-semibold">Yeh Logs kis liye hain?</p>
               <p className="mt-1 max-w-2xl text-sm text-slate-300">
-                Only failed provider calls are stored. Successful responses are
-                never logged. Use this view when sharing incident timelines with
-                clients or internal support.
+                Provider (bank / aggregator) jab transaction API fail karta hai
+                — timeout, network drop, HTTP 4xx/5xx, ya provider failure —
+                tabhi row yahan padti hai. Success response store nahi hota.
+                Filter karke txn / reference id se root cause nikaalo, payload
+                copy karo, aur 7 din ke window mein client ko timeline do.
               </p>
             </div>
           </div>

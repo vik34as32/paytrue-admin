@@ -105,7 +105,7 @@ export function WalletDetailsDrawer({
           <motion.button
             type="button"
             aria-label="Close drawer overlay"
-            className="fixed inset-0 z-[70] bg-black/40"
+            className="app-overlay fixed inset-0 z-[70]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

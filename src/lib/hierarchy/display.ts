@@ -117,6 +117,18 @@ export function collectExpandableIds(nodes: HierarchyNetworkUser[]): string[] {
   return ids;
 }
 
+export function pruneExpandedTree(
+  nodes: HierarchyNetworkUser[],
+  expandedIds: Set<string>
+): HierarchyNetworkUser[] {
+  return nodes.map((node) => ({
+    ...node,
+    children: expandedIds.has(node.id)
+      ? pruneExpandedTree(node.children, expandedIds)
+      : [],
+  }));
+}
+
 export function findNodeById(
   nodes: HierarchyNetworkUser[],
   id: string

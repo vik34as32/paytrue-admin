@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { SIDEBAR_ITEMS, ADMIN_SIDEBAR_ITEMS, APP_NAME, ROUTES } from "@/constants";
+import { SIDEBAR_ITEMS, ADMIN_SIDEBAR_ITEMS, ROUTES } from "@/constants";
 import {
   LayoutDashboard,
   Users,
@@ -40,6 +40,8 @@ import { useRoleAccess } from "@/hooks/useAuth";
 import { usePermissionAccess } from "@/components/permissions/PermissionAccessProvider";
 import { UserRole } from "@/types";
 import { toast } from "sonner";
+import { InfoTooltip } from "@/components/common/InfoTooltip";
+import { getSectionHelp } from "@/lib/sectionHelp";
 
 const iconMap: Record<string, React.ReactNode> = {
   dashboard: <LayoutDashboard className="h-5 w-5" />,
@@ -98,18 +100,18 @@ export function Sidebar({
     userRole === "admin"
       ? ADMIN_SIDEBAR_ITEMS
       : SIDEBAR_ITEMS.filter((item) => {
-    const roles = item.roles as readonly UserRole[];
-    if (!roles.includes(userRole)) return false;
-    if (item.href === ROUTES.balanceTransfer && !canTransferBalance)
-      return false;
-    if (
-      item.href === ROUTES.requests &&
-      !canApproveRequests &&
-      !canRequestBalance
-    )
-      return false;
-    return true;
-  });
+          const roles = item.roles as readonly UserRole[];
+          if (!roles.includes(userRole)) return false;
+          if (item.href === ROUTES.balanceTransfer && !canTransferBalance)
+            return false;
+          if (
+            item.href === ROUTES.requests &&
+            !canApproveRequests &&
+            !canRequestBalance
+          )
+            return false;
+          return true;
+        });
 
   const homeHref = superAdminAuth.isAuthenticated
     ? ROUTES.superAdminDashboard
@@ -137,59 +139,49 @@ export function Sidebar({
       )}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 flex h-full flex-col border-r border-white/10 bg-sidebar text-sidebar-foreground transition-all duration-300",
+          "sidebar-shell fixed left-0 top-0 z-50 flex h-full flex-col text-sidebar-foreground",
           collapsed ? "w-[80px]" : "w-[260px]",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-white/10 bg-transparent px-5">
-  {!collapsed && (
-    <Link
-      href={homeHref}
-      className="group flex items-center gap-3 transition-all duration-200"
-    >
-      <div className="flex items-center">
-  <img
-    src="/images/logo.png"
-    alt="PayTrue Logo"
-    width={250}
-    height={250}
-    className="h-10 w-auto object-contain"
-  />
-</div>
+        <div className="relative flex h-16 items-center justify-between border-b border-white/10 px-4">
+          {!collapsed && (
+            <Link
+              href={homeHref}
+              className="group flex min-w-0 items-center gap-2.5"
+            >
+              <img
+                src="/images/logo.png"
+                alt="PayTrue Logo"
+                width={250}
+                height={250}
+                className="h-10 w-auto object-contain"
+              />
+              <div className="flex min-w-0 flex-col leading-none">
+                <h1 className="text-2xl font-extrabold tracking-tight">
+                  <span className="text-white">Pay</span>
+                  <span className="bg-gradient-to-r from-[#F7D774] to-[#C5A059] bg-clip-text text-transparent">
+                    true
+                  </span>
+                </h1>
+              </div>
+            </Link>
+          )}
 
-      {/* Brand */}
-      <div className="flex flex-col leading-none">
-        <h1 className="text-2xl font-extrabold tracking-tight">
-          <span className="text-white">
-            Pay
-          </span>
+          <button
+            onClick={onToggle}
+            className="sidebar-toggle hidden rounded-xl border border-white/15 bg-white/5 p-2 text-sidebar-muted lg:flex"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
+            )}
+          </button>
+        </div>
 
-          <span className="bg-gradient-to-r from-[#F7D774] to-[#C5A059] bg-clip-text text-transparent">
-            true 
-          </span>
-        </h1>
-
-        {/* <span className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-400">
-          DIGITAL PAYMENT SOLUTIONS
-        </span> */}
-      </div>
-    </Link>
-  )}
-
-  <button
-    onClick={onToggle}
-    className="hidden rounded-xl border border-white/15 bg-white/5 p-2 text-sidebar-muted shadow-sm transition-all duration-200 hover:bg-white/10 hover:text-white lg:flex"
-  >
-    {collapsed ? (
-      <ChevronRight className="h-5 w-5" />
-    ) : (
-      <ChevronLeft className="h-5 w-5" />
-    )}
-  </button>
-</div>
-
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+        <nav className="sidebar-nav flex-1 space-y-1 overflow-y-auto p-3">
           {filteredItems.map((item, index) => {
             const isActive = pathname.startsWith(item.href);
             const section =
@@ -203,48 +195,71 @@ export function Sidebar({
                 : undefined;
             const showSection = !!section && section !== prevSection;
             const granted = isHrefAllowed(item.href);
+            const hint = getSectionHelp(item.href);
 
             return (
-              <div key={item.href}>
+              <div
+                key={item.href}
+                className="sidebar-item-enter"
+                style={{ animationDelay: `${Math.min(index, 18) * 28}ms` }}
+              >
                 {showSection && !collapsed ? (
-                  <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
+                  <p className="sidebar-section-label mb-1 mt-3 px-3">
                     {section}
                   </p>
                 ) : null}
                 {showSection && collapsed ? (
-                  <div className="my-2 border-t border-border/70" />
+                  <div className="my-2 border-t border-white/10" />
                 ) : null}
                 {granted ? (
                   <Link
                     href={item.href}
                     onClick={onMobileClose}
+                    title={collapsed ? `${item.label} — ${hint}` : undefined}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
-                      isActive
-                        ? "bg-primary text-white shadow-lg shadow-primary/25"
-                        : "text-sidebar-muted hover:bg-white/8 hover:text-sidebar-foreground"
+                      "nav-link",
+                      isActive ? "nav-link-active" : "nav-link-idle"
                     )}
-                    title={collapsed ? item.label : undefined}
                   >
-                    {iconMap[item.icon]}
-                    {!collapsed && <span>{item.label}</span>}
+                    <span className="nav-link-icon">{iconMap[item.icon]}</span>
+                    {!collapsed && (
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    )}
+                    {!collapsed && (
+                      <InfoTooltip
+                        content={hint}
+                        side="right"
+                        className="nav-link-help text-white/40 hover:text-white"
+                        iconClassName="h-3.5 w-3.5"
+                      />
+                    )}
+                    {collapsed && (
+                      <span className="sr-only">{`${item.label}. ${hint}`}</span>
+                    )}
                   </Link>
                 ) : (
                   <button
                     type="button"
-                    title="You don't have permission to use this service."
                     onClick={() => notifyLocked()}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-400"
+                    className="nav-link nav-link-locked"
                   >
-                    {iconMap[item.icon]}
+                    <span className="nav-link-icon">{iconMap[item.icon]}</span>
                     {!collapsed && (
-                      <span className="flex flex-1 items-center justify-between gap-2">
-                        {item.label}
+                      <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <span className="truncate">{item.label}</span>
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide">
                           <Lock className="h-3.5 w-3.5" />
                           Locked
                         </span>
                       </span>
+                    )}
+                    {!collapsed && (
+                      <InfoTooltip
+                        content="This module is locked for your account. Ask Super Admin to grant access."
+                        side="right"
+                        className="text-white/30"
+                        iconClassName="h-3.5 w-3.5"
+                      />
                     )}
                   </button>
                 )}
@@ -254,11 +269,9 @@ export function Sidebar({
           {userRole === "admin" && !isSuperAdmin && groups.length ? (
             <div className="pt-2">
               {!collapsed ? (
-                <p className="mb-1 mt-3 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted">
-                  Services
-                </p>
+                <p className="sidebar-section-label mb-1 mt-3 px-3">Services</p>
               ) : (
-                <div className="my-2 border-t border-border/70" />
+                <div className="my-2 border-t border-white/10" />
               )}
               {groups.map((group) => {
                 const granted = group.permissions.some((item) =>
@@ -270,34 +283,43 @@ export function Sidebar({
                   <button
                     key={group.serviceType}
                     type="button"
-                    title={
-                      granted
-                        ? group.serviceType
-                        : "You don't have permission to use this service."
-                    }
                     onClick={() => {
                       if (!granted) {
                         notifyLocked();
                         return;
                       }
-                      toast.message(`${group.serviceType} is enabled for your account.`);
+                      toast.message(
+                        `${group.serviceType} is enabled for your account.`
+                      );
                     }}
                     className={cn(
-                      "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
-                      granted
-                        ? "text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground"
-                        : "text-sidebar-muted/60"
+                      "nav-link",
+                      granted ? "nav-link-idle" : "nav-link-locked"
                     )}
                   >
                     <Lock className={cn("h-5 w-5", granted && "hidden")} />
-                    <ShieldCheck className={cn("h-5 w-5", !granted && "hidden")} />
+                    <ShieldCheck
+                      className={cn("h-5 w-5", !granted && "hidden")}
+                    />
                     {!collapsed && (
-                      <span className="flex flex-1 items-center justify-between gap-2">
-                        {group.serviceType}
+                      <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <span className="truncate">{group.serviceType}</span>
                         <span className="text-[11px] font-semibold uppercase tracking-wide">
                           {granted ? "Enabled" : "Locked"}
                         </span>
                       </span>
+                    )}
+                    {!collapsed && (
+                      <InfoTooltip
+                        content={
+                          granted
+                            ? `${group.serviceType} is enabled on this Admin account.`
+                            : "You don't have permission to use this service."
+                        }
+                        side="right"
+                        className="text-white/35"
+                        iconClassName="h-3.5 w-3.5"
+                      />
                     )}
                   </button>
                 );
@@ -307,10 +329,7 @@ export function Sidebar({
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-rose-300 transition-all hover:bg-rose-500/15"
-          >
+          <button onClick={handleLogout} className="nav-link nav-link-logout">
             <LogOut className="h-5 w-5" />
             {!collapsed && <span>Logout</span>}
           </button>

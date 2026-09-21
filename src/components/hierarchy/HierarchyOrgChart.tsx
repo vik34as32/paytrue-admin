@@ -4,10 +4,10 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import { HierarchyNetworkUser } from "@/types/hierarchy";
 import { cn, getInitials } from "@/lib/utils";
 
-const NODE_W = 148;
-const NODE_H = 112;
-const H_GAP = 28;
-const V_GAP = 72;
+const METRICS = {
+  default: { nodeW: 148, nodeH: 112, hGap: 28, vGap: 72 },
+  compact: { nodeW: 118, nodeH: 92, hGap: 14, vGap: 46 },
+} as const;
 
 function roleShort(userType?: string): string {
   const value = (userType || "").toUpperCase();
@@ -47,12 +47,16 @@ interface Edge {
   midY: number;
 }
 
-function layoutTree(roots: HierarchyNetworkUser[]): {
+function layoutTree(
+  roots: HierarchyNetworkUser[],
+  metrics: (typeof METRICS)[keyof typeof METRICS]
+): {
   nodes: LaidOutNode[];
   edges: Edge[];
   width: number;
   height: number;
 } {
+  const { nodeW, nodeH, hGap, vGap } = metrics;
   const laid: LaidOutNode[] = [];
   const edges: Edge[] = [];
   let nextLeafX = 0;
@@ -60,25 +64,25 @@ function layoutTree(roots: HierarchyNetworkUser[]): {
   const measure = (node: HierarchyNetworkUser, depth: number): number => {
     if (!node.children.length) {
       const x = nextLeafX;
-      nextLeafX += NODE_W + H_GAP;
-      laid.push({ node, x, y: depth * (NODE_H + V_GAP), depth });
+      nextLeafX += nodeW + hGap;
+      laid.push({ node, x, y: depth * (nodeH + vGap), depth });
       return x;
     }
 
     const childXs = node.children.map((child) => measure(child, depth + 1));
     const x = (Math.min(...childXs) + Math.max(...childXs)) / 2;
-    const y = depth * (NODE_H + V_GAP);
+    const y = depth * (nodeH + vGap);
     laid.push({ node, x, y, depth });
 
     for (const child of node.children) {
       const childLaid = laid.find((item) => item.node.id === child.id);
       if (!childLaid) continue;
       edges.push({
-        x1: x + NODE_W / 2,
-        y1: y + NODE_H,
-        x2: childLaid.x + NODE_W / 2,
+        x1: x + nodeW / 2,
+        y1: y + nodeH,
+        x2: childLaid.x + nodeW / 2,
         y2: childLaid.y,
-        midY: y + NODE_H + V_GAP / 2,
+        midY: y + nodeH + vGap / 2,
       });
     }
 
@@ -87,17 +91,17 @@ function layoutTree(roots: HierarchyNetworkUser[]): {
 
   for (const root of roots) {
     measure(root, 0);
-    nextLeafX += H_GAP;
+    nextLeafX += hGap;
   }
 
-  const maxX = laid.reduce((m, n) => Math.max(m, n.x + NODE_W), NODE_W);
-  const maxY = laid.reduce((m, n) => Math.max(m, n.y + NODE_H), NODE_H);
+  const maxX = laid.reduce((m, n) => Math.max(m, n.x + nodeW), nodeW);
+  const maxY = laid.reduce((m, n) => Math.max(m, n.y + nodeH), nodeH);
 
   return {
     nodes: laid,
     edges,
-    width: Math.max(maxX + 24, 320),
-    height: Math.max(maxY + 24, 240),
+    width: Math.max(maxX + 16, 280),
+    height: Math.max(maxY + 16, 200),
   };
 }
 
@@ -107,6 +111,10 @@ interface HierarchyOrgChartProps {
   onSelect?: (node: HierarchyNetworkUser) => void;
   /** Fit entire tree width into the visible canvas */
   fitToView?: boolean;
+  /** contain = width + height on one screen */
+  fitMode?: "width" | "contain";
+  compact?: boolean;
+  className?: string;
 }
 
 export function HierarchyOrgChart({
@@ -114,24 +122,33 @@ export function HierarchyOrgChart({
   selectedId,
   onSelect,
   fitToView = true,
+  fitMode,
+  compact = false,
+  className,
 }: HierarchyOrgChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const layout = useMemo(() => layoutTree(nodes), [nodes]);
+  const metrics = compact ? METRICS.compact : METRICS.default;
+  const layout = useMemo(() => layoutTree(nodes, metrics), [nodes, metrics]);
+  const mode = fitMode ?? (fitToView ? "width" : undefined);
 
   useEffect(() => {
-    if (!fitToView || !containerRef.current) {
+    if (!mode || !containerRef.current) {
       setScale(1);
       return;
     }
 
     const el = containerRef.current;
     const update = () => {
-      // Fit by WIDTH only so every sibling (e.g. Sumit's 5 RTs) stays on screen.
-      // Depth grows vertically — page can scroll; nothing is clipped on the right.
-      const pad = 16;
-      const availW = Math.max(el.clientWidth - pad, 160);
-      const next = Math.min(1, availW / layout.width);
+      const pad = 12;
+      const availW = Math.max(el.clientWidth - pad, 120);
+      const availH = Math.max(el.clientHeight - pad, 120);
+      const byW = availW / layout.width;
+      const byH = availH / layout.height;
+      const next =
+        mode === "contain"
+          ? Math.min(1, byW, byH)
+          : Math.min(1, byW);
       setScale(Number.isFinite(next) && next > 0 ? next : 1);
     };
 
@@ -139,7 +156,7 @@ export function HierarchyOrgChart({
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [layout.width, layout.height, fitToView, nodes]);
+  }, [layout.width, layout.height, mode, nodes]);
 
   if (!nodes.length) return null;
 
@@ -153,7 +170,14 @@ export function HierarchyOrgChart({
   const stageH = layout.height * scale;
 
   return (
-    <div ref={containerRef} className="dsa-tree">
+    <div
+      ref={containerRef}
+      className={cn(
+        "dsa-tree",
+        mode === "contain" && "dsa-tree--contain",
+        className
+      )}
+    >
       <div
         className="dsa-tree__stage"
         style={{
@@ -198,10 +222,16 @@ export function HierarchyOrgChart({
                 type="button"
                 className={cn(
                   "dsa-tree__node",
+                  compact && "dsa-tree__node--compact",
                   toneClass[kind],
                   selected && "dsa-tree__node--selected"
                 )}
-                style={{ left: x, top: y, width: NODE_W, height: NODE_H }}
+                style={{
+                  left: x,
+                  top: y,
+                  width: metrics.nodeW,
+                  height: metrics.nodeH,
+                }}
                 onClick={() => onSelect?.(node)}
                 title={`${node.name} · ${roleLabel(node.userType)}`}
               >

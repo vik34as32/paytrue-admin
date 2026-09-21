@@ -9,6 +9,7 @@ import { useAppSelector } from "@/hooks/useAppStore";
 import { selectIsAuthRestoring } from "@/store/selectors/authSelectors";
 import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
 import { PermissionAccessProvider } from "@/components/permissions/PermissionAccessProvider";
+import { PageTransition } from "@/components/layouts/PageTransition";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -55,7 +56,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               : "lg:left-[var(--app-sidebar-width)]"
           )}
         >
-          {children}
+          <PageTransition>{children}</PageTransition>
         </main>
       </div>
     </PermissionAccessProvider>

@@ -18,7 +18,7 @@ import { Button } from "@/components/common/Button";
 import { Input } from "@/components/common/Input";
 import { Select } from "@/components/common/Select";
 import { Badge } from "@/components/common/Badge";
-import { HierarchyCollapsibleTree } from "@/components/hierarchy-management/HierarchyCollapsibleTree";
+import { HierarchyOrgChart } from "@/components/hierarchy/HierarchyOrgChart";
 import {
   DistributorsTab,
   MasterDistributorsTab,
@@ -37,8 +37,10 @@ import { HierarchyListUser } from "@/types/hierarchyManagement";
 import { cn } from "@/lib/utils";
 import {
   collectExpandableIds,
+  findNodeById,
   findParentChain,
   isDistributorRole,
+  pruneExpandedTree,
   roleFullLabel,
   statusBadgeVariant,
 } from "@/lib/hierarchy/display";
@@ -209,15 +211,6 @@ export function HierarchyManagementView({
     ? findParentChain(tree, selectedNode.id)
     : null;
 
-  const toggleNode = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const expandAll = () => {
     setExpandedIds(new Set(collectExpandableIds(tree)));
   };
@@ -339,12 +332,13 @@ export function HierarchyManagementView({
       </div>
 
       {tab === "tree" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <Card className="space-y-4 border-border p-4 sm:p-5">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
+          <Card className="hm-tree-card flex min-h-0 flex-col space-y-3 border-border p-4 sm:p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <GitBranch className="h-4 w-4 text-primary" />
                 <h3 className="text-base font-semibold">Organization Tree</h3>
+                <span className="text-xs text-muted">Fits on one screen</span>
                 {summary ? (
                   <span className="text-xs text-muted">
                     {summary.masterDistributors} MD · {summary.distributors} DD
@@ -428,23 +422,15 @@ export function HierarchyManagementView({
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-3xl border border-border bg-slate-50/80 p-4 dark:bg-muted/10">
-                <HierarchyCollapsibleTree
-                  nodes={tree}
-                  expandedIds={expandedIds}
+              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#eef2ff_42%,_#f8fafc_100%)] dark:bg-muted/10">
+                <HierarchyOrgChart
+                  nodes={pruneExpandedTree(tree, expandedIds)}
                   selectedId={selectedNode?.id}
-                  onToggle={toggleNode}
-                  onSelect={setSelectedNode}
-                  canReassignRetailer={allowReassignRetailer}
-                  canReassignDistributor={allowReassignDistributor}
-                  onReassignRetailer={(node) =>
-                    openRetailerReassign(
-                      node.id,
-                      resolveRetailerDistributorId(node.id)
-                    )
-                  }
-                  onReassignDistributor={(node) =>
-                    openDistributorReassign(node.id)
+                  compact
+                  fitMode="contain"
+                  className="h-full min-h-[280px]"
+                  onSelect={(node) =>
+                    setSelectedNode(findNodeById(tree, node.id) ?? node)
                   }
                 />
               </div>
