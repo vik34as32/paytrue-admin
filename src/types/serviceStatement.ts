@@ -26,6 +26,7 @@ export interface StatementRow {
   charge: number;
   commission: number;
   tds: number;
+  gst?: number;
   openingBalance?: number | null;
   closingBalance?: number | null;
   credit: number;
@@ -38,6 +39,9 @@ export interface StatementRow {
   transferMode?: string | null;
   aadhaarMasked?: string | null;
   rrn?: string | null;
+  apiReference?: string | null;
+  operatorReference?: string | null;
+  serviceLabel?: string | null;
   /** DMT3 payee / beneficiary display name */
   beneficiaryName?: string | null;
   retailer?: StatementRetailer | null;

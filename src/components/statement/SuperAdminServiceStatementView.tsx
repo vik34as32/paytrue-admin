@@ -426,15 +426,12 @@ export function SuperAdminServiceStatementView() {
       return [
         ...baseStart,
         {
-          id: "description",
-          header: "Description",
+          id: "serviceLabel",
+          header: "Service",
           enableSorting: false,
           cell: ({ row }) => (
-            <span
-              className="block max-w-[200px] truncate"
-              title={row.original.description || ""}
-            >
-              {row.original.description || "—"}
+            <span className="whitespace-nowrap text-sm font-medium">
+              {row.original.serviceLabel || row.original.description || "AEPS"}
             </span>
           ),
         },
@@ -445,26 +442,22 @@ export function SuperAdminServiceStatementView() {
           cell: ({ row }) => {
             const name = row.original.bankName;
             if (!name) return "—";
-            const initial = name.trim().charAt(0).toUpperCase() || "B";
             return (
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                  {initial}
-                </span>
-                <span className="truncate" title={name}>
-                  {name}
-                </span>
-              </div>
+              <BankLogoName
+                bankName={name}
+                ifscCode={row.original.ifscCode}
+                logoClassName="h-8 w-8"
+              />
             );
           },
         },
         {
           id: "account",
-          header: "Account",
+          header: "Account No.",
           enableSorting: false,
           cell: ({ row }) => (
-            <span className="font-mono text-xs">
-              {maskAccount(row.original.accountNumber || row.original.aadhaarMasked)}
+            <span className="whitespace-nowrap font-mono text-xs tabular-nums">
+              {maskAccount(row.original.accountNumber)}
             </span>
           ),
         },
@@ -472,18 +465,34 @@ export function SuperAdminServiceStatementView() {
           id: "mobile",
           header: "Customer Mobile",
           enableSorting: false,
-          cell: ({ row }) => row.original.customerMobile || "—",
+          cell: ({ row }) => (
+            <span className="whitespace-nowrap font-mono text-sm tabular-nums">
+              {row.original.customerMobile || "—"}
+            </span>
+          ),
         },
-        retailerColumn,
+        retailerNameColumn,
+        retailerPhoneColumn,
+        {
+          id: "status",
+          header: "Status",
+          enableSorting: false,
+          meta: { align: "center" as const },
+          cell: ({ row }) => <StatusPill status={row.original.status} />,
+        },
         {
           id: "txnKind",
           header: "Type",
           enableSorting: false,
           meta: { align: "center" as const },
           cell: ({ row }) => {
+            const kind = String(
+              row.original.transferMode || ""
+            ).toUpperCase();
             const isCredit =
               row.original.credit > 0 ||
-              String(row.original.serviceType || "").includes("DEPOSIT");
+              kind.includes("CREDIT") ||
+              kind.includes("DEPOSIT");
             return (
               <Badge variant={isCredit ? "success" : "rejected"}>
                 {isCredit ? "Credit" : "Debit"}
@@ -492,42 +501,11 @@ export function SuperAdminServiceStatementView() {
           },
         },
         {
-          id: "status",
-          header: "Status",
-          enableSorting: false,
-          meta: { align: "center" as const },
-          cell: ({ row }) => (
-            <Badge variant={statusVariant(row.original.status)}>
-              {row.original.status === "SUCCESS" ? "Success" : row.original.status}
-            </Badge>
-          ),
-        },
-        {
-          id: "remark",
-          header: "Remark",
-          enableSorting: false,
-          cell: ({ row }) => {
-            const msg = row.original.message || row.original.description || "—";
-            const failed = ["FAILED", "REVERSED"].includes(row.original.status);
-            return (
-              <span
-                className={cn(
-                  "block max-w-[180px] truncate text-sm",
-                  failed ? "text-rose-600" : "text-emerald-700"
-                )}
-                title={msg}
-              >
-                {msg}
-              </span>
-            );
-          },
-        },
-        {
           id: "amount",
           header: "Amount",
           enableSorting: false,
           meta: { align: "right" as const },
-          cell: ({ row }) => money(row.original.txnAmount),
+          cell: ({ row }) => money(row.original.txnAmount, "credit"),
         },
         {
           id: "charge",
@@ -537,8 +515,36 @@ export function SuperAdminServiceStatementView() {
           cell: ({ row }) => money(row.original.charge),
         },
         {
+          id: "gst",
+          header: "Tax (GST)",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) => money(row.original.gst ?? row.original.tds),
+        },
+        {
+          id: "commission",
+          header: "Commission",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) => money(row.original.commission, "credit"),
+        },
+        {
+          id: "opening",
+          header: "Previous Balance",
+          enableSorting: false,
+          meta: { align: "right" as const },
+          cell: ({ row }) =>
+            row.original.openingBalance != null ? (
+              <span className="tabular-nums text-muted">
+                {formatCurrency(row.original.openingBalance)}
+              </span>
+            ) : (
+              "—"
+            ),
+        },
+        {
           id: "closing",
-          header: "Balance",
+          header: "Updated Balance",
           enableSorting: false,
           meta: { align: "right" as const },
           cell: ({ row }) =>
@@ -549,6 +555,32 @@ export function SuperAdminServiceStatementView() {
             ) : (
               "—"
             ),
+        },
+        {
+          id: "rrn",
+          header: "Operator Ref",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <span
+              className="block max-w-[140px] truncate font-mono text-xs"
+              title={row.original.operatorReference || row.original.rrn || ""}
+            >
+              {row.original.operatorReference || row.original.rrn || "—"}
+            </span>
+          ),
+        },
+        {
+          id: "apiRef",
+          header: "API Reference",
+          enableSorting: false,
+          cell: ({ row }) => (
+            <span
+              className="block max-w-[160px] truncate font-mono text-xs"
+              title={row.original.apiReference || ""}
+            >
+              {row.original.apiReference || "—"}
+            </span>
+          ),
         },
       ];
     }
@@ -884,11 +916,15 @@ export function SuperAdminServiceStatementView() {
       Beneficiary: row.beneficiaryName || "",
       Bank: row.bankName || "",
       Account: row.accountNumber || "",
-      "UTR / RRN": row.rrn || "",
+      "Customer Mobile": row.customerMobile || "",
+      "UTR / RRN": row.rrn || row.operatorReference || "",
+      "API Reference": row.apiReference || "",
       Amount: row.txnAmount ?? row.amount ?? 0,
       Charge: row.charge ?? 0,
+      "Tax (GST)": row.gst ?? 0,
       Commission: row.commission ?? 0,
-      Opening: row.openingBalance ?? "",
+      TDS: row.tds ?? 0,
+      "Previous Balance": row.openingBalance ?? "",
       "Updated Balance": row.closingBalance ?? "",
       Description: row.description || row.message || "",
     }));
@@ -1175,7 +1211,7 @@ export function SuperAdminServiceStatementView() {
           totalRows={total}
           minTableWidth={
             service === "AEPS"
-              ? 1500
+              ? 2100
               : service === "DMT3"
                 ? 1720
                 : service === "DMT"

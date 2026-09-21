@@ -244,7 +244,7 @@ export async function fetchWalletSummaryUsers(
 
 function readNestedPerson(
   value: unknown
-): { name?: string; role?: string; code?: string } | undefined {
+): { name?: string; role?: string; code?: string; mobile?: string } | undefined {
   if (!value || typeof value !== "object") return undefined;
   const obj = value as Record<string, unknown>;
   const firstName = obj.firstName as string | undefined;
@@ -256,12 +256,17 @@ function readNestedPerson(
       full ||
       (obj.fullName as string | undefined),
     role:
+      (obj.roleLabel as string | undefined) ||
       (obj.userType as string | undefined) ||
       (obj.role as string | undefined) ||
       (obj.performedByRole as string | undefined),
     code:
       (obj.userCode as string | undefined) ||
       (obj.code as string | undefined),
+    mobile:
+      (obj.mobile as string | undefined) ||
+      (obj.phone as string | undefined) ||
+      undefined,
   };
 }
 
@@ -283,6 +288,11 @@ function normalizeActivityRecord(raw: unknown): WalletSummaryActivityRecord {
       : obj.user && typeof obj.user === "object"
         ? (obj.user as Record<string, unknown>)
         : undefined;
+
+  const fromParty =
+    readNestedPerson(obj.from) || readNestedPerson(obj.sender);
+  const toParty =
+    readNestedPerson(obj.to) || readNestedPerson(obj.receiver);
 
   return {
     id: String(obj.id ?? obj._id ?? obj.transactionId ?? obj.reference ?? ""),
@@ -343,6 +353,15 @@ function normalizeActivityRecord(raw: unknown): WalletSummaryActivityRecord {
       target?.role ?? target?.userType ?? target?.roleLabel ?? ""
     ) || undefined,
     targetUserMobile: (target?.mobile as string | undefined) ?? undefined,
+    fromName:
+      (obj.fromName as string | undefined) || fromParty?.name,
+    fromMobile: fromParty?.mobile,
+    fromRole: fromParty?.role,
+    fromCode: fromParty?.code,
+    toName: (obj.toName as string | undefined) || toParty?.name,
+    toMobile: toParty?.mobile,
+    toRole: toParty?.role,
+    toCode: toParty?.code,
   };
 }
 

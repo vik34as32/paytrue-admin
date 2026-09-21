@@ -205,53 +205,106 @@ export function rowMatchesService(
 
 export function normalizeStatementRow(raw: unknown): StatementRow {
   const obj = asRecord(raw);
+  const aepsWallet = asRecord(obj.aepsWallet);
   const createdAt = (obj.createdAt as string) || null;
-  const amount = toNumber(obj.txnAmount ?? obj.amount);
+  const amount = toNumber(
+    obj.transactionAmount ?? obj.txnAmount ?? obj.transferAmount ?? obj.amount
+  );
   const service = detectService(obj);
   const retailer = retailerFromRow(obj);
+  const date = (obj.date as string) || null;
+  const time = (obj.time as string) || null;
+  const dateTime =
+    (obj.dateTime as string) ||
+    (date && time ? `${date} ${time}` : formatDateTime(createdAt));
 
   return {
     id: String(obj.id ?? obj.ledgerId ?? ""),
     ledgerId: String(obj.ledgerId ?? obj.id ?? ""),
     service,
     serviceType: (obj.serviceType as string) || undefined,
+    serviceLabel:
+      (obj.serviceLabel as string) ||
+      (obj.service as string) ||
+      null,
     ledgerNo: String(
       obj.ledgerNo ??
+        obj.referenceNo ??
+        obj.referenceId ??
         obj.reference ??
         obj.transactionId ??
-        obj.referenceId ??
         obj.id ??
         "—"
     ),
     reference:
+      (obj.referenceId as string) ||
       (obj.reference as string) ||
       (obj.transactionId as string) ||
-      (obj.referenceId as string) ||
       null,
-    description: (obj.description as string) || null,
-    message: (obj.message as string) || null,
+    description: (obj.description as string) || (obj.remarks as string) || null,
+    message: (obj.message as string) || (obj.remarks as string) || null,
     status: String(obj.status || "PENDING").toUpperCase(),
     amount,
     txnAmount: amount,
-    charge: toNumber(obj.charge ?? obj.charges),
-    commission: toNumber(obj.commission),
-    tds: toNumber(obj.tds),
-    openingBalance: toOptionalNumber(obj.openingBalance),
-    closingBalance: toOptionalNumber(obj.closingBalance),
-    credit: toNumber(obj.credit),
-    debit: toNumber(obj.debit),
-    customerMobile: (obj.customerMobile as string) || null,
+    charge: toNumber(
+      obj.chargeAmount ?? obj.mainWalletCharge ?? obj.charge ?? obj.charges
+    ),
+    commission: toNumber(
+      obj.commissionAmount ?? obj.retailerCommission ?? obj.commission
+    ),
+    tds: toNumber(obj.tdsAmount ?? obj.tds),
+    gst: toNumber(obj.gstAmount ?? obj.gst),
+    openingBalance: toOptionalNumber(
+      obj.openingBalance ??
+        obj.previousBalance ??
+        obj.aepsWalletPreviousBalance ??
+        aepsWallet.previousBalance
+    ),
+    closingBalance: toOptionalNumber(
+      obj.closingBalance ??
+        obj.updatedBalance ??
+        obj.aepsWalletUpdatedBalance ??
+        aepsWallet.updatedBalance
+    ),
+    credit: toNumber(
+      obj.creditAmount ?? obj.amountCr ?? obj.totalCreditAmount ?? obj.credit
+    ),
+    debit: toNumber(
+      obj.debitAmount ?? obj.amountDr ?? obj.totalDebitAmount ?? obj.debit
+    ),
+    customerMobile:
+      (obj.customerMobile as string) ||
+      (obj.customerPhone as string) ||
+      (typeof obj.mobile === "string" &&
+      obj.mobile !== retailer?.mobile
+        ? obj.mobile
+        : null) ||
+      (typeof obj.mobile === "string" ? obj.mobile : null),
     customerName: (obj.customerName as string) || null,
-    bankName: (obj.bankName as string) || null,
-    accountNumber: (obj.accountNumber as string) || null,
+    bankName:
+      (obj.bankName as string) ||
+      (obj.bank as string) ||
+      null,
+    accountNumber:
+      (obj.accountNumber as string) ||
+      (obj.account as string) ||
+      (obj.accountNo as string) ||
+      null,
     ifscCode: (obj.ifscCode as string) || (obj.ifsc as string) || null,
     transferMode:
+      (obj.transactionType as string) ||
       (obj.transferMode as string) ||
       (obj.paymentMode as string) ||
       (obj.mode as string) ||
+      (obj.type as string) ||
       null,
     aadhaarMasked: (obj.aadhaarMasked as string) || null,
-    rrn: (obj.rrn as string) || null,
+    rrn:
+      (obj.rrn as string) ||
+      (obj.operatorReference as string) ||
+      null,
+    apiReference: (obj.apiReference as string) || null,
+    operatorReference: (obj.operatorReference as string) || null,
     retailer,
     retailerId:
       (obj.retailerId as string) ||
@@ -259,7 +312,9 @@ export function normalizeStatementRow(raw: unknown): StatementRow {
       retailer?.id ||
       null,
     createdAt,
-    dateTime: (obj.dateTime as string) || formatDateTime(createdAt),
+    date,
+    time,
+    dateTime,
   };
 }
 

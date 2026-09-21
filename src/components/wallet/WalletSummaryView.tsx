@@ -260,31 +260,32 @@ export function WalletSummaryView({
         ),
       },
       {
-        id: "targetUser",
-        header: "User",
+        id: "fromParty",
+        header: "From",
         enableSorting: false,
         meta: { align: "left" as const },
-        cell: ({ row }) => {
-          const name = row.original.targetUserName;
-          if (!name && !selectedUser) return "—";
-          return (
-            <div className="min-w-0 text-left">
-              <p className="truncate font-medium">
-                {name || selectedUser?.name || "—"}
-              </p>
-              <p className="truncate text-xs text-muted">
-                {formatWalletUserType(
-                  row.original.targetUserRole || selectedUser?.userType
-                )}
-                {row.original.targetUserCode
-                  ? ` · ${row.original.targetUserCode}`
-                  : selectedUser?.userCode
-                    ? ` · ${selectedUser.userCode}`
-                    : ""}
-              </p>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <PartyCell
+            name={row.original.fromName}
+            mobile={row.original.fromMobile}
+            role={row.original.fromRole}
+            code={row.original.fromCode}
+          />
+        ),
+      },
+      {
+        id: "toParty",
+        header: "To",
+        enableSorting: false,
+        meta: { align: "left" as const },
+        cell: ({ row }) => (
+          <PartyCell
+            name={row.original.toName}
+            mobile={row.original.toMobile}
+            role={row.original.toRole}
+            code={row.original.toCode}
+          />
+        ),
       },
       {
         accessorKey: "operationType",
@@ -389,7 +390,7 @@ export function WalletSummaryView({
         ),
       },
     ],
-    [pageIndex, scope, selectedUser]
+    [pageIndex, scope]
   );
 
   const filterParams = useMemo(
@@ -717,6 +718,32 @@ export function WalletSummaryView({
           }}
         />
       </Card>
+    </div>
+  );
+}
+
+function PartyCell({
+  name,
+  mobile,
+  role,
+  code,
+}: {
+  name?: string;
+  mobile?: string;
+  role?: string;
+  code?: string;
+}) {
+  if (!name && !mobile) return <span>—</span>;
+  return (
+    <div className="min-w-0 text-left">
+      <p className="truncate font-medium">{name || "—"}</p>
+      {mobile ? (
+        <p className="truncate text-xs tabular-nums text-foreground">{mobile}</p>
+      ) : null}
+      <p className="truncate text-xs text-muted">
+        {formatWalletUserType(role)}
+        {code ? ` · ${code}` : ""}
+      </p>
     </div>
   );
 }

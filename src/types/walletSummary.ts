@@ -75,6 +75,14 @@ export interface WalletSummaryActivityRecord {
   targetUserCode?: string;
   targetUserRole?: string;
   targetUserMobile?: string;
+  fromName?: string;
+  fromMobile?: string;
+  fromRole?: string;
+  fromCode?: string;
+  toName?: string;
+  toMobile?: string;
+  toRole?: string;
+  toCode?: string;
 }
 
 export interface WalletSummaryHeader {
