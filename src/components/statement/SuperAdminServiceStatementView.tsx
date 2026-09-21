@@ -618,7 +618,7 @@ export function SuperAdminServiceStatementView() {
           enableSorting: false,
           cell: ({ row }) => {
             const name = row.original.bankName;
-            const account = maskAccount(row.original.accountNumber);
+            const account = row.original.accountNumber || "—";
             if (!name && account === "—") return "—";
             return (
               <div className="flex min-w-0 items-center gap-2.5">
@@ -630,12 +630,12 @@ export function SuperAdminServiceStatementView() {
                 />
                 <div className="min-w-0">
                   <p
-                    className="truncate text-sm font-medium"
+                    className="whitespace-normal break-words text-sm font-medium"
                     title={row.original.beneficiaryName || undefined}
                   >
                     {row.original.beneficiaryName || "Beneficiary"}
                   </p>
-                  <p className="truncate font-mono text-xs text-muted">
+                  <p className="whitespace-nowrap font-mono text-xs tabular-nums">
                     {account}
                   </p>
                 </div>

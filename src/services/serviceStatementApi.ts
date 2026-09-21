@@ -298,11 +298,21 @@ export function normalizeDmt3Transaction(raw: unknown): StatementRow {
     (obj.customerMobile as string) ||
     (remitter.mobile as string) ||
     null;
+  const accountCandidates = [
+    obj.accountNumber,
+    beneficiary.accountNumber,
+    obj.accountNo,
+    beneficiary.accountNo,
+    obj.beneAccount,
+    beneficiary.account,
+    obj.accountMasked,
+    beneficiary.accountMasked,
+  ]
+    .map((value) => (value == null ? "" : String(value).trim()))
+    .filter(Boolean);
   const account =
-    (obj.accountMasked as string) ||
-    (beneficiary.accountMasked as string) ||
-    (obj.accountNumber as string) ||
-    (beneficiary.accountNumber as string) ||
+    accountCandidates.find((value) => !/x/i.test(value)) ||
+    accountCandidates[0] ||
     null;
 
   return {
