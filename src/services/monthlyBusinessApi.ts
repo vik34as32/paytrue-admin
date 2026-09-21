@@ -17,12 +17,7 @@ function buildParams(query: BusinessReportQuery) {
     period,
     year: query.year,
   };
-  if (
-    (period === "daily" || period === "weekly") &&
-    query.month &&
-    query.month >= 1 &&
-    query.month <= 12
-  ) {
+  if (query.month && query.month >= 1 && query.month <= 12) {
     params.month = query.month;
   }
   if (query.service?.trim()) params.service = query.service.trim();

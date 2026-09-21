@@ -30,7 +30,6 @@ export function DailyBusinessChart({
   onRetry,
 }: DailyBusinessChartProps) {
   const series = data?.series || [];
-  const hasData = series.some((point) => point.business > 0 || point.transactionCount > 0);
 
   return (
     <ChartCard
@@ -38,7 +37,7 @@ export function DailyBusinessChart({
       subtitle="Every day of the selected month, including zero-business days"
       loading={loading}
       error={error}
-      empty={!hasData}
+      empty={!series.length}
       onRetry={onRetry}
       actions={
         data ? (
@@ -61,8 +60,8 @@ export function DailyBusinessChart({
           <AreaChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="dailyBusinessFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.28} />
-                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#4318FF" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="#4318FF" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -78,7 +77,7 @@ export function DailyBusinessChart({
             <Area
               type="monotone"
               dataKey="business"
-              stroke="var(--primary)"
+              stroke="#4318FF"
               strokeWidth={2.5}
               fill="url(#dailyBusinessFill)"
               dot={<PeakDot />}

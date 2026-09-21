@@ -35,7 +35,6 @@ export function MonthlyBusinessChart({
   onRetry,
 }: MonthlyBusinessChartProps) {
   const series = data?.series || [];
-  const hasData = series.some((point) => point.business > 0 || point.transactionCount > 0);
   const peak = highestPoint(series);
   const average = averageBusiness(series);
 
@@ -45,7 +44,7 @@ export function MonthlyBusinessChart({
       subtitle="All 12 months of the selected year"
       loading={loading}
       error={error}
-      empty={!hasData}
+      empty={!series.length}
       onRetry={onRetry}
       actions={
         data ? (
@@ -83,8 +82,8 @@ export function MonthlyBusinessChart({
           <AreaChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="monthlyBusinessFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.28} />
-                <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#4318FF" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="#4318FF" stopOpacity={0} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -100,7 +99,7 @@ export function MonthlyBusinessChart({
             <Area
               type="monotone"
               dataKey="business"
-              stroke="var(--primary)"
+              stroke="#4318FF"
               strokeWidth={2.5}
               fill="url(#monthlyBusinessFill)"
               dot={<PeakDot />}

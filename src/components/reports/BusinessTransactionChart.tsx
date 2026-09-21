@@ -67,7 +67,7 @@ export function BusinessTransactionChart({
               yAxisId="business"
               dataKey="business"
               name="Business"
-              fill="var(--primary)"
+              fill="#4318FF"
               radius={[6, 6, 0, 0]}
               maxBarSize={36}
             />

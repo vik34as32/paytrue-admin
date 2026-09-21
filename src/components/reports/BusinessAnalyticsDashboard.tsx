@@ -18,8 +18,12 @@ import {
   useYearlyBusinessComparison,
 } from "@/hooks/useMonthlyBusiness";
 import { useActiveServices } from "@/hooks/service-master/useServiceMaster";
+import {
+  aggregateByWeekday,
+  seriesHasData,
+} from "@/lib/businessReport";
 import { BUSINESS_SERVICE_KEYS, labelForBusinessService } from "@/constants/businessServices";
-import { BusinessReportPeriod } from "@/types/monthlyBusiness";
+import { BusinessReportPeriod, BusinessReportSummary } from "@/types/monthlyBusiness";
 
 const FILTERS_KEY = "paytrue.businessAnalytics.filters";
 
@@ -92,11 +96,30 @@ export function BusinessAnalyticsDashboard() {
     !yearly.isPending && (yearly.data?.series.length || 0) <= 1
   );
 
+  const weeklyView = useMemo<BusinessReportSummary | undefined>(() => {
+    if (weekly.data && seriesHasData(weekly.data.series)) return weekly.data;
+    if (daily.data && seriesHasData(daily.data.series)) {
+      const series = aggregateByWeekday(daily.data.series);
+      if (!seriesHasData(series)) return weekly.data;
+      return {
+        ...daily.data,
+        period: "weekly",
+        series,
+        totalBusiness: series.reduce((sum, point) => sum + point.business, 0),
+        totalTransactions: series.reduce(
+          (sum, point) => sum + point.transactionCount,
+          0
+        ),
+      };
+    }
+    return weekly.data;
+  }, [weekly.data, daily.data]);
+
   const selected =
     period === "daily"
       ? daily
       : period === "weekly"
-        ? weekly
+        ? { ...weekly, data: weeklyView }
         : period === "yearly"
           ? yearly
           : monthly;
@@ -122,10 +145,30 @@ export function BusinessAnalyticsDashboard() {
     return options;
   }, [activeServices, monthly.data?.services]);
 
-  const services =
-    selected.data?.services?.length
-      ? selected.data.services
-      : monthly.data?.services || [];
+  const services = useMemo(() => {
+    const lists = [
+      monthly.data?.services || [],
+      daily.data?.services || [],
+      weeklyView?.services || [],
+      yearly.data?.services || [],
+    ];
+    return (
+      lists.find((list) => list.some((row) => row.business > 0)) ||
+      lists.find((list) => list.length) ||
+      []
+    );
+  }, [
+    monthly.data?.services,
+    daily.data?.services,
+    weeklyView?.services,
+    yearly.data?.services,
+  ]);
+
+  const statusBreakdown =
+    monthly.data?.breakdown ||
+    daily.data?.breakdown ||
+    weeklyView?.breakdown ||
+    yearly.data?.breakdown;
 
   const yearlySeries =
     (yearly.data?.series.length || 0) > 1
@@ -162,8 +205,8 @@ export function BusinessAnalyticsDashboard() {
   return (
     <section className="space-y-5" aria-label="Business analytics">
       <BusinessSummaryCards
-        data={selected.data}
-        loading={selected.isPending && !selected.data}
+        data={monthly.data || selected.data}
+        loading={monthly.isPending && !monthly.data && selected.isPending}
       />
 
       <ReportFilters
@@ -199,11 +242,14 @@ export function BusinessAnalyticsDashboard() {
           onRetry={() => void daily.refetch()}
         />
         <WeeklyBusinessChart
-          data={weekly.data}
-          loading={weekly.isPending && !weekly.data}
-          error={weekly.isError && !weekly.data}
-          fetching={weekly.isFetching}
-          onRetry={() => void weekly.refetch()}
+          data={weeklyView}
+          loading={weekly.isPending && !weeklyView}
+          error={weekly.isError && !weeklyView && daily.isError}
+          fetching={weekly.isFetching || daily.isFetching}
+          onRetry={() => {
+            void weekly.refetch();
+            void daily.refetch();
+          }}
         />
         <MonthlyBusinessChart
           data={monthly.data}
@@ -230,30 +276,36 @@ export function BusinessAnalyticsDashboard() {
       <div className="grid gap-5 xl:grid-cols-2">
         <ServiceBusinessChart
           services={services}
-          loading={selected.isPending && !selected.data}
-          error={selected.isError && !selected.data}
-          onRetry={() => void selected.refetch()}
+          loading={monthly.isPending && !monthly.data}
+          error={monthly.isError && !services.length}
+          onRetry={() => void monthly.refetch()}
         />
         <BusinessTransactionChart
-          series={selected.data?.series || []}
-          loading={selected.isPending && !selected.data}
-          error={selected.isError && !selected.data}
-          onRetry={() => void selected.refetch()}
+          series={daily.data?.series?.length ? daily.data.series : monthly.data?.series || []}
+          loading={daily.isPending && monthly.isPending && !daily.data && !monthly.data}
+          error={daily.isError && monthly.isError && !daily.data && !monthly.data}
+          onRetry={() => {
+            void daily.refetch();
+            void monthly.refetch();
+          }}
         />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
         <TransactionStatusChart
-          breakdown={selected.data?.breakdown}
-          loading={selected.isPending && !selected.data}
-          error={selected.isError && !selected.data}
-          onRetry={() => void selected.refetch()}
+          breakdown={statusBreakdown}
+          loading={monthly.isPending && !monthly.data && daily.isPending}
+          error={monthly.isError && daily.isError && !statusBreakdown}
+          onRetry={() => {
+            void monthly.refetch();
+            void daily.refetch();
+          }}
         />
         <ServiceDistributionChart
           services={services}
-          loading={selected.isPending && !selected.data}
-          error={selected.isError && !selected.data}
-          onRetry={() => void selected.refetch()}
+          loading={monthly.isPending && !monthly.data}
+          error={monthly.isError && !services.length}
+          onRetry={() => void monthly.refetch()}
         />
       </div>
     </section>

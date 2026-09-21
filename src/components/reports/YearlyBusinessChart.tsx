@@ -29,15 +29,13 @@ export function YearlyBusinessChart({
   fetching,
   onRetry,
 }: YearlyBusinessChartProps) {
-  const hasData = series.some((point) => point.business > 0 || point.transactionCount > 0);
-
   return (
     <ChartCard
       title="Yearly Business"
       subtitle="Historical yearly totals from the reports API"
       loading={loading}
       error={error}
-      empty={!hasData}
+      empty={!series.length}
       emptyMessage="Yearly comparison data is not available yet."
       onRetry={onRetry}
     >
@@ -67,7 +65,7 @@ export function YearlyBusinessChart({
               yAxisId="left"
               dataKey="business"
               name="Business"
-              fill="var(--primary)"
+              fill="#4318FF"
               radius={[8, 8, 0, 0]}
               maxBarSize={48}
             />

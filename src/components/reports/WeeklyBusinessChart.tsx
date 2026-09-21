@@ -32,7 +32,6 @@ export function WeeklyBusinessChart({
   onRetry,
 }: WeeklyBusinessChartProps) {
   const series = data?.series || [];
-  const hasData = series.some((point) => point.business > 0 || point.transactionCount > 0);
 
   return (
     <ChartCard
@@ -40,7 +39,7 @@ export function WeeklyBusinessChart({
       subtitle="Monday to Sunday for the selected month"
       loading={loading}
       error={error}
-      empty={!hasData}
+      empty={!series.length}
       onRetry={onRetry}
       actions={
         data ? (
@@ -95,12 +94,12 @@ export function WeeklyBusinessChart({
               width={36}
             />
             <Tooltip content={<BusinessPointTooltip />} />
-            <Bar yAxisId="left" dataKey="business" radius={[8, 8, 0, 0]} maxBarSize={42}>
+            <Bar yAxisId="left" dataKey="business" fill="#4318FF" radius={[8, 8, 0, 0]} maxBarSize={42}>
               {series.map((point) => (
                 <Cell
                   key={point.key}
-                  fill="var(--primary)"
-                  fillOpacity={point.isPeak ? 1 : 0.6}
+                  fill="#4318FF"
+                  fillOpacity={point.isPeak ? 1 : 0.65}
                 />
               ))}
             </Bar>
@@ -108,7 +107,7 @@ export function WeeklyBusinessChart({
               yAxisId="right"
               type="monotone"
               dataKey="transactionCount"
-              stroke="var(--foreground)"
+              stroke="#0f172a"
               strokeWidth={2}
               dot={{ r: 3 }}
             />

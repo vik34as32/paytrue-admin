@@ -43,7 +43,6 @@ export function BusinessTrendChart({
   onRetry,
 }: BusinessTrendChartProps) {
   const series = data?.series || [];
-  const hasData = series.some((point) => point.business > 0 || point.transactionCount > 0);
   const extra = period === "monthly" || period === "yearly";
 
   return (
@@ -52,7 +51,7 @@ export function BusinessTrendChart({
       subtitle="Primary view for the selected period"
       loading={loading}
       error={error}
-      empty={!hasData}
+      empty={!series.length}
       onRetry={onRetry}
     >
       <div className={fetching ? "h-[320px] opacity-80 sm:h-[360px]" : "h-[320px] sm:h-[360px]"}>
@@ -69,14 +68,14 @@ export function BusinessTrendChart({
                 tickFormatter={(value: number) => formatCompactCurrency(value)}
               />
               <Tooltip content={<BusinessPointTooltip extra={extra} />} />
-              <Bar dataKey="business" fill="var(--primary)" radius={[8, 8, 0, 0]} maxBarSize={48} />
+              <Bar dataKey="business" fill="#4318FF" radius={[8, 8, 0, 0]} maxBarSize={48} />
             </BarChart>
           ) : period === "daily" ? (
             <AreaChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="trendBusinessFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#4318FF" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="#4318FF" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
@@ -92,7 +91,7 @@ export function BusinessTrendChart({
               <Area
                 type="monotone"
                 dataKey="business"
-                stroke="var(--primary)"
+                stroke="#4318FF"
                 strokeWidth={2.5}
                 fill="url(#trendBusinessFill)"
                 dot={<PeakDot />}
@@ -113,7 +112,7 @@ export function BusinessTrendChart({
               <Line
                 type="monotone"
                 dataKey="business"
-                stroke="var(--primary)"
+                stroke="#4318FF"
                 strokeWidth={3}
                 dot={<PeakDot />}
               />

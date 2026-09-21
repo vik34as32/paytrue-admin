@@ -77,7 +77,7 @@ export function ServiceBusinessChart({
                 );
               }}
             />
-            <Bar dataKey="business" fill="var(--primary)" radius={[0, 8, 8, 0]} maxBarSize={22} />
+            <Bar dataKey="business" fill="#4318FF" radius={[0, 8, 8, 0]} maxBarSize={22} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -31,10 +31,15 @@ export function TransactionStatusChart({
   const total = breakdown?.total || successful + failed;
   const successRate = calculateSuccessRate(successful, total);
   const failureRate = calculateFailureRate(failed, total);
-  const pie = [
-    { name: "Successful", value: successful, key: "successful" as const },
-    { name: "Failed", value: failed, key: "failed" as const },
-  ].filter((item) => item.value > 0);
+  const pie =
+    successful > 0 || failed > 0
+      ? [
+          { name: "Successful", value: successful, key: "successful" as const },
+          { name: "Failed", value: failed, key: "failed" as const },
+        ].filter((item) => item.value > 0)
+      : total > 0
+        ? [{ name: "Transactions", value: total, key: "successful" as const }]
+        : [];
 
   return (
     <ChartCard
