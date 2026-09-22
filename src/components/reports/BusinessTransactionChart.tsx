@@ -1,10 +1,10 @@
 "use client";
 
 import {
-  Bar,
   CartesianGrid,
-  ComposedChart,
+  Legend,
   Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -12,7 +12,7 @@ import {
 } from "recharts";
 import { ChartCard } from "@/components/reports/ChartCard";
 import { AXIS_TICK, BusinessPointTooltip } from "@/components/reports/ChartTooltip";
-import { formatCompactCurrency } from "@/lib/businessReport";
+import { formatCompactCurrency, formatTxnCount } from "@/lib/businessReport";
 import { BusinessReportPoint } from "@/types/monthlyBusiness";
 
 interface BusinessTransactionChartProps {
@@ -35,15 +35,16 @@ export function BusinessTransactionChart({
   return (
     <ChartCard
       title={title}
-      subtitle="Bars show business amount; line shows transaction count"
+      subtitle="Left axis: Business (₹) · Right axis: Transactions"
       loading={loading}
       error={error}
       empty={!hasData}
+      emptyMessage="No business data available for this period."
       onRetry={onRetry}
     >
       <div className="h-[280px]">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+          <LineChart data={series} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} />
             <YAxis
@@ -60,27 +61,34 @@ export function BusinessTransactionChart({
               axisLine={false}
               tickLine={false}
               tick={AXIS_TICK}
-              width={36}
+              width={40}
+              tickFormatter={(value: number) => formatTxnCount(value)}
             />
             <Tooltip content={<BusinessPointTooltip />} />
-            <Bar
+            <Legend verticalAlign="top" height={28} iconType="line" />
+            <Line
               yAxisId="business"
+              type="monotone"
               dataKey="business"
               name="Business"
-              fill="#4318FF"
-              radius={[6, 6, 0, 0]}
-              maxBarSize={36}
+              stroke="#4318FF"
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+              isAnimationActive={false}
             />
             <Line
               yAxisId="txns"
               type="monotone"
               dataKey="transactionCount"
               name="Transactions"
-              stroke="var(--foreground)"
-              strokeWidth={2.25}
-              dot={{ r: 3 }}
+              stroke="#0f172a"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+              isAnimationActive={false}
             />
-          </ComposedChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </ChartCard>

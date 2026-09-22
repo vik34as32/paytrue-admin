@@ -1,5 +1,5 @@
 import { labelForBusinessService } from "@/constants/businessServices";
-import { formatCompactInr, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import {
   BusinessReportPeriod,
   BusinessReportPoint,
@@ -34,6 +34,16 @@ const WEEKDAYS = [
   "Sunday",
 ] as const;
 
+const WEEKDAYS_SUN_SAT = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -57,7 +67,29 @@ export function calculateFailureRate(failed: number, total: number): number {
 }
 
 export function formatCompactCurrency(amount: number): string {
-  return formatCompactInr(amount);
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return "₹0";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  const trim = (n: number) => {
+    const text = n >= 10 ? n.toFixed(1) : n.toFixed(2);
+    return text.replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1");
+  };
+  if (abs >= 1_00_00_000) return `${sign}₹${trim(abs / 1_00_00_000)}Cr`;
+  if (abs >= 1_00_000) return `${sign}₹${trim(abs / 1_00_000)}L`;
+  return `${sign}${formatCurrency(abs)}`;
+}
+
+export function formatTxnCount(value: number): string {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "0";
+  return Math.round(n).toLocaleString("en-IN");
+}
+
+export function safeGrowthPercent(today: number, yesterday: number): number | null {
+  if (!Number.isFinite(today) || !Number.isFinite(yesterday)) return null;
+  if (yesterday === 0) return null;
+  return ((today - yesterday) / Math.abs(yesterday)) * 100;
 }
 
 export { formatCurrency };
@@ -78,6 +110,7 @@ function emptyPoint(partial: Partial<BusinessReportPoint> & { key: string; label
     month: null,
     day: null,
     weekday: null,
+    hour: null,
     business: 0,
     transactionCount: 0,
     successfulTransactions: 0,
@@ -123,10 +156,29 @@ function mapPoint(raw: unknown, index: number): BusinessReportPoint {
     const n = Number(weekdayRaw);
     weekday = n === 0 ? 7 : n;
   } else if (weekdayName) {
-    const idx = WEEKDAYS.findIndex(
+    const sun = WEEKDAYS_SUN_SAT.findIndex(
       (name) => name.toLowerCase() === weekdayName.toLowerCase()
     );
-    weekday = idx >= 0 ? idx + 1 : weekday;
+    if (sun >= 0) weekday = sun === 0 ? 7 : sun;
+    else {
+      const idx = WEEKDAYS.findIndex(
+        (name) => name.toLowerCase() === weekdayName.toLowerCase()
+      );
+      weekday = idx >= 0 ? idx + 1 : weekday;
+    }
+  }
+
+  let hour: number | null = null;
+  const hourRaw = src.hour ?? src.hourOfDay ?? src.hr ?? src.time;
+  if (typeof hourRaw === "number" || (typeof hourRaw === "string" && /^\d+$/.test(hourRaw))) {
+    const n = Number(hourRaw);
+    if (n >= 0 && n <= 23) hour = n;
+  } else if (typeof hourRaw === "string") {
+    const match = hourRaw.trim().match(/^(\d{1,2})(?::\d{2})?/);
+    if (match) {
+      const n = Number(match[1]);
+      if (n >= 0 && n <= 23) hour = n;
+    }
   }
 
   const business = pickNumber(src, [
@@ -180,6 +232,7 @@ function mapPoint(raw: unknown, index: number): BusinessReportPoint {
     month,
     day,
     weekday,
+    hour,
     business,
     transactionCount,
     successfulTransactions,
@@ -304,7 +357,10 @@ function extractSeries(payload: Record<string, unknown>): unknown[] {
     payload.days,
     payload.weeks,
     payload.years,
-    payload.points,
+    payload.hourly,
+    payload.hours,
+    asRecord(payload.today).hourly,
+    asRecord(payload.yesterday).hourly,
     payload.buckets,
     payload.data,
     payload.items,
@@ -379,29 +435,30 @@ function mergePoints(
 export function aggregateByWeekday(
   points: BusinessReportPoint[]
 ): BusinessReportPoint[] {
-  const buckets = WEEKDAYS.map((name, index) =>
+  const buckets = WEEKDAYS_SUN_SAT.map((name, index) =>
     emptyPoint({
       key: name,
       label: name.slice(0, 3),
-      weekday: index + 1,
+      weekday: index === 0 ? 7 : index,
     })
   );
   for (const point of points) {
     let weekday = point.weekday;
     if (!weekday && point.date) weekday = parseDateParts(point.date).weekday;
     if (!weekday) {
-      const idx = WEEKDAYS.findIndex(
+      const idx = WEEKDAYS_SUN_SAT.findIndex(
         (name) =>
           name.toLowerCase() === point.label.toLowerCase() ||
           name.slice(0, 3).toLowerCase() === point.label.toLowerCase()
       );
-      weekday = idx >= 0 ? idx + 1 : null;
+      weekday = idx >= 0 ? (idx === 0 ? 7 : idx) : null;
     }
     if (!weekday || weekday < 1 || weekday > 7) continue;
-    buckets[weekday - 1] = mergePoints(buckets[weekday - 1], {
+    const bucketIndex = weekday === 7 ? 0 : weekday;
+    buckets[bucketIndex] = mergePoints(buckets[bucketIndex], {
       ...point,
-      key: WEEKDAYS[weekday - 1],
-      label: WEEKDAYS[weekday - 1].slice(0, 3),
+      key: WEEKDAYS_SUN_SAT[bucketIndex],
+      label: WEEKDAYS_SUN_SAT[bucketIndex].slice(0, 3),
       weekday,
     });
   }
@@ -691,4 +748,96 @@ export function seriesHasData(points: BusinessReportPoint[]): boolean {
 export function averageBusiness(points: BusinessReportPoint[]): number {
   if (!points.length) return 0;
   return points.reduce((sum, point) => sum + point.business, 0) / points.length;
+}
+
+const HOUR_SLOTS = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22] as const;
+
+export function hourSlotLabel(hour: number): string {
+  const h = ((Math.floor(hour / 2) * 2) + 24) % 24;
+  if (h === 0) return "12 AM";
+  if (h === 12) return "12 PM";
+  return h < 12 ? `${h} AM` : `${h - 12} PM`;
+}
+
+function isoDay(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function pointOnDate(point: BusinessReportPoint, iso: string): boolean {
+  const datePart = String(point.date || "").slice(0, 10);
+  if (datePart === iso) return true;
+  const [year, month, day] = iso.split("-").map(Number);
+  return point.year === year && point.month === month && point.day === day;
+}
+
+export interface DayCompareSlot {
+  hour: number;
+  label: string;
+  today: number;
+  yesterday: number;
+}
+
+export interface DayCompareResult {
+  todayDate: string;
+  yesterdayDate: string;
+  todayTotal: number;
+  yesterdayTotal: number;
+  difference: number;
+  growthPercent: number | null;
+  hasHourly: boolean;
+  slots: DayCompareSlot[];
+}
+
+export function buildTodayYesterdayCompare(
+  primary: BusinessReportPoint[],
+  extra: BusinessReportPoint[] = [],
+  now = new Date()
+): DayCompareResult {
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const todayIso = isoDay(today);
+  const yesterdayIso = isoDay(yesterday);
+  const all = [...primary, ...extra];
+  const todayPts = all.filter((point) => pointOnDate(point, todayIso));
+  const yesterdayPts = all.filter((point) => pointOnDate(point, yesterdayIso));
+  const hasHourly = [...todayPts, ...yesterdayPts].some((point) => point.hour != null);
+
+  const slots: DayCompareSlot[] = HOUR_SLOTS.map((hour) => ({
+    hour,
+    label: hourSlotLabel(hour),
+    today: 0,
+    yesterday: 0,
+  }));
+
+  const addToSlots = (
+    points: BusinessReportPoint[],
+    key: "today" | "yesterday"
+  ) => {
+    for (const point of points) {
+      if (point.hour == null) continue;
+      const slotHour = Math.floor(point.hour / 2) * 2;
+      const row = slots.find((item) => item.hour === slotHour);
+      if (row) row[key] += point.business;
+    }
+  };
+  addToSlots(todayPts, "today");
+  addToSlots(yesterdayPts, "yesterday");
+
+  const todayTotal = todayPts.reduce((sum, point) => sum + point.business, 0);
+  const yesterdayTotal = yesterdayPts.reduce(
+    (sum, point) => sum + point.business,
+    0
+  );
+
+  return {
+    todayDate: todayIso,
+    yesterdayDate: yesterdayIso,
+    todayTotal,
+    yesterdayTotal,
+    difference: todayTotal - yesterdayTotal,
+    growthPercent: safeGrowthPercent(todayTotal, yesterdayTotal),
+    hasHourly,
+    slots,
+  };
 }

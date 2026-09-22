@@ -2,10 +2,9 @@
 
 import {
   Bar,
+  BarChart,
   CartesianGrid,
-  Cell,
-  ComposedChart,
-  Line,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -13,7 +12,7 @@ import {
 } from "recharts";
 import { ChartCard } from "@/components/reports/ChartCard";
 import { AXIS_TICK, BusinessPointTooltip } from "@/components/reports/ChartTooltip";
-import { formatCompactCurrency } from "@/lib/businessReport";
+import { formatCompactCurrency, formatCurrency } from "@/lib/businessReport";
 import { BusinessReportSummary } from "@/types/monthlyBusiness";
 
 interface WeeklyBusinessChartProps {
@@ -36,36 +35,19 @@ export function WeeklyBusinessChart({
   return (
     <ChartCard
       title="Weekly Business"
-      subtitle="Monday to Sunday for the selected month"
+      subtitle="Sunday to Saturday"
       loading={loading}
       error={error}
       empty={!series.length}
+      emptyMessage="No business data available for this period."
       onRetry={onRetry}
       actions={
         data ? (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-right text-xs text-muted sm:grid-cols-4">
+          <div className="text-right text-xs text-muted">
             <p>
-              Business{" "}
+              Total{" "}
               <span className="font-semibold text-foreground">
-                {formatCompactCurrency(data.totalBusiness)}
-              </span>
-            </p>
-            <p>
-              Txns{" "}
-              <span className="font-semibold text-foreground">
-                {data.totalTransactions.toLocaleString("en-IN")}
-              </span>
-            </p>
-            <p>
-              Success{" "}
-              <span className="font-semibold text-foreground">
-                {data.successfulTransactions.toLocaleString("en-IN")}
-              </span>
-            </p>
-            <p>
-              Failed{" "}
-              <span className="font-semibold text-foreground">
-                {data.failedTransactions.toLocaleString("en-IN")}
+                {formatCurrency(data.totalBusiness)}
               </span>
             </p>
           </div>
@@ -74,44 +56,28 @@ export function WeeklyBusinessChart({
     >
       <div className={fetching ? "h-[280px] opacity-80" : "h-[280px]"}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+          <BarChart data={series} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} interval={0} />
             <YAxis
-              yAxisId="left"
               axisLine={false}
               tickLine={false}
               tick={AXIS_TICK}
               width={56}
               tickFormatter={(value: number) => formatCompactCurrency(value)}
             />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              axisLine={false}
-              tickLine={false}
-              tick={AXIS_TICK}
-              width={36}
-            />
             <Tooltip content={<BusinessPointTooltip />} />
-            <Bar yAxisId="left" dataKey="business" fill="#4318FF" radius={[8, 8, 0, 0]} maxBarSize={42}>
-              {series.map((point) => (
-                <Cell
-                  key={point.key}
-                  fill="#4318FF"
-                  fillOpacity={point.isPeak ? 1 : 0.65}
-                />
-              ))}
+            <Bar dataKey="business" name="Business" fill="#4318FF" radius={[8, 8, 0, 0]} maxBarSize={48}>
+              <LabelList
+                dataKey="business"
+                position="top"
+                formatter={(value: number) =>
+                  Number(value) > 0 ? formatCompactCurrency(Number(value)) : ""
+                }
+                style={{ fill: "var(--muted)", fontSize: 10, fontWeight: 700 }}
+              />
             </Bar>
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="transactionCount"
-              stroke="#0f172a"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-            />
-          </ComposedChart>
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </ChartCard>

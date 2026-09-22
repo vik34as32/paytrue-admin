@@ -37,7 +37,7 @@ export function ReportSkeleton({ className }: { className?: string }) {
 }
 
 export function ReportEmptyState({
-  message = "No business data available for this period",
+  message = "No business data available for this period.",
 }: {
   message?: string;
 }) {

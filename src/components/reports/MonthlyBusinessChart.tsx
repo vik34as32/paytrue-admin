@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { ChartCard } from "@/components/reports/ChartCard";
-import { AXIS_TICK, BusinessPointTooltip, PeakDot } from "@/components/reports/ChartTooltip";
+import { AXIS_TICK, BusinessPointTooltip } from "@/components/reports/ChartTooltip";
 import {
   averageBusiness,
   formatCompactCurrency,
@@ -37,14 +37,16 @@ export function MonthlyBusinessChart({
   const series = data?.series || [];
   const peak = highestPoint(series);
   const average = averageBusiness(series);
+  const year = data?.year || new Date().getFullYear();
 
   return (
     <ChartCard
-      title="Monthly Business"
-      subtitle="All 12 months of the selected year"
+      title={`Yearly Business Trend · ${year}`}
+      subtitle={`Jan–Dec ${year} business amount`}
       loading={loading}
       error={error}
       empty={!series.length}
+      emptyMessage="No business data available for this period."
       onRetry={onRetry}
       actions={
         data ? (
@@ -56,9 +58,9 @@ export function MonthlyBusinessChart({
               </span>
             </p>
             <p>
-              Txns{" "}
+              Peak{" "}
               <span className="font-semibold text-foreground">
-                {data.totalTransactions.toLocaleString("en-IN")}
+                {peak?.label || "—"}
               </span>
             </p>
             <p>
@@ -67,27 +69,15 @@ export function MonthlyBusinessChart({
                 {formatCompactCurrency(average)}
               </span>
             </p>
-            <p>
-              Peak{" "}
-              <span className="font-semibold text-foreground">
-                {peak?.label || "—"}
-              </span>
-            </p>
           </div>
         ) : null
       }
     >
       <div className={fetching ? "h-[280px] opacity-80" : "h-[280px]"}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={series} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="monthlyBusinessFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#4318FF" stopOpacity={0.28} />
-                  <stop offset="95%" stopColor="#4318FF" stopOpacity={0} />
-              </linearGradient>
-            </defs>
+          <LineChart data={series} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={AXIS_TICK} interval={0} />
             <YAxis
               axisLine={false}
               tickLine={false}
@@ -96,17 +86,17 @@ export function MonthlyBusinessChart({
               tickFormatter={(value: number) => formatCompactCurrency(value)}
             />
             <Tooltip content={<BusinessPointTooltip extra />} />
-            <Area
+            <Line
               type="monotone"
               dataKey="business"
+              name="Business"
               stroke="#4318FF"
               strokeWidth={2.5}
-              fill="url(#monthlyBusinessFill)"
-              dot={<PeakDot />}
-              isAnimationActive
-              animationDuration={500}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+              isAnimationActive={false}
             />
-          </AreaChart>
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </ChartCard>

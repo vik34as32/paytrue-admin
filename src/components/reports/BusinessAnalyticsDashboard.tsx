@@ -86,6 +86,27 @@ export function BusinessAnalyticsDashboard() {
 
   const serviceFilter = service || undefined;
   const daily = useBusinessReport({ period: "daily", year, month, service: serviceFilter });
+  const now = new Date();
+  const liveDaily = useBusinessReport({
+    period: "daily",
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    service: serviceFilter,
+  });
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const crossesMonth =
+    yesterday.getMonth() !== now.getMonth() ||
+    yesterday.getFullYear() !== now.getFullYear();
+  const previousMonthDaily = useBusinessReport(
+    {
+      period: "daily",
+      year: yesterday.getFullYear(),
+      month: yesterday.getMonth() + 1,
+      service: serviceFilter,
+    },
+    crossesMonth
+  );
   const weekly = useBusinessReport({ period: "weekly", year, month, service: serviceFilter });
   const monthly = useBusinessReport({ period: "monthly", year, service: serviceFilter });
   const yearly = useBusinessReport({ period: "yearly", year, service: serviceFilter });
@@ -200,6 +221,8 @@ export function BusinessAnalyticsDashboard() {
     void monthly.refetch();
     void yearly.refetch();
     void yearlyComparison.refetch();
+    void liveDaily.refetch();
+    void previousMonthDaily.refetch();
   };
 
   return (
@@ -226,20 +249,35 @@ export function BusinessAnalyticsDashboard() {
 
       <BusinessTrendChart
         period={period}
-        data={selected.data}
-        loading={selected.isPending && !selected.data}
-        error={selected.isError && !selected.data}
-        fetching={selected.isFetching}
-        onRetry={() => void selected.refetch()}
+        year={year}
+        data={period === "yearly" ? monthly.data : selected.data}
+        loading={
+          period === "yearly"
+            ? monthly.isPending && !monthly.data
+            : selected.isPending && !selected.data
+        }
+        error={
+          period === "yearly"
+            ? monthly.isError && !monthly.data
+            : selected.isError && !selected.data
+        }
+        fetching={period === "yearly" ? monthly.isFetching : selected.isFetching}
+        onRetry={() =>
+          void (period === "yearly" ? monthly.refetch() : selected.refetch())
+        }
       />
 
       <div className="grid gap-5 xl:grid-cols-2">
         <DailyBusinessChart
-          data={daily.data}
-          loading={daily.isPending && !daily.data}
-          error={daily.isError && !daily.data}
-          fetching={daily.isFetching}
-          onRetry={() => void daily.refetch()}
+          data={liveDaily.data}
+          extraSeries={previousMonthDaily.data?.series}
+          loading={liveDaily.isPending && !liveDaily.data}
+          error={liveDaily.isError && !liveDaily.data}
+          fetching={liveDaily.isFetching || previousMonthDaily.isFetching}
+          onRetry={() => {
+            void liveDaily.refetch();
+            void previousMonthDaily.refetch();
+          }}
         />
         <WeeklyBusinessChart
           data={weeklyView}
@@ -281,7 +319,11 @@ export function BusinessAnalyticsDashboard() {
           onRetry={() => void monthly.refetch()}
         />
         <BusinessTransactionChart
-          series={daily.data?.series?.length ? daily.data.series : monthly.data?.series || []}
+          series={
+            monthly.data?.series?.length
+              ? monthly.data.series
+              : daily.data?.series || []
+          }
           loading={daily.isPending && monthly.isPending && !daily.data && !monthly.data}
           error={daily.isError && monthly.isError && !daily.data && !monthly.data}
           onRetry={() => {

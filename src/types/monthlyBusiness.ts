@@ -36,6 +36,7 @@ export interface BusinessReportPoint {
   month?: number | null;
   day?: number | null;
   weekday?: number | null;
+  hour?: number | null;
   business: number;
   transactionCount: number;
   successfulTransactions: number;

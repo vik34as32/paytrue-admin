@@ -86,6 +86,7 @@ export function useYearlyBusinessComparison(
       day: null,
       weekday: null,
       date: null,
+      hour: null,
       business: seriesPoint?.business || report?.totalBusiness || 0,
       transactionCount:
         seriesPoint?.transactionCount || report?.totalTransactions || 0,
