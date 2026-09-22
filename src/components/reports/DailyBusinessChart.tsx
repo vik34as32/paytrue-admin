@@ -147,13 +147,18 @@ export function DailyBusinessChart({
                 tickFormatter={(value: number) => formatCompactCurrency(value)}
               />
               <Tooltip
-                formatter={(value: number) => [formatCurrency(Number(value || 0)), "Business"]}
+                formatter={(value) => [
+                  formatCurrency(Number(value ?? 0)),
+                  "Business",
+                ]}
               />
               <Bar dataKey="business" name="Business" fill="#4318FF" radius={[8, 8, 0, 0]} maxBarSize={72}>
                 <LabelList
                   dataKey="business"
                   position="top"
-                  formatter={(value: number) => formatCompactCurrency(Number(value || 0))}
+                  formatter={(value) =>
+                    formatCompactCurrency(Number(value ?? 0))
+                  }
                   style={{ fill: "var(--muted)", fontSize: 11, fontWeight: 700 }}
                 />
               </Bar>

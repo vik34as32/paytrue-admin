@@ -71,7 +71,7 @@ export function WeeklyBusinessChart({
               <LabelList
                 dataKey="business"
                 position="top"
-                formatter={(value: number) =>
+                formatter={(value) =>
                   Number(value) > 0 ? formatCompactCurrency(Number(value)) : ""
                 }
                 style={{ fill: "var(--muted)", fontSize: 10, fontWeight: 700 }}
