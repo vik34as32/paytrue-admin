@@ -17,6 +17,8 @@ import { Input } from "@/components/common/Input";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronsUpDown,
   ChevronUp,
   ChevronDown,
@@ -107,7 +109,9 @@ export function DataTable<T>({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     getFilteredRowModel: manualPagination ? undefined : getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    getPaginationRowModel: manualPagination
+      ? undefined
+      : getPaginationRowModel(),
     manualPagination,
     manualSorting,
     pageCount,
@@ -144,22 +148,40 @@ export function DataTable<T>({
     return { from, to: Math.min(to, filteredCount), total: filteredCount };
   }, [filteredCount, pageIndex, pageSize]);
 
-  const totalPages = Math.max(1, table.getPageCount() || 1);
-  const pageButtons = useMemo(() => {
-    const maxButtons = 5;
-    if (totalPages <= maxButtons) {
+  const totalPages = Math.max(
+    1,
+    manualPagination
+      ? Math.max(
+          1,
+          Number(controlledPageCount) > 0
+            ? Number(controlledPageCount)
+            : Math.ceil(filteredCount / pageSize) || 1
+        )
+      : Math.max(1, table.getPageCount())
+  );
+
+  const pageItems = useMemo(() => {
+    if (totalPages <= 7) {
       return Array.from({ length: totalPages }, (_, i) => i);
     }
-    const start = Math.max(
-      0,
-      Math.min(pageIndex - 2, totalPages - maxButtons)
-    );
-    return Array.from({ length: maxButtons }, (_, i) => start + i);
+    const items: Array<number | "ellipsis"> = [0];
+    const start = Math.max(1, pageIndex - 1);
+    const end = Math.min(totalPages - 2, pageIndex + 1);
+    if (start > 1) items.push("ellipsis");
+    for (let i = start; i <= end; i += 1) items.push(i);
+    if (end < totalPages - 2) items.push("ellipsis");
+    items.push(totalPages - 1);
+    return items;
   }, [pageIndex, totalPages]);
 
   const goToPage = (index: number) => {
-    if (manualPagination) onPageChange?.(index);
-    else table.setPageIndex(index);
+    const next = Math.max(0, Math.min(index, totalPages - 1));
+    if (next === pageIndex) return;
+    if (manualPagination) {
+      onPageChange?.(next);
+      return;
+    }
+    table.setPageIndex(next);
   };
 
   return (
@@ -324,38 +346,79 @@ export function DataTable<T>({
           <button
             type="button"
             className="pt-page-btn"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            aria-label="First page"
+            onClick={() => goToPage(0)}
+            disabled={pageIndex <= 0}
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="pt-page-btn"
+            onClick={() => goToPage(pageIndex - 1)}
+            disabled={pageIndex <= 0}
           >
             <ChevronLeft className="h-4 w-4" />
             Prev
           </button>
 
           <div className="pt-table__pages">
-            {pageButtons.map((i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => goToPage(i)}
-                className={cn(
-                  "pt-page-num",
-                  pageIndex === i && "pt-page-num--on"
-                )}
-              >
-                {i + 1}
-              </button>
-            ))}
+            {pageItems.map((item, idx) =>
+              item === "ellipsis" ? (
+                <span key={`e-${idx}`} className="pt-page-ellipsis">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => goToPage(item)}
+                  className={cn(
+                    "pt-page-num",
+                    pageIndex === item && "pt-page-num--on"
+                  )}
+                >
+                  {item + 1}
+                </button>
+              )
+            )}
           </div>
 
           <button
             type="button"
             className="pt-page-btn"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={() => goToPage(pageIndex + 1)}
+            disabled={pageIndex >= totalPages - 1}
           >
             Next
             <ChevronRight className="h-4 w-4" />
           </button>
+          <button
+            type="button"
+            className="pt-page-btn"
+            aria-label="Last page"
+            onClick={() => goToPage(totalPages - 1)}
+            disabled={pageIndex >= totalPages - 1}
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </button>
+
+          <label className="pt-table__jump">
+            <span>Go</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              key={pageIndex}
+              defaultValue={pageIndex + 1}
+              onBlur={(e) => goToPage(Number(e.target.value) - 1)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                goToPage(Number((e.currentTarget as HTMLInputElement).value) - 1);
+              }}
+            />
+          </label>
 
           {pageSizeOptions?.length && onPageSizeChange ? (
             <label className="pt-table__rows">

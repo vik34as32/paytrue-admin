@@ -28,7 +28,7 @@ export function Input({
   const inputType = showToggle ? (visible ? "text" : "password") : type;
 
   return (
-    <div className="w-full">
+    <div className={cn("w-full", icon && "pt-search")}>
       {label && (
         <label
           className={cn(
@@ -53,7 +53,7 @@ export function Input({
         <input
           type={inputType}
           className={cn(
-            "w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm outline-none transition-all placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 hover:border-primary/30",
+            "pt-search__input w-full rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-foreground shadow-sm outline-none transition-all placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20 hover:border-primary/30",
             icon && "pl-10",
             showToggle && "pr-11",
             error &&
