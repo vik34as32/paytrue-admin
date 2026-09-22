@@ -43,6 +43,7 @@ import {
   getWalletBalance,
 } from "@/lib/normalizeUser";
 import { sanitizePersonName, sanitizePersonNamePart } from "@/lib/personName";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { UserDetailRecord } from "@/types/superAdmin";
 
 type DetailsTab =
