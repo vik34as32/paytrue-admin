@@ -8,10 +8,11 @@ export const metadata: Metadata = {
   description: "Enterprise FinTech Admin Management System",
   icons: {
     icon: [
-      { url: "/images/logo.png", type: "image/png" },
+      { url: "/favicon.ico" },
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/images/logo.png", type: "image/png" },
     ],
-    shortcut: "/images/logo.png",
+    shortcut: "/favicon.png",
     apple: "/images/logo.png",
   },
 };
