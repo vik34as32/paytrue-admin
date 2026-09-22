@@ -15,7 +15,7 @@ import {
   getWalletBalance,
 } from "@/lib/normalizeUser";
 import { formatCurrency } from "@/lib/utils";
-import { Mail, Phone, MapPin, Wallet, Hash } from "lucide-react";
+import { Mail, Phone, MapPin, Wallet } from "lucide-react";
 
 interface NetworkUserViewModalProps {
   isOpen: boolean;
@@ -54,7 +54,6 @@ export function NetworkUserViewModal({
                   </h3>
                   <p className="text-sm text-muted">
                     {formatUserTypeLabel(user.userType)}
-                    {user.userCode ? ` · ${user.userCode}` : ""}
                   </p>
                 </div>
 
@@ -91,12 +90,6 @@ export function NetworkUserViewModal({
                     <Wallet className="h-4 w-4 shrink-0 text-muted" />
                     <span>{formatCurrency(getWalletBalance(user))}</span>
                   </div>
-                  {user.userCode && (
-                    <div className="flex items-center gap-2 text-sm text-foreground">
-                      <Hash className="h-4 w-4 shrink-0 text-muted" />
-                      <span className="font-mono">{user.userCode}</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

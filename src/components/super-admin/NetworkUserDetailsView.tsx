@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CircleDollarSign,
   FileText,
-  Hash,
   IndianRupee,
   Landmark,
   Lock,
@@ -39,12 +38,11 @@ import {
   getUserAadhaarNumber,
   getUserFirstName,
   getUserOutletField,
-  getUserOutletId,
   getUserOutletName,
   getUserPanNumber,
   getWalletBalance,
 } from "@/lib/normalizeUser";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { sanitizePersonName, sanitizePersonNamePart } from "@/lib/personName";
 import { UserDetailRecord } from "@/types/superAdmin";
 
 type DetailsTab =
@@ -268,17 +266,6 @@ export function NetworkUserDetailsView({
                     <Badge variant="default">
                       {formatUserTypeLabel(user.userType || user.role)}
                     </Badge>
-                    {user.userCode ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2.5 py-0.5 font-mono text-xs font-semibold text-foreground">
-                        <Hash className="h-3 w-3 text-muted" />
-                        {user.userCode}
-                      </span>
-                    ) : null}
-                    {isRetailer ? (
-                      <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 font-mono text-xs font-semibold text-sky-700 ring-1 ring-sky-200/60">
-                        Outlet {getUserOutletId(user)}
-                      </span>
-                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-foreground">
                     <span className="inline-flex items-center gap-1.5">
@@ -374,9 +361,6 @@ export function NetworkUserDetailsView({
                 <div className="space-y-0">
                   <InfoRow icon={User} label="Full Name">
                     {getNetworkUserName(user)}
-                  </InfoRow>
-                  <InfoRow icon={Hash} label="User Code">
-                    <span className="font-mono">{user.userCode || "—"}</span>
                   </InfoRow>
                   <InfoRow icon={ShieldCheck} label="User Type">
                     <Badge variant="default">
@@ -533,16 +517,28 @@ export function NetworkUserDetailsView({
           {tab === "personal" ? (
             <DetailSection title="Personal Details" icon={User}>
               <DetailGrid>
-                <DetailField label="First Name" value={user.firstName} />
-                <DetailField label="Last Name" value={user.lastName} />
-                <DetailField label="Full Name" value={getNetworkUserName(user)} />
+                <DetailField
+                  label="First Name"
+                  value={sanitizePersonNamePart(user.firstName)}
+                />
+                <DetailField
+                  label="Last Name"
+                  value={sanitizePersonNamePart(user.lastName)}
+                />
+                <DetailField
+                  label="Full Name"
+                  value={sanitizePersonName(
+                    user.name,
+                    user.firstName,
+                    user.lastName
+                  )}
+                />
                 <DetailField label="Email" value={user.email} />
                 <DetailField label="Mobile" value={phone} />
                 <DetailField
                   label="Alternate Mobile"
                   value={user.alternateMobileNumber}
                 />
-                <DetailField label="User Code" value={user.userCode} mono />
                 <DetailField
                   label="User Type"
                   value={formatUserTypeLabel(user.userType || user.role)}
@@ -580,7 +576,6 @@ export function NetworkUserDetailsView({
                   value={user.businessName || getUserOutletName(user)}
                 />
                 <DetailField label="Outlet Name" value={getUserOutletName(user)} />
-                <DetailField label="Outlet ID" value={getUserOutletId(user)} mono />
                 <DetailField
                   label="Business Type"
                   value={user.outlet?.businessType}

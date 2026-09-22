@@ -15,6 +15,7 @@ import {
 } from "@/lib/normalizeUser";
 import { UserDetailRecord } from "@/types/superAdmin";
 import { LucideIcon } from "lucide-react";
+import { sanitizePersonName, sanitizePersonNamePart } from "@/lib/personName";
 
 export function DetailSection({
   title,
@@ -119,16 +120,24 @@ export function UserDetailSections({ user }: { user: UserDetailRecord }) {
     <div className="space-y-5">
       <DetailSection title="Personal Information">
         <DetailGrid>
-          <DetailField label="First Name" value={user.firstName} />
-          <DetailField label="Last Name" value={user.lastName} />
-          <DetailField label="Full Name" value={user.name} />
+          <DetailField
+            label="First Name"
+            value={sanitizePersonNamePart(user.firstName)}
+          />
+          <DetailField
+            label="Last Name"
+            value={sanitizePersonNamePart(user.lastName)}
+          />
+          <DetailField
+            label="Full Name"
+            value={sanitizePersonName(user.name, user.firstName, user.lastName)}
+          />
           <DetailField label="Email" value={user.email} />
           <DetailField label="Mobile Number" value={user.mobile} />
           <DetailField
             label="Alternate Mobile"
             value={user.alternateMobileNumber}
           />
-          <DetailField label="User Code" value={user.userCode} mono />
           <DetailField label="User Type" value={formatUserTypeLabel(user.userType)} />
           <DetailField label="Role" value={getUserDisplayRole(user)} />
           <DetailField label="Status" value={user.status} />
@@ -176,7 +185,6 @@ export function UserDetailSections({ user }: { user: UserDetailRecord }) {
           <DetailField label="Card Number" value={wallet?.cardNumber} mono />
           <DetailField label="Card Holder Name" value={wallet?.cardHolderName} />
           <DetailField label="Expiry Date" value={wallet?.expiryDate} />
-          <DetailField label="Retailer / User Code" value={wallet?.retailerCode} mono />
         </DetailGrid>
       </DetailSection>
 
@@ -225,14 +233,11 @@ export function UserDetailSections({ user }: { user: UserDetailRecord }) {
           <DetailField label="Parent User" value={hierarchy.parentUser} />
           <DetailField label="Distributor" value={hierarchy.distributor} />
           <DetailField label="Master Distributor" value={hierarchy.masterDistributor} />
-          <DetailField label="Parent ID" value={user.parentId} mono />
-          <DetailField label="Created By ID" value={user.createdById} mono />
         </DetailGrid>
       </DetailSection>
 
       <DetailSection title="Account Metadata">
         <DetailGrid>
-          <DetailField label="User ID" value={user.id} mono />
           <DetailField
             label="Created Date"
             value={user.createdAt ? formatDate(user.createdAt) : undefined}
@@ -241,7 +246,6 @@ export function UserDetailSections({ user }: { user: UserDetailRecord }) {
             label="Updated Date"
             value={user.updatedAt ? formatDate(user.updatedAt) : undefined}
           />
-          <DetailField label="Tenant ID" value={user.tenantId ?? undefined} mono />
         </DetailGrid>
       </DetailSection>
     </div>

@@ -11,6 +11,7 @@ import { NetworkUserRecord } from "@/types/superAdmin";
 import { HierarchyNetworkUser } from "@/types/hierarchy";
 import { UserFormValues } from "@/validations/userStepSchemas";
 import { getNetworkUserName } from "@/lib/normalizeUser";
+import { isUuid } from "@/lib/personName";
 
 export type RetailerHierarchyScope = "admin" | "super_admin";
 /** retailer = MD + Distributor; distributor = MD only */
@@ -24,16 +25,18 @@ interface RetailerHierarchyFieldsProps {
 
 function userOptionLabel(user: NetworkUserRecord): string {
   const name = getNetworkUserName(user) || user.name || "User";
-  const code = user.userCode ? ` · ${user.userCode}` : "";
   const mobile = user.mobile || user.phone;
   const phone = mobile ? ` · ${mobile}` : "";
-  return `${name}${code}${phone}`;
+  return `${name}${phone}`;
 }
 
 function hierarchyOptionLabel(user: HierarchyNetworkUser): string {
-  const code = user.userCode ? ` · ${user.userCode}` : "";
   const phone = user.mobile ? ` · ${user.mobile}` : "";
-  return `${user.name || "Distributor"}${code}${phone}`;
+  const name = getNetworkUserName({
+    name: user.name,
+    firstName: user.name,
+  });
+  return `${name || "Distributor"}${phone}`;
 }
 
 /** Collect every DISTRIBUTOR under the MD network tree (all levels). */
@@ -98,7 +101,9 @@ export function RetailerHierarchyFields({
           scope === "super_admin"
             ? await listAllMasterDistributors()
             : await listAllAdminUsers({ role: "MASTER_DISTRIBUTOR" });
-        if (!cancelled) setMasterDistributors(list);
+        if (!cancelled) {
+          setMasterDistributors(list.filter((user) => isUuid(user.id)));
+        }
       } catch (error) {
         if (!cancelled) {
           setMasterDistributors([]);
@@ -136,7 +141,7 @@ export function RetailerHierarchyFields({
         if (network.masterDistributor) roots.push(network.masterDistributor);
         if (network.tree?.length) roots.push(...network.tree);
 
-        const list = collectDistributors(roots);
+        const list = collectDistributors(roots).filter((user) => isUuid(user.id));
         if (!cancelled) setDistributors(list);
       } catch (error) {
         if (!cancelled) {

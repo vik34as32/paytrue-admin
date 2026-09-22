@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from "@/constants/storage";
 import { WALLET_API } from "@/constants/walletApi";
 import { buildWalletTransferPayload, buildWalletDeductPayload } from "@/lib/walletAmount";
 import { normalizeWalletBalanceData } from "@/lib/walletBalance";
+import { sanitizePersonName } from "@/lib/personName";
 import {
   AdminDashboardData,
   AdminWalletBalanceData,
@@ -747,9 +748,9 @@ export async function getBusinessReport(
 }
 
 export function getNetworkUserName(user: AdminNetworkUser): string {
-  if (user.name) return user.name;
-  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
-  return full || user.email || user.mobile || "—";
+  const named = sanitizePersonName(user.name, user.firstName, user.lastName);
+  if (named) return named;
+  return user.email || user.mobile || "—";
 }
 
 export function getNetworkUserId(user: AdminNetworkUser): string {

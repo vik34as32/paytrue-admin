@@ -2,6 +2,7 @@ import { ApiUserRecord } from "@/lib/buildUserFormData";
 import { UserDetailRecord, NetworkUserRecord, UserOutletRecord } from "@/types/superAdmin";
 import { getNetworkUserName } from "@/store/selectors/superAdminSelectors";
 import { resolveMediaUrl } from "@/lib/utils";
+import { sanitizePersonName, sanitizePersonNamePart } from "@/lib/personName";
 
 function parseAmount(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
@@ -12,9 +13,13 @@ function parseAmount(value: unknown): number | undefined {
 function readNestedName(value: unknown): string | undefined {
   if (!value || typeof value !== "object") return undefined;
   const obj = value as Record<string, unknown>;
-  if (typeof obj.name === "string" && obj.name) return obj.name;
-  const full = [obj.firstName, obj.lastName].filter(Boolean).join(" ");
-  return full || (typeof obj.email === "string" ? obj.email : undefined);
+  const named = sanitizePersonName(
+    typeof obj.name === "string" ? obj.name : undefined,
+    typeof obj.firstName === "string" ? obj.firstName : undefined,
+    typeof obj.lastName === "string" ? obj.lastName : undefined
+  );
+  if (named) return named;
+  return typeof obj.email === "string" ? obj.email : undefined;
 }
 
 function readNestedCode(value: unknown): string | undefined {
@@ -360,9 +365,9 @@ export function getUserOutletName(user: NetworkUserRecord): string {
 
 /** Prefer firstName only (retailer lastName is often a random code). */
 export function getUserFirstName(user: NetworkUserRecord): string {
-  const first = (user.firstName || "").trim();
+  const first = sanitizePersonNamePart(user.firstName);
   if (first) return first;
-  const full = (user.name || getNetworkUserName(user) || "").trim();
+  const full = sanitizePersonName(user.name || getNetworkUserName(user));
   if (!full) return "—";
   return full.split(/\s+/)[0] || full;
 }
@@ -500,9 +505,7 @@ export function getHierarchyLabel(user: UserDetailRecord): {
   distributor?: string;
   masterDistributor?: string;
 } {
-  const parentName =
-    readNestedName(user.parentUser) ||
-    (user.parentId ? `ID: ${user.parentId}` : undefined);
+  const parentName = readNestedName(user.parentUser);
   const distributorName = readNestedName(user.distributor);
   const masterName = readNestedName(user.masterDistributor);
 

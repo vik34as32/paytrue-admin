@@ -2,6 +2,7 @@ import { adminModuleClient } from "@/lib/api/client";
 import { commissionAdminModuleClient } from "@/lib/api/commissionClient";
 import { normalizeUserDetail } from "@/lib/normalizeUser";
 import { toPayloadFirstName } from "@/lib/buildUserFormData";
+import { sanitizePersonNamePart, uuidOrEmpty } from "@/lib/personName";
 import { ApiResponse } from "@/types";
 import {
   AdminListQueryParams,
@@ -59,7 +60,7 @@ export function buildAdminCreateUserPayload(
   values: UserFormValues,
   userType: AdminManagedUserRole
 ): AdminCreateUserPayload {
-  const lastName = (values.lastName || "").trim();
+  const lastName = sanitizePersonNamePart(values.lastName);
   const firstName = toPayloadFirstName({
     firstName: values.firstName,
     lastName,
@@ -78,9 +79,9 @@ export function buildAdminCreateUserPayload(
     payload.lastName = lastName;
   }
 
-  const masterDistributorId = (values.masterDistributorId || "").trim();
+  const masterDistributorId = uuidOrEmpty(values.masterDistributorId);
   // Form stores selected distributor as parentId; API expects distributorId
-  const distributorId = (values.parentId || "").trim();
+  const distributorId = uuidOrEmpty(values.parentId);
 
   if (userType === "DISTRIBUTOR") {
     if (masterDistributorId) {
@@ -321,7 +322,8 @@ export async function patchAdminUser(
   const body: AdminUserUpdatePayload = {};
   if (payload.firstName !== undefined) body.firstName = payload.firstName.trim();
   if (payload.lastName !== undefined) {
-    body.lastName = payload.lastName?.trim() || null;
+    const cleaned = sanitizePersonNamePart(payload.lastName);
+    body.lastName = cleaned || null;
   }
   if (payload.name !== undefined) body.name = payload.name.trim();
   if (payload.email !== undefined) body.email = payload.email.trim();

@@ -1,6 +1,7 @@
 import { RootState } from "@/store";
 import { SuperAdminStatisticsData } from "@/types/superAdmin";
 import { formatBalanceFieldLabel } from "@/lib/walletBalance";
+import { sanitizePersonName } from "@/lib/personName";
 
 export const selectDashboard = (state: RootState) => state.superAdmin.dashboard;
 export const selectStatistics = (state: RootState) => state.superAdmin.statistics;
@@ -68,7 +69,7 @@ export function getNetworkUserName(user: {
   lastName?: string;
   email?: string;
 }): string {
-  if (user.name) return user.name;
-  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
-  return full || user.email || "—";
+  const named = sanitizePersonName(user.name, user.firstName, user.lastName);
+  if (named) return named;
+  return user.email || "—";
 }

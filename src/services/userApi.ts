@@ -7,6 +7,7 @@ import {
   mapApiUserToFormValues,
   toPayloadFirstName,
 } from "@/lib/buildUserFormData";
+import { sanitizePersonNamePart } from "@/lib/personName";
 import { UserDetailRecord, AdminDetailRecord } from "@/types/superAdmin";
 import { NetworkUserEditValues } from "@/validations/networkUserSchemas";
 import { AdminEditValues } from "@/validations/adminSchemas";
@@ -217,10 +218,11 @@ function buildSuperAdminEditUserBody(
     firstName: values.firstName,
     lastName: values.lastName,
   });
+  const payloadLastName = sanitizePersonNamePart(values.lastName);
 
   const body: Record<string, unknown> = {
     firstName: emptyToUndefined(payloadFirstName),
-    lastName: emptyToUndefined(values.lastName),
+    lastName: emptyToUndefined(payloadLastName),
     name: emptyToUndefined(payloadFirstName),
     email: emptyToUndefined(values.email),
     mobile: emptyToUndefined(values.mobile),

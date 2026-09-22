@@ -129,7 +129,6 @@ export function NetworkUserEditModal({
                 </h3>
                 <p className="text-sm text-muted">
                   {formatUserTypeLabel(user.userType)}
-                  {user.userCode ? ` · ${user.userCode}` : ""}
                 </p>
               </div>
               <div className="rounded-xl border border-border bg-card px-4 py-3 text-right">
@@ -163,9 +162,6 @@ export function NetworkUserEditModal({
 
               <DetailSection title="Read Only" className="mt-4 hidden lg:block">
                 <div className="space-y-3">
-                  <DetailField label="User ID" value={user.id} mono />
-                  <DetailField label="User Code" value={user.userCode} mono />
-                  <DetailField label="Parent ID" value={user.parentId} mono />
                   <DetailField
                     label="Email Verified"
                     value={user.isEmailVerified ? "Yes" : "No"}

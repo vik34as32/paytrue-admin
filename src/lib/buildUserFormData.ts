@@ -1,6 +1,11 @@
 import { USER_FILE_FIELDS, UserFileFieldKey } from "@/constants/uploadConfig";
 import { toApiGender } from "@/constants/gender";
 import { UserFormValues } from "@/validations/userStepSchemas";
+import {
+  sanitizePersonName,
+  sanitizePersonNamePart,
+  uuidOrEmpty,
+} from "@/lib/personName";
 
 const OUTLET_BUSINESS_TYPES = new Set([
   "INDIVIDUAL",
@@ -98,9 +103,9 @@ export function splitFullName(fullName: string): {
   firstName: string;
   lastName: string;
 } {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const parts = sanitizePersonName(fullName).split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
   return {
     firstName: parts[0],
     lastName: parts.slice(1).join(" "),
@@ -130,10 +135,10 @@ export function toPayloadFirstName(values: {
   fullName?: string | null;
   name?: string | null;
 }): string {
-  const first = (values.firstName || "").trim();
-  const last = (values.lastName || "").trim();
-  const fullName = (values.fullName || "").trim();
-  const storedName = (values.name || "").trim();
+  const first = sanitizePersonNamePart(values.firstName);
+  const last = sanitizePersonNamePart(values.lastName);
+  const fullName = sanitizePersonName(values.fullName);
+  const storedName = sanitizePersonName(values.name);
   const firstLower = first.toLowerCase();
   const lastLower = last.toLowerCase();
 
@@ -148,7 +153,7 @@ export function toPayloadFirstName(values: {
     candidate = `${first} ${last}`;
   }
 
-  return collapseRepeatedNameTokens(candidate);
+  return collapseRepeatedNameTokens(sanitizePersonName(candidate));
 }
 
 function appendFileIfPresent(formData: FormData, key: string, file: File | undefined) {
@@ -179,7 +184,7 @@ export function buildUserFormData(
   const { userType, includePassword = true } = options;
   const formData = new FormData();
 
-  const lastName = (values.lastName || "").trim();
+  const lastName = sanitizePersonNamePart(values.lastName);
   const firstName = toPayloadFirstName({
     firstName: values.firstName,
     lastName,
@@ -197,9 +202,13 @@ export function buildUserFormData(
   appendIfPresent(formData, "dateOfBirth", values.dateOfBirth);
   appendIfPresent(formData, "userType", userType);
   // Retailer hierarchy: form parentId = API distributorId
-  appendIfPresent(formData, "parentId", values.parentId);
-  appendIfPresent(formData, "distributorId", values.parentId);
-  appendIfPresent(formData, "masterDistributorId", values.masterDistributorId);
+  appendIfPresent(formData, "parentId", uuidOrEmpty(values.parentId));
+  appendIfPresent(formData, "distributorId", uuidOrEmpty(values.parentId));
+  appendIfPresent(
+    formData,
+    "masterDistributorId",
+    uuidOrEmpty(values.masterDistributorId)
+  );
 
   if (includePassword && values.password) {
     appendIfPresent(formData, "password", values.password);
@@ -321,7 +330,7 @@ export function buildAdminHierarchyCreatePayload(
   values: UserFormValues,
   userType: "RETAILER" | "DISTRIBUTOR" | "MASTER_DISTRIBUTOR"
 ): AdminHierarchyCreatePayload {
-  const lastName = (values.lastName || "").trim();
+  const lastName = sanitizePersonNamePart(values.lastName);
   const firstName = toPayloadFirstName({
     firstName: values.firstName,
     lastName,
@@ -367,11 +376,11 @@ export function buildAdminHierarchyCreatePayload(
   }
 
   if (userType === "DISTRIBUTOR" || userType === "RETAILER") {
-    const masterDistributorId = (values.masterDistributorId || "").trim();
+    const masterDistributorId = uuidOrEmpty(values.masterDistributorId);
     if (masterDistributorId) payload.masterDistributorId = masterDistributorId;
   }
   if (userType === "RETAILER") {
-    const distributorId = (values.parentId || "").trim();
+    const distributorId = uuidOrEmpty(values.parentId);
     if (distributorId) payload.distributorId = distributorId;
   }
 
@@ -432,7 +441,7 @@ export function buildAdminHierarchyCreateFormData(
   const formData = new FormData();
   const files = extractUserFiles(values);
 
-  const lastName = (values.lastName || "").trim();
+  const lastName = sanitizePersonNamePart(values.lastName);
   const firstName = toPayloadFirstName({
     firstName: values.firstName,
     lastName,
@@ -465,10 +474,14 @@ export function buildAdminHierarchyCreateFormData(
   if (longitude !== undefined) formData.append("longitude", String(longitude));
 
   if (userType === "DISTRIBUTOR" || userType === "RETAILER") {
-    appendIfPresent(formData, "masterDistributorId", values.masterDistributorId);
+    appendIfPresent(
+      formData,
+      "masterDistributorId",
+      uuidOrEmpty(values.masterDistributorId)
+    );
   }
   if (userType === "RETAILER") {
-    appendIfPresent(formData, "distributorId", values.parentId);
+    appendIfPresent(formData, "distributorId", uuidOrEmpty(values.parentId));
   }
 
   const outlet = compactObject({
@@ -541,14 +554,15 @@ export function mapApiUserToFormValues(
     name: user.name,
   });
   const splitName = splitFullName(cleanedName);
-  const lastName =
+  const lastName = sanitizePersonNamePart(
     splitName.lastName &&
-    splitName.lastName.toLowerCase() !== splitName.firstName.toLowerCase()
+      splitName.lastName.toLowerCase() !== splitName.firstName.toLowerCase()
       ? splitName.lastName
-      : (user.lastName || "").trim();
+      : user.lastName
+  );
 
   return {
-    firstName: splitName.firstName || user.firstName || "",
+    firstName: splitName.firstName || sanitizePersonNamePart(user.firstName),
     lastName,
     fullName: cleanedName,
     email: user.email || "",
