@@ -9,6 +9,7 @@ import {
   setSuperAdminTokenCookie,
 } from "@/lib/authCookie";
 import { clearLoginToken } from "@/lib/loginToken";
+import { clearSuperAdminWelcome } from "@/lib/superAdminWelcome";
 
 export async function superAdminLogin(credentials: SuperAdminLoginPayload) {
   const result = await superAdminLoginApi(credentials);
@@ -18,6 +19,7 @@ export async function superAdminLogin(credentials: SuperAdminLoginPayload) {
 }
 
 export function superAdminLogout() {
+  clearSuperAdminWelcome();
   clearLoginToken();
   clearSuperAdminTokenCookie();
   localStorage.removeItem(STORAGE_KEYS.SUPER_ADMIN_TOKEN);

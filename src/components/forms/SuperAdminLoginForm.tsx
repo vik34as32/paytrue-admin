@@ -13,6 +13,10 @@ import { superAdminLogin } from "@/store/api/superAdminAuthApi";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/constants";
+import {
+  markSuperAdminWelcomePending,
+  unlockSuperAdminWelcomeSpeech,
+} from "@/lib/superAdminWelcome";
 
 export function SuperAdminLoginForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +35,8 @@ export function SuperAdminLoginForm() {
   const onSubmit = async (data: SuperAdminLoginFormData) => {
     const result = await dispatch(superAdminLogin(data));
     if (superAdminLogin.fulfilled.match(result)) {
+      unlockSuperAdminWelcomeSpeech();
+      markSuperAdminWelcomePending();
       toast.success("Welcome, Super Admin!");
       router.replace(ROUTES.superAdminDashboard);
     } else {

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSuperAdminAuth } from "@/hooks/useSuperAdminAuth";
 import { SuperAdminWalletDashboardView } from "@/components/dashboard/SuperAdminWalletDashboardView";
+import { WelcomeVoice } from "@/components/dashboard/WelcomeVoice";
 import { AuthRestoreLoader } from "@/components/common/AuthRestoreLoader";
 import { ROUTES } from "@/constants";
 
@@ -22,5 +23,10 @@ export default function SuperAdminDashboardPage() {
     return <AuthRestoreLoader />;
   }
 
-  return <SuperAdminWalletDashboardView />;
+  return (
+    <>
+      <WelcomeVoice />
+      <SuperAdminWalletDashboardView />
+    </>
+  );
 }
