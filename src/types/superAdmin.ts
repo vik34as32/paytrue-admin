@@ -172,6 +172,30 @@ export interface SuperAdminDashboardData {
   [key: string]: string | number | undefined;
 }
 
+export interface SuperAdminStatisticsPeriod {
+  monthName?: string;
+  month?: number;
+  year?: number;
+  monthLabel?: string;
+}
+
+export interface SuperAdminServiceTxnCounts {
+  today?: number;
+  monthly?: number;
+  total?: number;
+}
+
+export interface SuperAdminServiceStats {
+  monthName?: string;
+  month?: number;
+  year?: number;
+  monthLabel?: string;
+  todayBusiness?: number;
+  monthlyBusiness?: number;
+  totalBusiness?: number;
+  successTransactions?: SuperAdminServiceTxnCounts;
+}
+
 export interface SuperAdminStatisticsData {
   users?: Record<string, number>;
   transactions?: Record<string, number>;
@@ -179,11 +203,8 @@ export interface SuperAdminStatisticsData {
   wallet?: Record<string, number>;
   fundRequests?: Record<string, number>;
   profit?: Record<string, number>;
-  [key: string]:
-    | string
-    | number
-    | Record<string, number>
-    | undefined;
+  period?: SuperAdminStatisticsPeriod;
+  services?: Record<string, SuperAdminServiceStats>;
 }
 
 export interface UpdateProfilePayload {
