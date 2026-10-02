@@ -185,16 +185,29 @@ export function buildUserFormData(
   const formData = new FormData();
 
   const lastName = sanitizePersonNamePart(values.lastName);
-  const firstName = toPayloadFirstName({
-    firstName: values.firstName,
-    lastName,
-    fullName: values.fullName,
-  });
+  const firstOnly = sanitizePersonNamePart(values.firstName);
+  const displayName = sanitizePersonName(firstOnly, lastName, values.fullName);
+  const firstName =
+    userType === "MASTER_DISTRIBUTOR"
+      ? firstOnly || displayName
+      : toPayloadFirstName({
+          firstName: values.firstName,
+          lastName,
+          fullName: values.fullName,
+        });
 
   appendIfPresent(formData, "firstName", firstName);
   appendIfPresent(formData, "lastName", lastName);
-  appendIfPresent(formData, "fullName", firstName);
-  appendIfPresent(formData, "name", firstName);
+  appendIfPresent(
+    formData,
+    "fullName",
+    userType === "MASTER_DISTRIBUTOR" ? displayName : firstName
+  );
+  appendIfPresent(
+    formData,
+    "name",
+    userType === "MASTER_DISTRIBUTOR" ? displayName : firstName
+  );
   appendIfPresent(formData, "email", values.email);
   appendIfPresent(formData, "mobile", values.mobile);
   appendIfPresent(formData, "alternateMobileNumber", values.alternateMobileNumber);

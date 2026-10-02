@@ -35,7 +35,38 @@ export const personalStepSchema = z.object({
     }),
 });
 
-/** Distributor create: first + last name required; gender / DOB not collected. */
+/** Master Distributor create: first + last name required; gender / DOB still collected. */
+export const masterDistributorPersonalStepSchema = z.object({
+  firstName: z.string().min(2, "First name is required"),
+  lastName: z.string().min(2, "Last name is required"),
+  fullName: z.string().optional(),
+  email: z.string().email("Enter a valid email"),
+  mobile: z.string().regex(mobileRegex, "Enter a valid 10-digit mobile number"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(
+      passwordRegex,
+      "Password must contain uppercase, lowercase and number"
+    ),
+  alternateMobileNumber: z.string().optional(),
+  gender: z.string().min(1, "Gender is required"),
+  dateOfBirth: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine((value) => {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return false;
+      const today = new Date();
+      const age =
+        (today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      return age >= 18 && age <= 100;
+    }, "Enter a valid date of birth (18+ years)"),
+  profileImage: z
+    .custom<File | null>((value) => value instanceof File, {
+      message: "Profile image is required",
+    }),
+});
 export const distributorPersonalStepSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
   lastName: z.string().min(2, "Last name is required"),

@@ -44,6 +44,7 @@ import {
   userFormEmptyDefaults,
   UserFormValues,
   distributorPersonalStepSchema,
+  masterDistributorPersonalStepSchema,
 } from "@/validations/userStepSchemas";
 import { useAppDispatch, useAppSelector } from "@/hooks/useAppStore";
 import { useRoleAccess } from "@/hooks/useAuth";
@@ -183,6 +184,8 @@ export function UserMultiStepForm({
     requireHierarchyLinking && userType === "DISTRIBUTOR";
   const needsHierarchy = needsRetailerHierarchy || needsDistributorHierarchy;
   const isDistributorCreate = userType === "DISTRIBUTOR";
+  const usesFirstLastName =
+    userType === "DISTRIBUTOR" || userType === "MASTER_DISTRIBUTOR";
   const isModal = variant === "modal";
 
   const [step, setStep] = useState(1);
@@ -224,18 +227,18 @@ export function UserMultiStepForm({
 
   // Retailer: derive first/last from full name
   useEffect(() => {
-    if (isDistributorCreate) return;
+    if (usesFirstLastName) return;
     const split = splitFullName(fullName);
     setValue("firstName", split.firstName, { shouldDirty: false });
     setValue("lastName", split.lastName, { shouldDirty: false });
-  }, [fullName, isDistributorCreate, setValue]);
+  }, [fullName, usesFirstLastName, setValue]);
 
-  // Distributor: keep fullName in sync from first + last
+  // Distributor / Master Distributor: keep fullName in sync from first + last
   useEffect(() => {
-    if (!isDistributorCreate) return;
+    if (!usesFirstLastName) return;
     const nextFullName = [firstName, lastName].filter(Boolean).join(" ").trim();
     setValue("fullName", nextFullName, { shouldDirty: false });
-  }, [firstName, lastName, isDistributorCreate, setValue]);
+  }, [firstName, lastName, usesFirstLastName, setValue]);
 
   // Ensure a strong 8-char password always exists (hidden from UI)
   useEffect(() => {
@@ -300,7 +303,9 @@ export function UserMultiStepForm({
     const currentSchema =
       step === 1 && isDistributorCreate
         ? distributorPersonalStepSchema
-        : USER_FORM_STEPS[step - 1]?.schema;
+        : step === 1 && userType === "MASTER_DISTRIBUTOR"
+          ? masterDistributorPersonalStepSchema
+          : USER_FORM_STEPS[step - 1]?.schema;
     if (currentSchema) {
       const result = currentSchema.safeParse(getValues());
       if (!result.success) {
@@ -608,7 +613,7 @@ export function UserMultiStepForm({
                     </div>
                   ) : null}
 
-                  {isDistributorCreate ? (
+                  {usesFirstLastName ? (
                     <div className="grid gap-4 lg:grid-cols-2">
                       <FormField
                         name="firstName"
@@ -1108,15 +1113,27 @@ export function UserMultiStepForm({
                     title="Personal Details"
                     onEdit={() => setStep(1)}
                     items={
-                      isDistributorCreate
+                      usesFirstLastName
                         ? [
-                            ["Name", `${values.firstName} ${values.lastName}`.trim()],
+                            ["First Name", values.firstName],
+                            ["Last Name", values.lastName],
                             ["Email", values.email],
                             ["Mobile", values.mobile],
-                            [
-                              "Alternate Mobile",
-                              values.alternateMobileNumber,
-                            ],
+                            ...(isDistributorCreate
+                              ? ([
+                                  [
+                                    "Alternate Mobile",
+                                    values.alternateMobileNumber,
+                                  ],
+                                ] as [string, string | undefined][])
+                              : ([
+                                  ["Gender", getGenderLabel(values.gender)],
+                                  ["Date of Birth", values.dateOfBirth],
+                                  [
+                                    "Alternate Mobile",
+                                    values.alternateMobileNumber,
+                                  ],
+                                ] as [string, string | undefined][])),
                           ]
                         : [
                             [
