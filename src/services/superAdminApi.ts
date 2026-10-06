@@ -6,6 +6,7 @@ import {
 import { WALLET_API, SUPER_ADMIN_WALLET_API } from "@/constants/walletApi";
 import { buildWalletTransferPayload, buildWalletDeductPayload } from "@/lib/walletAmount";
 import { normalizeWalletBalanceData } from "@/lib/walletBalance";
+import { normalizeSuperAdminStatistics } from "@/lib/superAdminStatistics";
 import { STORAGE_KEYS } from "@/constants/storage";
 import {
   SuperAdminLoginPayload,
@@ -182,10 +183,10 @@ export async function getDashboard(): Promise<SuperAdminDashboardData> {
 }
 
 export async function getStatistics(): Promise<SuperAdminStatisticsData> {
-  const { data } = await superAdminModuleClient.get<
-    ApiResponse<SuperAdminStatisticsData>
-  >("/statistics");
-  return data.data;
+  const { data } = await superAdminModuleClient.get<ApiResponse<unknown>>(
+    "/statistics"
+  );
+  return normalizeSuperAdminStatistics(data.data);
 }
 
 export async function getWalletBalance(): Promise<WalletBalanceData> {

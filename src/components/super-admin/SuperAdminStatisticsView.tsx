@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   animate,
   motion,
@@ -11,9 +11,12 @@ import {
 import {
   Banknote,
   Building2,
+  CheckCircle2,
   CircleDollarSign,
+  Clock,
   Fingerprint,
   Landmark,
+  Loader,
   QrCode,
   Store,
   Users,
@@ -23,6 +26,7 @@ import {
   ClipboardList,
   TrendingUp,
   Network,
+  XCircle,
   type LucideIcon,
 } from "lucide-react";
 import { StatCard } from "@/components/cards/StatCard";
@@ -33,9 +37,14 @@ import { cn, formatCurrency } from "@/lib/utils";
 import {
   SuperAdminRoleWalletBalances,
   SuperAdminRoleWallets,
-  SuperAdminServiceStats,
   SuperAdminStatisticsData,
 } from "@/types/superAdmin";
+import {
+  aggregateServiceStatus,
+  periodCount,
+  pickServiceStats,
+  serviceStatusCounts,
+} from "@/lib/superAdminStatistics";
 
 function asNumber(value: unknown): number {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -219,20 +228,37 @@ const ROLE_WALLET_CARDS: {
   },
 ];
 
-function pickService(
-  services: Record<string, SuperAdminServiceStats> | undefined,
-  aliases: string[]
-): SuperAdminServiceStats | null {
-  if (!services) return null;
-  const entries = Object.entries(services);
-  for (const alias of aliases) {
-    const match = entries.find(
-      ([key]) => key.toLowerCase() === alias.toLowerCase()
-    );
-    if (match) return match[1];
-  }
-  return null;
-}
+const COMBINED_STATUS_CARDS: {
+  key: "success" | "pending" | "processing" | "failed";
+  label: string;
+  icon: LucideIcon;
+  tone: string;
+}[] = [
+  {
+    key: "success",
+    label: "Success",
+    icon: CheckCircle2,
+    tone: "from-emerald-600 via-emerald-500 to-teal-500",
+  },
+  {
+    key: "pending",
+    label: "Pending",
+    icon: Clock,
+    tone: "from-amber-500 via-orange-400 to-yellow-500",
+  },
+  {
+    key: "processing",
+    label: "Processing",
+    icon: Loader,
+    tone: "from-sky-600 via-blue-500 to-indigo-500",
+  },
+  {
+    key: "failed",
+    label: "Failed",
+    icon: XCircle,
+    tone: "from-rose-600 via-red-500 to-orange-500",
+  },
+];
 
 function pickRoleWallet(
   roleWallets: SuperAdminRoleWallets | undefined,
@@ -281,27 +307,76 @@ function extraRoleFields(
     }));
 }
 
+function StatusChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center justify-between gap-1 rounded-lg px-2 py-1",
+        tone
+      )}
+    >
+      <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/85">
+        {label}
+      </span>
+      <span className="text-xs font-bold text-white">
+        <AnimatedStat value={value} />
+      </span>
+    </div>
+  );
+}
+
 function ServiceMetricRow({
   label,
   business,
-  transactions,
+  success,
+  pending,
+  processing,
+  failed,
 }: {
   label: string;
   business: number;
-  transactions: number;
+  success: number;
+  pending: number;
+  processing: number;
+  failed: number;
 }) {
   return (
     <div className="rounded-xl bg-white/12 px-3 py-2.5 backdrop-blur-sm">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
         {label}
       </p>
-      <div className="mt-1 flex flex-wrap items-end justify-between gap-2">
-        <p className="text-lg font-bold tracking-tight text-white sm:text-xl">
-          <AnimatedStat value={business} money />
-        </p>
-        <p className="rounded-full bg-black/15 px-2.5 py-0.5 text-xs font-semibold text-white">
-          <AnimatedStat value={transactions} /> txn
-        </p>
+      <p className="mt-1 text-lg font-bold tracking-tight text-white sm:text-xl">
+        <AnimatedStat value={business} money />
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <StatusChip
+          label="Success"
+          value={success}
+          tone="bg-emerald-400/25"
+        />
+        <StatusChip
+          label="Pending"
+          value={pending}
+          tone="bg-amber-300/30"
+        />
+        <StatusChip
+          label="Processing"
+          value={processing}
+          tone="bg-sky-300/30"
+        />
+        <StatusChip
+          label="Failed"
+          value={failed}
+          tone="bg-rose-400/35"
+        />
       </div>
     </div>
   );
@@ -338,6 +413,15 @@ export function SuperAdminStatisticsView({
       .filter(Boolean)
       .join(" ");
 
+  const totals = useMemo(
+    () =>
+      aggregateServiceStatus(
+        statistics.services,
+        SERVICE_CARDS.map((service) => service.aliases)
+      ),
+    [statistics.services]
+  );
+
   const cardMotion = (index: number) =>
     reduceMotion
       ? {}
@@ -368,17 +452,84 @@ export function SuperAdminStatisticsView({
 
       <section className="space-y-3">
         <div>
+          <h2 className="text-lg font-bold text-foreground">
+            All service transactions
+          </h2>
+          <p className="text-sm text-muted">
+            Combined DMT + Xpress DMT + DMT3 + AEPS + UPI ATM counts from
+            transaction status.
+          </p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {COMBINED_STATUS_CARDS.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <motion.article
+                key={item.key}
+                {...cardMotion(index)}
+                className={cn(
+                  "relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 text-white shadow-lg",
+                  item.tone
+                )}
+              >
+                <div className="relative z-10">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-medium text-white/80">
+                      {item.label}
+                    </p>
+                    <span className="rounded-xl bg-white/20 p-2.5">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                  </div>
+                  <p className="text-3xl font-bold tracking-tight">
+                    <AnimatedStat
+                      value={asNumber(totals.total[item.key])}
+                    />
+                  </p>
+                  <p className="mt-1 text-xs text-white/75">All time total</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-white/15 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-white/75">
+                        Today
+                      </p>
+                      <p className="text-base font-bold">
+                        <AnimatedStat
+                          value={asNumber(totals.today[item.key])}
+                        />
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-white/15 px-3 py-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-white/75">
+                        This month
+                      </p>
+                      <p className="text-base font-bold">
+                        <AnimatedStat
+                          value={asNumber(totals.monthly[item.key])}
+                        />
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/10" />
+              </motion.article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
           <h2 className="text-lg font-bold text-foreground">Service business</h2>
           <p className="text-sm text-muted">
-            Today business and today success transactions together, plus monthly
-            and all-time totals in Indian Rupees.
+            Today, monthly and all-time business, plus success, pending,
+            processing and failed transactions for each service.
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {SERVICE_CARDS.map((service, index) => {
-            const data = pickService(statistics.services, service.aliases);
+            const data = pickServiceStats(statistics.services, service.aliases);
             const Icon = service.icon;
-            const tx = data?.successTransactions;
+            const status = serviceStatusCounts(data);
             const month = data?.monthLabel || periodLabel || "Current period";
 
             return (
@@ -409,17 +560,26 @@ export function SuperAdminStatisticsView({
                     <ServiceMetricRow
                       label="Today"
                       business={asNumber(data?.todayBusiness)}
-                      transactions={asNumber(tx?.today)}
+                      success={periodCount(status.success, "today")}
+                      pending={periodCount(status.pending, "today")}
+                      processing={periodCount(status.processing, "today")}
+                      failed={periodCount(status.failed, "today")}
                     />
                     <ServiceMetricRow
                       label="This month"
                       business={asNumber(data?.monthlyBusiness)}
-                      transactions={asNumber(tx?.monthly)}
+                      success={periodCount(status.success, "monthly")}
+                      pending={periodCount(status.pending, "monthly")}
+                      processing={periodCount(status.processing, "monthly")}
+                      failed={periodCount(status.failed, "monthly")}
                     />
                     <ServiceMetricRow
                       label="All time"
                       business={asNumber(data?.totalBusiness)}
-                      transactions={asNumber(tx?.total)}
+                      success={periodCount(status.success, "total")}
+                      pending={periodCount(status.pending, "total")}
+                      processing={periodCount(status.processing, "total")}
+                      failed={periodCount(status.failed, "total")}
                     />
                   </div>
                 </div>

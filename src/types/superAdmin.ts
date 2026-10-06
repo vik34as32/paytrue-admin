@@ -185,6 +185,19 @@ export interface SuperAdminServiceTxnCounts {
   total?: number;
 }
 
+export interface SuperAdminTxnStatusBucket {
+  success?: number;
+  failed?: number;
+  pending?: number;
+  processing?: number;
+}
+
+export interface SuperAdminTransactionStatus {
+  today?: SuperAdminTxnStatusBucket;
+  monthly?: SuperAdminTxnStatusBucket;
+  total?: SuperAdminTxnStatusBucket;
+}
+
 export interface SuperAdminServiceStats {
   monthName?: string;
   month?: number;
@@ -194,6 +207,11 @@ export interface SuperAdminServiceStats {
   monthlyBusiness?: number;
   totalBusiness?: number;
   successTransactions?: SuperAdminServiceTxnCounts;
+  failedTransactions?: SuperAdminServiceTxnCounts;
+  pendingTransactions?: SuperAdminServiceTxnCounts;
+  processingTransactions?: SuperAdminServiceTxnCounts;
+  transactionStatus?: SuperAdminTransactionStatus;
+  transactions?: Record<string, SuperAdminServiceTxnCounts | number | undefined>;
 }
 
 export interface SuperAdminRoleWalletBalances {
