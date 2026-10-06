@@ -25,6 +25,7 @@ import {
   enrichStatementRetailer,
   fetchServiceStatement,
   resolveDmtTransactionId,
+  updateDmt2TransactionStatus,
   updateDmt3TransactionStatus,
   updateDmtTransactionStatus,
 } from "@/services/serviceStatementApi";
@@ -40,10 +41,21 @@ const PAGE_SIZE = 20;
 
 const SERVICE_TABS: { key: StatementServiceTab; label: string }[] = [
   { key: "DMT3", label: "DMT3" },
+  { key: "DMT2", label: "Xpress DMT" },
   { key: "DMT", label: "DMT" },
   { key: "UPI", label: "UPI ATM" },
   { key: "AEPS", label: "AEPS" },
 ];
+
+function isDmtPayoutTab(service: StatementServiceTab) {
+  return service === "DMT2" || service === "DMT3";
+}
+
+function statementServiceTitle(service: StatementServiceTab) {
+  if (service === "DMT2") return "Xpress DMT";
+  if (service === "UPI") return "UPI ATM";
+  return service;
+}
 
 const AEPS_SUB_TABS: { key: AepsTxnFilter; label: string }[] = [
   { key: "CASH_WITHDRAWAL", label: "Cash Withdrawal" },
@@ -304,23 +316,29 @@ export function SuperAdminServiceStatementView() {
       if (!statusRow) return;
       setStatusSaving(true);
       try {
-        const isDmt3 =
-          service === "DMT3" ||
-          String(statusRow.service || "").toUpperCase().includes("DMT3");
-        const result = isDmt3
-          ? await updateDmt3TransactionStatus(statusRow.id, {
+        const rowService = String(statusRow.service || "").toUpperCase();
+        const isDmt2 = service === "DMT2" || rowService.includes("DMT2");
+        const isDmt3 = service === "DMT3" || rowService.includes("DMT3");
+        const result = isDmt2
+          ? await updateDmt2TransactionStatus(statusRow.id, {
               status: nextStatus,
               remark,
             })
-          : await updateDmtTransactionStatus(
-              resolveDmtTransactionId(statusRow),
-              { status: nextStatus, remark }
-            );
+          : isDmt3
+            ? await updateDmt3TransactionStatus(statusRow.id, {
+                status: nextStatus,
+                remark,
+              })
+            : await updateDmtTransactionStatus(
+                resolveDmtTransactionId(statusRow),
+                { status: nextStatus, remark }
+              );
         const applied = String(result.status || nextStatus).toUpperCase();
+        const productLabel = isDmt2 ? "Xpress DMT" : isDmt3 ? "DMT3" : "DMT";
         toast.success(
           applied === "FAILED" && result.refundProcessed
             ? `Marked FAILED · refund ${formatCurrency(result.refundAmount || 0)}`
-            : `${isDmt3 ? "DMT3" : "DMT"} status updated to ${applied}`
+            : `${productLabel} status updated to ${applied}`
         );
         setStatusRow(null);
         await load();
@@ -414,6 +432,7 @@ export function SuperAdminServiceStatementView() {
         cell: ({ row }) => {
           const s = String(row.original.service || "").toUpperCase();
           if (s.includes("DMT3")) return "DMT3";
+          if (s.includes("DMT2") || s.includes("XPRESS")) return "Xpress DMT";
           if (s.includes("AEPS")) return "AEPS";
           if (s.includes("DMT")) return "DMT";
           if (s.includes("UPI")) return "UPI ATM";
@@ -585,7 +604,7 @@ export function SuperAdminServiceStatementView() {
       ];
     }
 
-    if (service === "DMT3") {
+    if (isDmtPayoutTab(service)) {
       return [
         {
           id: "dateTime",
@@ -886,7 +905,7 @@ export function SuperAdminServiceStatementView() {
   );
 
   const dmt3Summary = useMemo(() => {
-    if (service !== "DMT3") return null;
+    if (!isDmtPayoutTab(service)) return null;
     let success = 0;
     let failed = 0;
     let refunded = 0;
@@ -980,7 +999,7 @@ export function SuperAdminServiceStatementView() {
       }
       const exportRows = toStatementExportRows(items);
       downloadReportPdf({
-        title: `${service === "UPI" ? "UPI ATM" : service} Statement`,
+        title: `${statementServiceTitle(service)} Statement`,
         subtitle:
           service === "AEPS" && aepsType
             ? aepsType === "CASH_WITHDRAWAL"
@@ -988,7 +1007,9 @@ export function SuperAdminServiceStatementView() {
               : "Cash Deposit"
             : service === "DMT3"
               ? "Finzeng DMT3 payout transactions"
-              : "Service transactions report",
+              : service === "DMT2"
+                ? "Xpress DMT payout transactions"
+                : "Service transactions report",
         filename: reportFilename(`service-statement-${service.toLowerCase()}`),
         columns: Object.keys(exportRows[0] || {}).map((key) => ({
           key,
@@ -1011,7 +1032,7 @@ export function SuperAdminServiceStatementView() {
       <PageHeader
         breadcrumb="Super Admin"
         title="Service Statements"
-        subtitle="Live DMT3 / DMT / UPI ATM / AEPS transaction reports with balances and status."
+        subtitle="Live DMT3 / Xpress DMT / DMT / UPI ATM / AEPS transaction reports with balances and status."
         action={
           <Button
             variant="outline"
@@ -1025,7 +1046,7 @@ export function SuperAdminServiceStatementView() {
         }
       />
 
-      {service === "DMT3" && dmt3Summary ? (
+      {isDmtPayoutTab(service) && dmt3Summary ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <Card className="border-border p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -1105,7 +1126,7 @@ export function SuperAdminServiceStatementView() {
             onChange={(e) => setRetailerId(e.target.value)}
             options={retailers}
           />
-          {service === "DMT3" ? (
+          {isDmtPayoutTab(service) ? (
             <Select
               label="Status"
               value={status}
@@ -1157,7 +1178,7 @@ export function SuperAdminServiceStatementView() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3">
-          {service !== "DMT3" ? (
+          {!isDmtPayoutTab(service) ? (
             <Select
               label="Status"
               value={status}
@@ -1166,9 +1187,9 @@ export function SuperAdminServiceStatementView() {
               className="max-w-[180px]"
             />
           ) : null}
-          <p className={cn("text-sm text-muted", service !== "DMT3" && "pt-6")}>
+          <p className={cn("text-sm text-muted", !isDmtPayoutTab(service) && "pt-6")}>
             <span className="font-semibold text-foreground">
-              {service === "UPI" ? "UPI ATM" : service}
+              {statementServiceTitle(service)}
               {service === "AEPS" && aepsType
                 ? ` · ${aepsType === "CASH_WITHDRAWAL" ? "Cash Withdrawal" : "Cash Deposit"}`
                 : ""}
@@ -1185,7 +1206,9 @@ export function SuperAdminServiceStatementView() {
             <p className="text-sm font-semibold text-foreground">
               {service === "DMT3"
                 ? "DMT3 Payout Transactions"
-                : `${service === "UPI" ? "UPI ATM" : service} Statement`}
+                : service === "DMT2"
+                  ? "Xpress DMT Payout Transactions"
+                  : `${statementServiceTitle(service)} Statement`}
             </p>
             <p className="text-xs text-muted">
               {total.toLocaleString("en-IN")} records · showing{" "}
@@ -1212,7 +1235,7 @@ export function SuperAdminServiceStatementView() {
           minTableWidth={
             service === "AEPS"
               ? 2100
-              : service === "DMT3"
+              : isDmtPayoutTab(service)
                 ? 1720
                 : service === "DMT"
                 ? 1680
@@ -1226,7 +1249,9 @@ export function SuperAdminServiceStatementView() {
       <Dmt3UpdateStatusDialog
         isOpen={Boolean(statusRow)}
         row={statusRow}
-        variant={service === "DMT" ? "DMT" : "DMT3"}
+        variant={
+          service === "DMT" ? "DMT" : service === "DMT2" ? "DMT2" : "DMT3"
+        }
         isSubmitting={statusSaving}
         onClose={() => {
           if (!statusSaving) setStatusRow(null);

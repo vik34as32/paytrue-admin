@@ -164,6 +164,7 @@ function detectService(obj: Record<string, unknown>): string {
     .toUpperCase();
 
   if (blob.includes("DMT3") || blob.includes("FINZENG")) return "DMT3";
+  if (blob.includes("DMT2") || blob.includes("XPRESS")) return "DMT2";
   if (blob.includes("AEPS")) return "AEPS";
   if (blob.includes("DMT")) return "DMT";
   if (blob.includes("UPI")) return "UPI";
@@ -194,8 +195,20 @@ export function rowMatchesService(
       blob.includes("DMT3") || blob.includes("FINZENG") || row.service === "DMT3"
     );
   }
+  if (service === "DMT2") {
+    return (
+      blob.includes("DMT2") ||
+      blob.includes("XPRESS") ||
+      row.service === "DMT2"
+    );
+  }
   if (service === "DMT") {
-    return blob.includes("DMT") && !blob.includes("DMT3");
+    return (
+      blob.includes("DMT") &&
+      !blob.includes("DMT3") &&
+      !blob.includes("DMT2") &&
+      !blob.includes("XPRESS")
+    );
   }
   if (service === "UPI") {
     return blob.includes("UPI") && !blob.includes("AEPS") && !blob.includes("DMT");
@@ -318,8 +331,11 @@ export function normalizeStatementRow(raw: unknown): StatementRow {
   };
 }
 
-/** Map Finzeng / DMT3 admin transaction payload → StatementRow */
-export function normalizeDmt3Transaction(raw: unknown): StatementRow {
+/** Map Xpress DMT2 / Finzeng DMT3 admin transaction payload → StatementRow */
+export function normalizeDmtPayoutTransaction(
+  raw: unknown,
+  service: "DMT2" | "DMT3"
+): StatementRow {
   const obj = asRecord(raw);
   const remitter = asRecord(obj.remitter);
   const beneficiary = asRecord(obj.beneficiary);
@@ -382,15 +398,15 @@ export function normalizeDmt3Transaction(raw: unknown): StatementRow {
   return {
     id: String(obj.id ?? reference),
     ledgerId: String(obj.clientTxnId ?? obj.id ?? reference),
-    service: "DMT3",
-    serviceType: mode || "DMT3",
+    service,
+    serviceType: mode || service,
     ledgerNo: String(obj.clientTxnId ?? reference),
     reference,
     description:
       (obj.remarks as string) ||
       (obj.description as string) ||
-      [mode || "DMT3", beneficiaryName].filter(Boolean).join(" · ") ||
-      "DMT3 payout",
+      [mode || service, beneficiaryName].filter(Boolean).join(" · ") ||
+      `${service} payout`,
     message:
       (obj.failureReason as string) ||
       (obj.providerMessage as string) ||
@@ -437,6 +453,14 @@ export function normalizeDmt3Transaction(raw: unknown): StatementRow {
     createdAt,
     dateTime: formatDateTime(createdAt),
   };
+}
+
+export function normalizeDmt3Transaction(raw: unknown): StatementRow {
+  return normalizeDmtPayoutTransaction(raw, "DMT3");
+}
+
+export function normalizeDmt2Transaction(raw: unknown): StatementRow {
+  return normalizeDmtPayoutTransaction(raw, "DMT2");
 }
 
 /**
@@ -494,15 +518,20 @@ function extractPagination(
   };
 }
 
-async function fetchDmt3AdminStatement(
+async function fetchDmtPayoutAdminStatement(
+  service: "DMT2" | "DMT3",
   params: StatementQueryParams = {}
 ): Promise<StatementListResult> {
   const page = params.page ?? 1;
   const limit = params.limit ?? 20;
+  const path =
+    service === "DMT2"
+      ? "/dmt2/admin/transactions"
+      : "/dmt3/admin/transactions";
 
   const { data } = await superAdminClient.get<
     ApiResponse<unknown> & Record<string, unknown>
-  >("/dmt3/admin/transactions", {
+  >(path, {
     params: {
       page,
       limit,
@@ -526,7 +555,9 @@ async function fetchDmt3AdminStatement(
   // Response shape:
   // { success, message, data: { "0": txn, "1": txn, ... }, pagination: {...} }
   const listPayload = data.data ?? data;
-  const items = extractItems(listPayload).map(normalizeDmt3Transaction);
+  const items = extractItems(listPayload).map((row) =>
+    normalizeDmtPayoutTransaction(row, service)
+  );
   const pagination = extractPagination([data, listPayload], {
     page,
     limit,
@@ -534,7 +565,7 @@ async function fetchDmt3AdminStatement(
   });
 
   return {
-    service: "DMT3",
+    service,
     retailer: null,
     items,
     pagination,
@@ -557,20 +588,44 @@ function dmtStatusBody(payload: Dmt3StatusUpdatePayload): Dmt3StatusUpdatePayloa
   return body;
 }
 
-export async function updateDmt3TransactionStatus(
+async function updateDmtPayoutTransactionStatus(
+  service: "DMT2" | "DMT3",
   transactionId: string,
   payload: Dmt3StatusUpdatePayload
 ): Promise<Dmt3StatusUpdateResult> {
   const id = transactionId.trim();
   if (!UUID_RE.test(id)) {
-    throw new Error("Invalid DMT3 transaction id");
+    throw new Error(
+      service === "DMT2"
+        ? "Invalid Xpress DMT transaction id"
+        : "Invalid DMT3 transaction id"
+    );
   }
+
+  const path =
+    service === "DMT2"
+      ? `/dmt2/admin/transactions/${id}/status`
+      : `/dmt3/admin/transactions/${id}/status`;
 
   const { data } = await superAdminClient.patch<
     ApiResponse<Dmt3StatusUpdateResult>
-  >(`/dmt3/admin/transactions/${id}/status`, dmtStatusBody(payload));
+  >(path, dmtStatusBody(payload));
 
   return (data.data || {}) as Dmt3StatusUpdateResult;
+}
+
+export async function updateDmt3TransactionStatus(
+  transactionId: string,
+  payload: Dmt3StatusUpdatePayload
+): Promise<Dmt3StatusUpdateResult> {
+  return updateDmtPayoutTransactionStatus("DMT3", transactionId, payload);
+}
+
+export async function updateDmt2TransactionStatus(
+  transactionId: string,
+  payload: Dmt3StatusUpdatePayload
+): Promise<Dmt3StatusUpdateResult> {
+  return updateDmtPayoutTransactionStatus("DMT2", transactionId, payload);
 }
 
 export function resolveDmtTransactionId(row: {
@@ -619,7 +674,11 @@ export async function fetchServiceStatement(
   const service = (params.service || "AEPS") as StatementServiceTab;
 
   if (service === "DMT3") {
-    return fetchDmt3AdminStatement(params);
+    return fetchDmtPayoutAdminStatement("DMT3", params);
+  }
+
+  if (service === "DMT2") {
+    return fetchDmtPayoutAdminStatement("DMT2", params);
   }
 
   const retailerId = params.retailerId || undefined;

@@ -1,4 +1,4 @@
-export type StatementServiceTab = "AEPS" | "UPI" | "DMT" | "DMT3";
+export type StatementServiceTab = "AEPS" | "UPI" | "DMT" | "DMT2" | "DMT3";
 
 export type AepsTxnFilter = "CASH_WITHDRAWAL" | "CASH_DEPOSIT" | "";
 
@@ -42,7 +42,7 @@ export interface StatementRow {
   apiReference?: string | null;
   operatorReference?: string | null;
   serviceLabel?: string | null;
-  /** DMT3 payee / beneficiary display name */
+  /** DMT2 / DMT3 payee / beneficiary display name */
   beneficiaryName?: string | null;
   retailer?: StatementRetailer | null;
   retailerId?: string | null;

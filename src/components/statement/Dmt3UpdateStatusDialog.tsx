@@ -16,7 +16,7 @@ const STATUS_OPTIONS = [
 interface Dmt3UpdateStatusDialogProps {
   isOpen: boolean;
   row: StatementRow | null;
-  variant?: "DMT" | "DMT3";
+  variant?: "DMT" | "DMT2" | "DMT3";
   isSubmitting?: boolean;
   onClose: () => void;
   onConfirm: (status: DmtManualStatus, remark?: string) => void | Promise<void>;
@@ -34,8 +34,10 @@ export function Dmt3UpdateStatusDialog({
   const [remark, setRemark] = useState("");
   const [error, setError] = useState("");
   const isDmt = variant === "DMT";
+  const isXpress = variant === "DMT2";
   const remarkMax = isDmt ? 255 : 240;
   const remarkMin = isDmt ? 1 : 3;
+  const productLabel = isDmt ? "DMT" : isXpress ? "Xpress DMT" : "DMT3";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,7 +70,7 @@ export function Dmt3UpdateStatusDialog({
       onClose={() => {
         if (!isSubmitting) onClose();
       }}
-      title={isDmt ? "Change DMT status" : "Change DMT3 status"}
+      title={`Change ${productLabel} status`}
       subtitle="Only PROCESSING transactions can be marked SUCCESS or FAILED."
       size="md"
       footer={
