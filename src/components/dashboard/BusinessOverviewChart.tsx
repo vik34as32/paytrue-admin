@@ -63,7 +63,7 @@ const MONTH_FULL = [
 
 const FALLBACK_SERVICES = [
   { value: "DMT", label: "DMT" },
-  { value: "DMT2", label: "DMT2" },
+  { value: "DMT2", label: "Xpress DMT" },
   { value: "DMT3", label: "DMT3" },
   { value: "AEPS", label: "AEPS" },
   { value: "UPI", label: "UPI ATM" },

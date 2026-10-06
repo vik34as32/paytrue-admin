@@ -41,6 +41,7 @@ export default function SuperAdminStatisticsPage() {
         statistics.transactions ||
         statistics.business ||
         statistics.wallet ||
+        statistics.roleWallets ||
         statistics.fundRequests ||
         statistics.profit)
   );

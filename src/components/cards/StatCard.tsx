@@ -3,7 +3,7 @@ import { HiArrowUp, HiArrowDown } from "react-icons/hi";
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   subtitle?: string;
   gradient: string;
   icon?: React.ReactNode;

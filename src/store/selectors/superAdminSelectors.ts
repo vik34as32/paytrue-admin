@@ -48,6 +48,22 @@ export function flattenStatistics(
     }
   }
 
+  const roleWallets = stats.roleWallets;
+  if (roleWallets && typeof roleWallets === "object") {
+    for (const [role, balances] of Object.entries(roleWallets)) {
+      if (!balances || typeof balances !== "object") continue;
+      for (const [field, value] of Object.entries(balances)) {
+        if (typeof value === "number") {
+          rows.push({
+            section: `${formatBalanceFieldLabel(role)} Wallets`,
+            label: formatBalanceFieldLabel(field),
+            value,
+          });
+        }
+      }
+    }
+  }
+
   if (rows.length === 0) {
     for (const [field, value] of Object.entries(stats)) {
       if (typeof value === "number") {

@@ -8,7 +8,7 @@ export const FINTECH_SERVICES: FintechService[] = [
   { id: "aadhaar_pay", name: "Aadhaar Pay", code: "AADHAAR_PAY", category: "AEPS" },
   { id: "cash_deposit", name: "Cash Deposit", code: "CASH_DEP", category: "Banking" },
   { id: "dmt", name: "DMT", code: "DMT", category: "Money Transfer" },
-  { id: "dmt2", name: "DMT2", code: "DMT2", category: "Money Transfer" },
+  { id: "dmt2", name: "Xpress DMT", code: "DMT2", category: "Money Transfer" },
   { id: "imps", name: "IMPS", code: "IMPS", category: "Money Transfer" },
   { id: "neft", name: "NEFT", code: "NEFT", category: "Money Transfer" },
   { id: "rtgs", name: "RTGS", code: "RTGS", category: "Money Transfer" },

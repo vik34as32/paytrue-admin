@@ -1,7 +1,7 @@
 /** Canonical business report service keys — merge with live Service Master. */
 export const BUSINESS_SERVICE_KEYS = [
   { code: "DMT", label: "DMT" },
-  { code: "DMT2", label: "DMT2" },
+  { code: "DMT2", label: "Xpress DMT" },
   { code: "DMT3", label: "DMT3" },
   { code: "AEPS", label: "AEPS" },
   { code: "UPI", label: "UPI ATM" },

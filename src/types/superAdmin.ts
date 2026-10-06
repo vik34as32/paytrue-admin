@@ -196,11 +196,26 @@ export interface SuperAdminServiceStats {
   successTransactions?: SuperAdminServiceTxnCounts;
 }
 
+export interface SuperAdminRoleWalletBalances {
+  walletBalance?: number;
+  aepsBalance?: number;
+  commissionBalance?: number;
+  [key: string]: number | undefined;
+}
+
+export interface SuperAdminRoleWallets {
+  retailers?: SuperAdminRoleWalletBalances;
+  distributors?: SuperAdminRoleWalletBalances;
+  masterDistributors?: SuperAdminRoleWalletBalances;
+  [key: string]: SuperAdminRoleWalletBalances | undefined;
+}
+
 export interface SuperAdminStatisticsData {
   users?: Record<string, number>;
   transactions?: Record<string, number>;
   business?: Record<string, number>;
   wallet?: Record<string, number>;
+  roleWallets?: SuperAdminRoleWallets;
   fundRequests?: Record<string, number>;
   profit?: Record<string, number>;
   period?: SuperAdminStatisticsPeriod;
